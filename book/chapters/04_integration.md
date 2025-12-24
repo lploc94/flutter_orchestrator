@@ -24,8 +24,7 @@ All of these wrap `BaseOrchestrator` logic and integrate with their respective l
 
 ```yaml
 dependencies:
-  orchestrator_bloc:
-    path: packages/orchestrator_bloc
+  orchestrator_bloc: ^0.0.1
 ```
 
 ### OrchestratorCubit
@@ -81,8 +80,7 @@ class CounterCubit extends OrchestratorCubit<CounterState> {
 
 ```yaml
 dependencies:
-  orchestrator_provider:
-    path: packages/orchestrator_provider
+  orchestrator_provider: ^0.0.1
 ```
 
 ### OrchestratorNotifier
@@ -137,8 +135,7 @@ class CounterNotifier extends OrchestratorNotifier<CounterState> {
 
 ```yaml
 dependencies:
-  orchestrator_riverpod:
-    path: packages/orchestrator_riverpod
+  orchestrator_riverpod: ^0.0.1
 ```
 
 ### OrchestratorNotifier
