@@ -45,8 +45,7 @@ flutter_orchestrator/
 
 ```yaml
 dependencies:
-  orchestrator_bloc:
-    path: packages/orchestrator_bloc
+  orchestrator_bloc: ^0.0.1  # or orchestrator_provider / orchestrator_riverpod
 ```
 
 ### 2. Create Executor
