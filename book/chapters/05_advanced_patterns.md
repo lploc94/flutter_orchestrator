@@ -327,12 +327,12 @@ graph TD
 ```mermaid
 graph TD
     subgraph AuthMod [Auth Module]
-        ABus[Auth Bus Scoped]
+        ABus["Auth Bus (Scoped)"]
         AuthOrc[Auth Orchestrator] <--> ABus
     end
 
     subgraph ChatMod [Chat Module]
-        CBus[Chat Bus Scoped]
+        CBus["Chat Bus (Scoped)"]
         ChatOrc[Chat Orchestrator] <--> CBus
     end
 
