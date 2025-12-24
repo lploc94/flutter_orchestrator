@@ -45,6 +45,7 @@ This book provides a comprehensive path from conceptual thinking to technical im
 - Logging System
 
 ### [Chapter 6: Case Study - AI Chatbot](chapters/06_case_study.md)
+- [07. Best Practices & AI Integration](chapters/07_best_practices.md)
 - Context Enrichment from multiple data sources
 - Chaining Actions (Phase 1 → Phase 2)
 - Streaming Response

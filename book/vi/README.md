@@ -46,8 +46,16 @@ Cuốn sách này cung cấp một lộ trình từ tư duy đến triển khai 
 - Progress Reporting
 - Logging System
 
-### [Chương 6: Case Study - AI Chatbot](chapters/06_case_study.md)
+### [Chương 6: Case Study (Thực hành)](chapters/06_case_study.md)
 - Context Enrichment từ nhiều nguồn dữ liệu
+- Chaining Actions (Phase 1 → Phase 2)
+- Streaming Response
+- Security Analysis
+
+### [Chương 7: Best Practices & Hướng dẫn cho AI](chapters/07_best_practices.md)
+- Quy tắc Vàng (Nên & Không nên)
+- Cấu trúc thư mục chuẩn
+- **AI System Prompts** (Dành cho Agent)
 - Chaining Actions (Phase 1 → Phase 2)
 - Streaming Response
 - Security Analysis
