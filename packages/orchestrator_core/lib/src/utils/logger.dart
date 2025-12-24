@@ -59,6 +59,10 @@ class NoOpLogger extends OrchestratorLogger {
 class OrchestratorConfig {
   static OrchestratorLogger _logger = NoOpLogger();
 
+  /// Maximum events processed per second before triggering Circuit Breaker.
+  /// Default: 50. Set to higher value for high-frequency apps (e.g. 100).
+  static int maxEventsPerSecond = 50;
+
   static OrchestratorLogger get logger => _logger;
 
   static void setLogger(OrchestratorLogger logger) {

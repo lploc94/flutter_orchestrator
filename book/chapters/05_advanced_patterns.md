@@ -297,7 +297,30 @@ class NoOpLogger extends OrchestratorLogger {
 
 ---
 
-## 5.6. Summary
+## 5.7. Safety Mechanisms
+
+To prevent application crashes and infinite loops, the core framework includes built-in safety mechanisms.
+
+### Circuit Breaker (Loop Protection)
+
+The framework automatically detects if an Orchestrator processes too many events in a short period (Infinite Loop).
+
+- **Default Limit**: 50 events/second.
+- **Behavior**: Stops processing events and logs an error to `OrchestratorLogger`.
+- **Configuration**:
+
+```dart
+// Increase limit for high-frequency apps
+OrchestratorConfig.maxEventsPerSecond = 100;
+```
+
+### Type Safety Isolation
+
+All event handlers (`onActiveSuccess`, `onPassiveEvent`, etc.) are wrapped in a `try-catch` block. If a developer makes a type casting error (e.g., `event.data as int`) or runtime error, the app **will NOT crash**. instead, the error is caught and logged.
+
+---
+
+## 5.8. Summary
 
 With these advanced features, the framework meets Production-Ready requirements:
 

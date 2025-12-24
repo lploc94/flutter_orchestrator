@@ -344,7 +344,32 @@ class OrchestratorConfig {
 
 ---
 
-## 5.6. Tổng kết
+---
+
+## 5.7. Cơ chế An toàn (Safety Mechanisms)
+
+Để ngăn chặn app bị crash hoặc rơi vào vòng lặp vô tận, framework tích hợp sẵn các cơ chế bảo vệ.
+
+### Circuit Breaker (Chống vòng lặp)
+
+Framework tự động phát hiện nếu một Orchestrator xử lý quá nhiều event trong thời gian ngắn (Infinite Loop).
+
+- **Giới hạn mặc định**: 50 events/giây.
+- **Hành vi**: Ngừng xử lý event và log lỗi vào `OrchestratorLogger`.
+- **Cấu hình**:
+
+```dart
+// Tăng giới hạn cho các app tần suất cao
+OrchestratorConfig.maxEventsPerSecond = 100;
+```
+
+### Type Safety Isolation (Cô lập lỗi)
+
+Tất cả các hàm xử lý event (`onActiveSuccess`, `onPassiveEvent`,...) đều được bọc trong khối `try-catch`. Nếu developer cast sai kiểu dữ liệu (ví dụ: `event.data as int`) hoặc gặp lỗi runtime, app sẽ **KHÔNG bị crash**, thay vào đó lỗi sẽ được bắt và log lại.
+
+---
+
+## 5.8. Tổng kết
 
 Với các tính năng nâng cao trên, framework đã đáp ứng đầy đủ yêu cầu Production-Ready:
 

@@ -82,40 +82,80 @@ abstract class BaseOrchestrator<S> {
     _busSubscription = _bus.stream.listen(_routeEvent);
   }
 
+  // Safety: Loop Detection
+  final Map<Type, int> _eventTypeCounts = {};
+  DateTime _lastEventTime = DateTime.now();
+
   void _routeEvent(BaseEvent event) {
-    final isActive = _activeJobIds.contains(event.correlationId);
+    // 1. Smart Circuit Breaker (Loop Protection by Type)
+    final now = DateTime.now();
+    if (now.difference(_lastEventTime).inSeconds >= 1) {
+      _eventTypeCounts.clear();
+      _lastEventTime = now;
+    }
 
-    // Handle progress updates
-    if (event is JobProgressEvent) {
-      _jobProgress[event.correlationId] = event.progress;
+    final type = event.runtimeType;
+    final currentCount = (_eventTypeCounts[type] ?? 0) + 1;
+    _eventTypeCounts[type] = currentCount;
+
+    if (currentCount > OrchestratorConfig.maxEventsPerSecond) {
+      // Only log once per second per type to avoid spamming
+      if (currentCount == OrchestratorConfig.maxEventsPerSecond + 1) {
+        OrchestratorConfig.logger.error(
+          'Circuit Breaker: Event $type exceeded limit (${currentCount}/s). '
+          'Blocking this specific event type to prevent infinite loop. '
+          'Other events are unaffected.',
+          Exception('Infinite Loop Detected for $type'),
+          StackTrace.current,
+        );
+      }
+      return; // Block ONLY this specific event type
+    }
+
+    try {
+      // Re-use existing logic inside try-catch block for Type Safety
+      final isActive = _activeJobIds.contains(event.correlationId);
+
+      // Handle progress updates
+      if (event is JobProgressEvent) {
+        _jobProgress[event.correlationId] = event.progress;
+        if (isActive) {
+          onProgress(event);
+        }
+        return;
+      }
+
+      // Handle job lifecycle events
+      if (event is JobStartedEvent) {
+        if (isActive) onJobStarted(event);
+        return;
+      }
+
+      if (event is JobRetryingEvent) {
+        if (isActive) onJobRetrying(event);
+        return;
+      }
+
+      // Route result events
       if (isActive) {
-        onProgress(event);
+        _handleActiveEvent(event);
+
+        // Clean up tracking for terminal events
+        if (_isTerminalEvent(event)) {
+          _activeJobIds.remove(event.correlationId);
+          _jobProgress.remove(event.correlationId);
+        }
+      } else {
+        _handlePassiveEvent(event);
       }
-      return;
-    }
-
-    // Handle job lifecycle events
-    if (event is JobStartedEvent) {
-      if (isActive) onJobStarted(event);
-      return;
-    }
-
-    if (event is JobRetryingEvent) {
-      if (isActive) onJobRetrying(event);
-      return;
-    }
-
-    // Route result events
-    if (isActive) {
-      _handleActiveEvent(event);
-
-      // Clean up tracking for terminal events
-      if (_isTerminalEvent(event)) {
-        _activeJobIds.remove(event.correlationId);
-        _jobProgress.remove(event.correlationId);
-      }
-    } else {
-      _handlePassiveEvent(event);
+    } catch (e, stack) {
+      // 2. Safety Type Check & Error Isolation
+      OrchestratorConfig.logger.error(
+        'Error handling event ${event.runtimeType} in $runtimeType. '
+        'This prevents the app from crashing due to logical errors in subscribers.',
+        e,
+        stack,
+      );
     }
   }
 
