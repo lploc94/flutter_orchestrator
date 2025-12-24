@@ -1,39 +1,67 @@
-<!-- 
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# orchestrator_core
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages). 
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages). 
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+Event-Driven Orchestrator architecture for Dart/Flutter applications. Separate UI state management from business logic execution.
 
 ## Features
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- **SignalBus**: Singleton broadcast stream for event communication
+- **Dispatcher**: Type-based job routing with O(1) lookup
+- **BaseExecutor**: Abstract executor with error boundary, timeout, retry, cancellation
+- **BaseOrchestrator**: State machine with Active/Passive event routing
+- **CancellationToken**: Token-based task cancellation
+- **RetryPolicy**: Configurable retry with exponential backoff
 
-## Getting started
+## Installation
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder. 
-
-```dart
-const like = 'sample';
+```yaml
+dependencies:
+  orchestrator_core: ^0.0.1
 ```
 
-## Additional information
+## Quick Start
 
-TODO: Tell users more about the package: where to find more information, how to 
-contribute to the package, how to file issues, what response they can expect 
-from the package authors, and more.
+### 1. Define a Job
+
+```dart
+class FetchUserJob extends BaseJob {
+  final String userId;
+  FetchUserJob(this.userId) : super(id: generateJobId('user'));
+}
+```
+
+### 2. Create an Executor
+
+```dart
+class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
+  @override
+  Future<dynamic> process(FetchUserJob job) async {
+    return await api.getUser(job.userId);
+  }
+}
+```
+
+### 3. Create an Orchestrator
+
+```dart
+class UserOrchestrator extends BaseOrchestrator<UserState> {
+  UserOrchestrator() : super(const UserState());
+
+  void loadUser(String id) {
+    emit(state.copyWith(isLoading: true));
+    dispatch(FetchUserJob(id));
+  }
+
+  @override
+  void onActiveSuccess(JobSuccessEvent event) {
+    emit(state.copyWith(user: event.data, isLoading: false));
+  }
+}
+```
+
+## Documentation
+
+See the full [documentation](https://github.com/lploc94/flutter_orchestrator/tree/main/book).
+
+## License
+
+MIT License
