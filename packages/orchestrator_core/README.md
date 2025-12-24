@@ -4,7 +4,7 @@ Event-Driven Orchestrator architecture for Dart/Flutter applications. Separate U
 
 ## Features
 
-- **SignalBus**: Singleton broadcast stream for event communication
+- **SignalBus**: Broadcast stream for event communication (Global or Scoped)
 - **Dispatcher**: Type-based job routing with O(1) lookup
 - **BaseExecutor**: Abstract executor with error boundary, timeout, retry, cancellation
 - **BaseOrchestrator**: State machine with Active/Passive event routing
@@ -15,7 +15,7 @@ Event-Driven Orchestrator architecture for Dart/Flutter applications. Separate U
 
 ```yaml
 dependencies:
-  orchestrator_core: ^0.0.1
+  orchestrator_core: ^0.0.3
 ```
 
 ## Quick Start

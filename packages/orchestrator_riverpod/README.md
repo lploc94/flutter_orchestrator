@@ -12,7 +12,7 @@ Riverpod integration for orchestrator_core. Build scalable Flutter apps with Eve
 
 ```yaml
 dependencies:
-  orchestrator_riverpod: ^0.0.1
+  orchestrator_riverpod: ^0.0.3
 ```
 
 ## Usage

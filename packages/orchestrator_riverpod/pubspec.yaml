@@ -2,7 +2,7 @@ name: orchestrator_riverpod
 description: >-
   Riverpod integration for orchestrator_core. Build scalable Flutter apps 
   with Event-Driven Orchestrator pattern and compile-time safety.
-version: 0.0.1
+version: 0.0.3
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
@@ -22,7 +22,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.0.0
-  orchestrator_core: ^0.0.1
+  orchestrator_core: ^0.0.3
 
 dev_dependencies:
   flutter_test:
