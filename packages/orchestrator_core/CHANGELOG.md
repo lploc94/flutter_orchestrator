@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.3] - 2024-12-24
+
+### Architecture (Scoped Bus)
+- **New**: Support **Scoped Bus** for isolated module communication.
+  - Create isolated bus: `SignalBus.scoped()`.
+  - Access global bus: `SignalBus.instance`.
+  - Inject bus into Orchestrator: `MyOrchestrator(bus: myScopedBus)`.
+- **Breaking Change**: `BaseJob` is no longer `const` / `@immutable`.
+  - Added `SignalBus? bus` field to `BaseJob` for explicit context tracking.
+  - This allows Executors to automatically route events to the correct bus without hidden magic.
+- **Improved**: `BaseExecutor` now dynamically resolves the target bus based on the Job's context.
+
 ## [0.0.2] - 2024-12-24
 
 ### Added
