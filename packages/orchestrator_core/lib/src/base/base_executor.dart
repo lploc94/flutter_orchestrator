@@ -14,7 +14,11 @@ import '../utils/logger.dart';
 /// - Cancellation support
 /// - Progress reporting
 abstract class BaseExecutor<T extends BaseJob> {
-  final SignalBus _bus = SignalBus();
+  /// Map tracking active jobs to their respective buses (Scoped or Global).
+  final Map<String, SignalBus> _activeBus = {};
+
+  /// Global fallback.
+  SignalBus get _globalBus => SignalBus.instance;
 
   /// The main entry point for processing.
   /// Subclasses implement this with actual logic.
@@ -29,8 +33,13 @@ abstract class BaseExecutor<T extends BaseJob> {
     final log = OrchestratorConfig.logger;
     log.debug('Executor starting job: ${job.id}');
 
+    // Determine target bus for this job
+    // job.bus is set explicitly by Orchestrator
+    final bus = job.bus ?? _globalBus;
+    _activeBus[job.id] = bus;
+
     // Emit started event
-    _bus.emit(JobStartedEvent(job.id));
+    bus.emit(JobStartedEvent(job.id));
 
     try {
       // Check cancellation before starting
@@ -54,7 +63,8 @@ abstract class BaseExecutor<T extends BaseJob> {
             log.warning(
               'Job ${job.id} timed out after ${job.timeout!.inSeconds}s',
             );
-            _bus.emit(JobTimeoutEvent(job.id, job.timeout!));
+            final b = _activeBus[job.id] ?? _globalBus;
+            b.emit(JobTimeoutEvent(job.id, job.timeout!));
             throw TimeoutException('Job timed out', job.timeout);
           },
         );
@@ -64,7 +74,8 @@ abstract class BaseExecutor<T extends BaseJob> {
       if (job.cancellationToken != null) {
         job.cancellationToken!.onCancel(() {
           log.info('Job ${job.id} was cancelled');
-          _bus.emit(JobCancelledEvent(job.id));
+          final b = _activeBus[job.id] ?? _globalBus;
+          b.emit(JobCancelledEvent(job.id));
         });
       }
 
@@ -85,6 +96,9 @@ abstract class BaseExecutor<T extends BaseJob> {
     } catch (e, stack) {
       log.error('Job ${job.id} failed', e, stack);
       emitFailure(job.id, e, stack);
+    } finally {
+      // Cleanup bus tracking
+      _activeBus.remove(job.id);
     }
   }
 
@@ -107,7 +121,9 @@ abstract class BaseExecutor<T extends BaseJob> {
 
         if (!policy.canRetry(e, attempt)) {
           log.warning('Job ${job.id} failed after ${attempt + 1} attempts');
-          _bus.emit(JobFailureEvent(job.id, e, null, true));
+          // Use active bus if available, else global
+          final bus = _activeBus[job.id] ?? _globalBus;
+          bus.emit(JobFailureEvent(job.id, e, null, true));
           rethrow;
         }
 
@@ -116,7 +132,8 @@ abstract class BaseExecutor<T extends BaseJob> {
           'Job ${job.id} retrying (${attempt + 1}/${policy.maxRetries}) after ${delay.inSeconds}s',
         );
 
-        _bus.emit(
+        final bus = _activeBus[job.id] ?? _globalBus;
+        bus.emit(
           JobRetryingEvent(
             job.id,
             attempt: attempt + 1,
@@ -134,12 +151,14 @@ abstract class BaseExecutor<T extends BaseJob> {
 
   /// Emit success result.
   void emitResult<R>(String correlationId, R data) {
-    _bus.emit(JobSuccessEvent<R>(correlationId, data));
+    final bus = _activeBus[correlationId] ?? _globalBus;
+    bus.emit(JobSuccessEvent<R>(correlationId, data));
   }
 
   /// Emit failure.
   void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
-    _bus.emit(JobFailureEvent(correlationId, error, stack));
+    final bus = _activeBus[correlationId] ?? _globalBus;
+    bus.emit(JobFailureEvent(correlationId, error, stack));
   }
 
   /// Emit progress update (for long-running tasks).
@@ -150,7 +169,8 @@ abstract class BaseExecutor<T extends BaseJob> {
     int? currentStep,
     int? totalSteps,
   }) {
-    _bus.emit(
+    final bus = _activeBus[correlationId] ?? _globalBus;
+    bus.emit(
       JobProgressEvent(
         correlationId,
         progress: progress,
@@ -162,7 +182,10 @@ abstract class BaseExecutor<T extends BaseJob> {
   }
 
   /// Emit any custom event.
+  /// Note: Without correlationId, we default to Global Bus unless specified.
+  /// Ideally Pass correlationId if you want event scoped.
   void emit(BaseEvent event) {
-    _bus.emit(event);
+    final bus = _activeBus[event.correlationId] ?? _globalBus;
+    bus.emit(event);
   }
 }

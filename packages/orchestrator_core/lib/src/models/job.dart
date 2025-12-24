@@ -1,10 +1,9 @@
-import 'package:meta/meta.dart';
 import '../utils/cancellation_token.dart';
 import '../utils/retry_policy.dart';
+import '../infra/signal_bus.dart';
 
 /// Base class for all Jobs (Commands/Intents) in the system.
 /// A Job represents a "Packet of Work" sent from Orchestrator to Executor.
-@immutable
 abstract class BaseJob {
   /// Unique ID to track this specific job instance (Correlation ID).
   final String id;
@@ -21,7 +20,11 @@ abstract class BaseJob {
   /// Optional metadata.
   final Map<String, dynamic>? metadata;
 
-  const BaseJob({
+  /// Context: The bus instance this job belongs to.
+  /// Set by Orchestrator before dispatching.
+  SignalBus? bus;
+
+  BaseJob({
     required this.id,
     this.timeout,
     this.cancellationToken,

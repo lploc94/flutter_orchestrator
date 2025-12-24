@@ -10,7 +10,16 @@ import '../models/event.dart';
 class SignalBus {
   // Singleton Pattern
   static final SignalBus _instance = SignalBus._internal();
+
+  /// Get the global singleton instance.
+  static SignalBus get instance => _instance;
+
+  /// Default constructor returns the global instance (Backward Compatibility).
   factory SignalBus() => _instance;
+
+  /// Create a new scoped bus instance (Isolated).
+  factory SignalBus.scoped() => SignalBus._internal();
+
   SignalBus._internal();
 
   final _controller = StreamController<BaseEvent>.broadcast();

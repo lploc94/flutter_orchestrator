@@ -16,7 +16,7 @@ import '../utils/logger.dart';
 abstract class BaseOrchestrator<S> {
   S _state;
   final StreamController<S> _stateController = StreamController<S>.broadcast();
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus;
   final Dispatcher _dispatcher = Dispatcher();
 
   /// Active transactions tracking (Jobs this orchestrator owns).
@@ -29,7 +29,8 @@ abstract class BaseOrchestrator<S> {
   /// Bus subscription.
   StreamSubscription? _busSubscription;
 
-  BaseOrchestrator(this._state) {
+  BaseOrchestrator(this._state, {SignalBus? bus})
+      : _bus = bus ?? SignalBus.instance {
     _stateController.add(_state);
     _subscribeToBus();
   }
@@ -67,7 +68,11 @@ abstract class BaseOrchestrator<S> {
   @protected
   String dispatch(BaseJob job) {
     final log = OrchestratorConfig.logger;
-    log.debug('Orchestrator dispatching job: ${job.id}');
+    log.debug(
+        'Orchestrator dispatching job: ${job.id} (Bus: ${_bus == SignalBus.instance ? "Global" : "Scoped"})');
+
+    // Attach current bus to job context for Executor to use
+    job.bus = _bus;
 
     final id = _dispatcher.dispatch(job);
     _activeJobIds.add(id);
