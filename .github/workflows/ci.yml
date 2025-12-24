@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-core:
+    name: Test orchestrator_core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      
+      - name: Install dependencies
+        working-directory: packages/orchestrator_core
+        run: dart pub get
+      
+      - name: Analyze
+        working-directory: packages/orchestrator_core
+        run: dart analyze --fatal-infos
+      
+      - name: Run tests
+        working-directory: packages/orchestrator_core
+        run: dart test
+
+  test-bloc:
+    name: Test orchestrator_bloc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      
+      - name: Install dependencies
+        working-directory: packages/orchestrator_bloc
+        run: flutter pub get
+      
+      - name: Analyze
+        working-directory: packages/orchestrator_bloc
+        run: flutter analyze
+      
+      - name: Run tests
+        working-directory: packages/orchestrator_bloc
+        run: flutter test
+
+  test-provider:
+    name: Test orchestrator_provider
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      
+      - name: Install dependencies
+        working-directory: packages/orchestrator_provider
+        run: flutter pub get
+      
+      - name: Analyze
+        working-directory: packages/orchestrator_provider
+        run: flutter analyze
+      
+      - name: Run tests
+        working-directory: packages/orchestrator_provider
+        run: flutter test
+
+  test-riverpod:
+    name: Test orchestrator_riverpod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      
+      - name: Install dependencies
+        working-directory: packages/orchestrator_riverpod
+        run: flutter pub get
+      
+      - name: Analyze
+        working-directory: packages/orchestrator_riverpod
+        run: flutter analyze
+      
+      - name: Run tests
+        working-directory: packages/orchestrator_riverpod
+        run: flutter test
