@@ -2,22 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.0.3] - 2024-12-24
-
-### Improved
-#### Packages
-- **orchestrator_core**: v0.0.3
-  - **Smart Circuit Breaker**: Blocks only looping event types, allows other events to pass.
-  - Self-healing every 1s.
-
 ## [0.0.2] - 2024-12-24
 
 ### Added
-#### Packages
-- **orchestrator_core**: v0.0.2
-  - Circuit Breaker (Loop Protection)
-  - Type Safety Isolation (try-catch in event handlers)
-  - `OrchestratorConfig.maxEventsPerSecond`
+- **Safety**: Smart Circuit Breaker (Loop Protection by Event Type)
+  - Prevent infinite loops by blocking specific looping events
+  - Default limit: 50 events/sec (configurable globally)
+  - **New**: Support per-type limit override via `OrchestratorConfig.setTypeLimit<T>(limit)`
+  - Self-healing every 1 second
+- **Safety**: Type Safety Isolation (try-catch in event handlers)
+- **Config**: Added `OrchestratorConfig.maxEventsPerSecond`
 
 ## [0.0.1] - 2024-12-24
 

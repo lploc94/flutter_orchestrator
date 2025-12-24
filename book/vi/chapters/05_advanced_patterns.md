@@ -359,13 +359,41 @@ Framework tự động phát hiện nếu một Orchestrator xử lý quá nhi�
 - **Cấu hình**:
 
 ```dart
-// Tăng giới hạn cho các app tần suất cao
+// 1. Giới hạn chung (áp dụng cho tất cả event)
 OrchestratorConfig.maxEventsPerSecond = 100;
+
+// 2. Giới hạn riêng cho từng loại (ví dụ: sự kiện di chuyển chuột liên tục)
+OrchestratorConfig.setTypeLimit<MouseMovementEvent>(500);
 ```
 
 ### Type Safety Isolation (Cô lập lỗi)
 
-Tất cả các hàm xử lý event (`onActiveSuccess`, `onPassiveEvent`,...) đều được bọc trong khối `try-catch`. Nếu developer cast sai kiểu dữ liệu (ví dụ: `event.data as int`) hoặc gặp lỗi runtime, app sẽ **KHÔNG bị crash**, thay vào đó lỗi sẽ được bắt và log lại.
+Tất cả các hàm xử lý event đều được bọc trong khối `try-catch`.
+
+#### Safe Data Casting (Ép kiểu an toàn)
+Để tránh lỗi runtime khi ép kiểu dữ liệu event, hãy sử dụng `dataAs<T>()`:
+
+```dart
+@override
+void onActiveSuccess(JobSuccessEvent event) {
+  // Trả về 'User?' (null nếu sai kiểu), thay vì crash ứng dụng
+  final user = event.dataAs<User>(); 
+  if (user != null) {
+    emit(state.copyWith(user: user));
+  }
+}
+```
+
+### Ngăn chặn Race Condition ở UI
+
+Khi nhiều job chạy song song, việc chỉ check `isLoading` chung chung rất rủi ro. Hãy dùng `isJobTypeRunning<T>` để cập nhật UI chính xác:
+
+```dart
+// Kiểm tra trạng thái job cụ thể
+if (isJobTypeRunning<FetchUserJob>() && !isJobTypeRunning<LogoutJob>()) {
+  emit(state.copyWith(isLoading: false));
+}
+```
 
 ---
 

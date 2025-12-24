@@ -1,3 +1,5 @@
+import '../models/event.dart';
+
 /// Logging levels for the Orchestrator system.
 enum LogLevel { debug, info, warning, error }
 
@@ -62,6 +64,19 @@ class OrchestratorConfig {
   /// Maximum events processed per second before triggering Circuit Breaker.
   /// Default: 50. Set to higher value for high-frequency apps (e.g. 100).
   static int maxEventsPerSecond = 50;
+
+  static final Map<Type, int> _typeLimits = {};
+
+  /// Set specific limit for an Event Type.
+  /// Example: `OrchestratorConfig.setTypeLimit<MyHighFreqEvent>(1000);`
+  static void setTypeLimit<T extends BaseEvent>(int limit) {
+    _typeLimits[T] = limit;
+  }
+
+  /// Get limit for a specific type (or default if not set).
+  static int getLimit(Type type) {
+    return _typeLimits[type] ?? maxEventsPerSecond;
+  }
 
   static OrchestratorLogger get logger => _logger;
 

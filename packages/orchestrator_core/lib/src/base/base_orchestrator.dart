@@ -21,6 +21,7 @@ abstract class BaseOrchestrator<S> {
 
   /// Active transactions tracking (Jobs this orchestrator owns).
   final Set<String> _activeJobIds = {};
+  final Map<String, Type> _activeJobTypes = {};
 
   /// Progress tracking for active jobs.
   final Map<String, double> _jobProgress = {};
@@ -42,6 +43,15 @@ abstract class BaseOrchestrator<S> {
   /// Check if any job is currently running.
   bool get hasActiveJobs => _activeJobIds.isNotEmpty;
 
+  /// Check if a specific job ID is running.
+  bool isJobRunning(String jobId) => _activeJobIds.contains(jobId);
+
+  /// Check if any job of type [T] is running.
+  /// Useful for UI to show specific loading indicators.
+  bool isJobTypeRunning<T extends BaseJob>() {
+    return _activeJobTypes.values.contains(T);
+  }
+
   /// Get progress for a specific job (0.0 to 1.0).
   double? getJobProgress(String jobId) => _jobProgress[jobId];
 
@@ -61,6 +71,7 @@ abstract class BaseOrchestrator<S> {
 
     final id = _dispatcher.dispatch(job);
     _activeJobIds.add(id);
+    _activeJobTypes[id] = job.runtimeType;
     _jobProgress[id] = 0.0;
 
     return id;
@@ -72,6 +83,7 @@ abstract class BaseOrchestrator<S> {
     // Note: Actual cancellation depends on the job having a CancellationToken.
     // This just cleans up tracking on the orchestrator side.
     _activeJobIds.remove(jobId);
+    _activeJobTypes.remove(jobId);
     _jobProgress.remove(jobId);
     OrchestratorConfig.logger.info(
       'Orchestrator cancelled tracking for job: $jobId',
@@ -98,11 +110,13 @@ abstract class BaseOrchestrator<S> {
     final currentCount = (_eventTypeCounts[type] ?? 0) + 1;
     _eventTypeCounts[type] = currentCount;
 
-    if (currentCount > OrchestratorConfig.maxEventsPerSecond) {
+    final limit = OrchestratorConfig.getLimit(type);
+
+    if (currentCount > limit) {
       // Only log once per second per type to avoid spamming
-      if (currentCount == OrchestratorConfig.maxEventsPerSecond + 1) {
+      if (currentCount == limit + 1) {
         OrchestratorConfig.logger.error(
-          'Circuit Breaker: Event $type exceeded limit (${currentCount}/s). '
+          'Circuit Breaker: Event $type exceeded limit ($currentCount/s > $limit). '
           'Blocking this specific event type to prevent infinite loop. '
           'Other events are unaffected.',
           Exception('Infinite Loop Detected for $type'),
@@ -143,6 +157,7 @@ abstract class BaseOrchestrator<S> {
         // Clean up tracking for terminal events
         if (_isTerminalEvent(event)) {
           _activeJobIds.remove(event.correlationId);
+          _activeJobTypes.remove(event.correlationId);
           _jobProgress.remove(event.correlationId);
         }
       } else {

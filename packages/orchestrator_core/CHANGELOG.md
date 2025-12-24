@@ -2,19 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.0.3] - 2024-12-24
-
-### Improved
-- **Smart Circuit Breaker**: Now counts events **by Type** instead of globally.
-  - If `EventA` loops -> Blocks only `EventA`.
-  - `EventB` (unrelated) continues to work normally.
-  - Self-healing: Resets every 1 second.
-
 ## [0.0.2] - 2024-12-24
 
 ### Added
-- **Safety**: Circuit Breaker (Loop Protection) to prevent infinite loops (max 50 events/sec by default)
-- **Safety**: Type Safety Isolation - catch errors in event handlers to prevent app crash
+- **Safety**: Smart Circuit Breaker (Loop Protection by Event Type)
+  - Prevent infinite loops by blocking specific looping events
+  - Default limit: 50 events/sec (configurable globally)
+  - **New**: Support per-type limit override via `OrchestratorConfig.setTypeLimit<T>(limit)`
+  - Self-healing every 1 second
+- **Safety**: Type Safety Isolation (try-catch in event handlers)
+- **Safety / Casting**: `JobSuccessEvent.dataAs<T>()` for safe data casting
+- **UI Helper**: `BaseOrchestrator.isJobTypeRunning<T>()` to prevent UI race conditions
 - **Config**: Added `OrchestratorConfig.maxEventsPerSecond`
 
 ## [0.0.1] - 2024-12-24

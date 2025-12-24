@@ -23,6 +23,14 @@ class JobSuccessEvent<T> extends BaseEvent {
   final T data;
   JobSuccessEvent(super.correlationId, this.data);
 
+  /// Safe cast helper.
+  /// Returns [data] as [R] if type matches, otherwise returns null.
+  /// Avoids runtime exceptions when casting generic data.
+  R? dataAs<R>() {
+    if (data is R) return data as R;
+    return null;
+  }
+
   @override
   String toString() => 'JobSuccessEvent(id: $correlationId, data: $data)';
 }

@@ -310,13 +310,41 @@ The framework automatically detects if an Orchestrator processes too many events
 - **Configuration**:
 
 ```dart
-// Increase limit for high-frequency apps
+// 1. Global limit (applies to all events)
 OrchestratorConfig.maxEventsPerSecond = 100;
+
+// 2. Specific limit override (e.g., for high-frequency sensor data)
+OrchestratorConfig.setTypeLimit<MouseMovementEvent>(500);
 ```
 
 ### Type Safety Isolation
 
-All event handlers (`onActiveSuccess`, `onPassiveEvent`, etc.) are wrapped in a `try-catch` block. If a developer makes a type casting error (e.g., `event.data as int`) or runtime error, the app **will NOT crash**. instead, the error is caught and logged.
+All event handlers (`onActiveSuccess`, `onPassiveEvent`, etc.) are wrapped in a `try-catch` block.
+
+#### Safe Data Casting
+To avoid runtime exceptions when casting event data, use `dataAs<T>()`:
+
+```dart
+@override
+void onActiveSuccess(JobSuccessEvent event) {
+  // Returns 'User?' (null if type mismatch), instead of crashing
+  final user = event.dataAs<User>(); 
+  if (user != null) {
+    emit(state.copyWith(user: user));
+  }
+}
+```
+
+### Preventing UI Race Conditions
+
+When multiple jobs run in parallel, checking simple `isLoading` can be risky. Use `isJobTypeRunning<T>` for precise UI updates:
+
+```dart
+// Check valid state before emitting
+if (isJobTypeRunning<FetchUserJob>() && !isJobTypeRunning<LogoutJob>()) {
+  emit(state.copyWith(isLoading: false));
+}
+```
 
 ---
 
