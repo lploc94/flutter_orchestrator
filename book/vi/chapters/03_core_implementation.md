@@ -14,9 +14,10 @@ Lớp cơ sở cho tất cả các yêu cầu công việc trong hệ thống. T
 
 ```dart
 // lib/src/models/job.dart
-import 'package:meta/meta.dart';
+import '../utils/cancellation_token.dart';
+import '../utils/retry_policy.dart';
+import '../infra/signal_bus.dart';
 
-@immutable
 abstract class BaseJob {
   /// Định danh duy nhất cho giao dịch (Correlation ID)
   final String id;
@@ -24,7 +25,10 @@ abstract class BaseJob {
   /// Metadata tùy chọn
   final Map<String, dynamic>? metadata;
 
-  const BaseJob({required this.id, this.metadata});
+  /// Context: Bus mà job này thuộc về
+  SignalBus? bus;
+
+  BaseJob({required this.id, this.metadata});
   
   @override
   String toString() => '$runtimeType(id: $id)';
@@ -81,7 +85,16 @@ import 'dart:async';
 
 class SignalBus {
   static final SignalBus _instance = SignalBus._internal();
+  
+  /// Factory mặc định trả về Global Singleton
   factory SignalBus() => _instance;
+
+  /// Global singleton instance
+  static SignalBus get instance => _instance;
+
+  /// Tạo một bus cô lập mới
+  factory SignalBus.scoped() => SignalBus._internal();
+
   SignalBus._internal();
 
   final _controller = StreamController<BaseEvent>.broadcast();
@@ -149,29 +162,40 @@ Lớp trừu tượng định nghĩa giao diện cho tất cả các Worker. Tí
 ```dart
 // lib/src/base/base_executor.dart
 abstract class BaseExecutor<T extends BaseJob> {
-  final SignalBus _bus = SignalBus();
+  // Theo dõi bus đang hoạt động cho từng job
+  final Map<String, SignalBus> _activeBus = {};
 
   /// Phương thức trừu tượng - lớp con triển khai logic nghiệp vụ
   Future<dynamic> process(T job);
 
   /// Điểm vào được gọi bởi Dispatcher
   Future<void> execute(T job) async {
+    // Xác định bus cần dùng (Scoped hoặc Global)
+    final bus = job.bus ?? SignalBus.instance;
+    _activeBus[job.id] = bus;
+
     try {
       final result = await process(job);
       emitResult(job.id, result);
     } catch (e, stack) {
       emitFailure(job.id, e, stack);
+    } finally {
+      // Dọn dẹp
+      _activeBus.remove(job.id);
     }
   }
 
   /// Phát sự kiện thành công
   void emitResult<R>(String correlationId, R data) {
-    _bus.emit(JobSuccessEvent<R>(correlationId, data));
+    // Tìm bus đúng cho job này
+    final bus = _activeBus[correlationId] ?? SignalBus.instance;
+    bus.emit(JobSuccessEvent<R>(correlationId, data));
   }
 
   /// Phát sự kiện lỗi
   void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
-    _bus.emit(JobFailureEvent(correlationId, error, stack));
+    final bus = _activeBus[correlationId] ?? SignalBus.instance;
+    bus.emit(JobFailureEvent(correlationId, error, stack));
   }
 }
 ```
@@ -201,7 +225,7 @@ flowchart LR
 abstract class BaseOrchestrator<S> {
   S _state;
   final StreamController<S> _stateController = StreamController<S>.broadcast();
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus;
   final Dispatcher _dispatcher = Dispatcher();
   
   /// Tập hợp các Job đang được theo dõi
@@ -209,7 +233,8 @@ abstract class BaseOrchestrator<S> {
   
   StreamSubscription? _busSubscription;
 
-  BaseOrchestrator(this._state) {
+  BaseOrchestrator(this._state, {SignalBus? bus}) 
+      : _bus = bus ?? SignalBus.instance {
     _stateController.add(_state);
     _subscribeToBus();
   }
@@ -227,6 +252,9 @@ abstract class BaseOrchestrator<S> {
 
   @protected
   String dispatch(BaseJob job) {
+    // Gắn bus hiện tại vào job
+    job.bus = _bus;
+
     final id = _dispatcher.dispatch(job);
     _activeJobIds.add(id);
     return id;

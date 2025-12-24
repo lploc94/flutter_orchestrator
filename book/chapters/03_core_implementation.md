@@ -14,9 +14,10 @@ Base class for all work requests in the system. The `id` property serves as Corr
 
 ```dart
 // lib/src/models/job.dart
-import 'package:meta/meta.dart';
+import '../utils/cancellation_token.dart';
+import '../utils/retry_policy.dart';
+import '../infra/signal_bus.dart';
 
-@immutable
 abstract class BaseJob {
   /// Unique transaction identifier (Correlation ID)
   final String id;
@@ -24,7 +25,10 @@ abstract class BaseJob {
   /// Optional metadata
   final Map<String, dynamic>? metadata;
 
-  const BaseJob({required this.id, this.metadata});
+  /// Context: The bus instance this job belongs to.
+  SignalBus? bus;
+
+  BaseJob({required this.id, this.metadata});
   
   @override
   String toString() => '$runtimeType(id: $id)';
@@ -81,7 +85,16 @@ import 'dart:async';
 
 class SignalBus {
   static final SignalBus _instance = SignalBus._internal();
+  
+  /// Default factory returns the Global Singleton
   factory SignalBus() => _instance;
+
+  /// Global singleton instance
+  static SignalBus get instance => _instance;
+
+  /// Create a new isolated bus
+  factory SignalBus.scoped() => SignalBus._internal();
+  
   SignalBus._internal();
 
   final _controller = StreamController<BaseEvent>.broadcast();
@@ -149,29 +162,40 @@ Abstract class defining the interface for all Workers. Includes built-in Error B
 ```dart
 // lib/src/base/base_executor.dart
 abstract class BaseExecutor<T extends BaseJob> {
-  final SignalBus _bus = SignalBus();
+  // Track active bus for each job
+  final Map<String, SignalBus> _activeBus = {};
 
   /// Abstract method - subclasses implement business logic
   Future<dynamic> process(T job);
 
   /// Entry point called by Dispatcher
   Future<void> execute(T job) async {
+    // Determine which bus to use (Scoped or Global)
+    final bus = job.bus ?? SignalBus.instance;
+    _activeBus[job.id] = bus;
+
     try {
       final result = await process(job);
       emitResult(job.id, result);
     } catch (e, stack) {
       emitFailure(job.id, e, stack);
+    } finally {
+      // Cleanup
+      _activeBus.remove(job.id);
     }
   }
 
   /// Emit success event
   void emitResult<R>(String correlationId, R data) {
-    _bus.emit(JobSuccessEvent<R>(correlationId, data));
+    // Look up correct bus for this job
+    final bus = _activeBus[correlationId] ?? SignalBus.instance;
+    bus.emit(JobSuccessEvent<R>(correlationId, data));
   }
 
   /// Emit error event
   void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
-    _bus.emit(JobFailureEvent(correlationId, error, stack));
+    final bus = _activeBus[correlationId] ?? SignalBus.instance;
+    bus.emit(JobFailureEvent(correlationId, error, stack));
   }
 }
 ```
@@ -201,7 +225,7 @@ flowchart LR
 abstract class BaseOrchestrator<S> {
   S _state;
   final StreamController<S> _stateController = StreamController<S>.broadcast();
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus;
   final Dispatcher _dispatcher = Dispatcher();
   
   /// Set of Jobs being tracked
@@ -209,7 +233,8 @@ abstract class BaseOrchestrator<S> {
   
   StreamSubscription? _busSubscription;
 
-  BaseOrchestrator(this._state) {
+  BaseOrchestrator(this._state, {SignalBus? bus}) 
+      : _bus = bus ?? SignalBus.instance {
     _stateController.add(_state);
     _subscribeToBus();
   }
@@ -227,6 +252,9 @@ abstract class BaseOrchestrator<S> {
 
   @protected
   String dispatch(BaseJob job) {
+    // Attach current bus to job
+    job.bus = _bus;
+    
     final id = _dispatcher.dispatch(job);
     _activeJobIds.add(id);
     return id;

@@ -296,6 +296,76 @@ class NoOpLogger extends OrchestratorLogger {
 ```
 
 ---
+---
+
+## 5.6. Scalable Architecture with Scoped Bus
+
+For large applications composed of loosely coupled modules (e.g., Auth, Chat, Cart), using a single global event bus can lead to:
+1.  **Noise**: All modules receive all events.
+2.  **Security Risks**: Sensitive events leak to unintended listeners.
+3.  **Performance Bottlenecks**: High traffic on a single stream.
+
+The **Scoped Bus** architecture solves this by creating isolated communication channels.
+
+### Architecture Comparison
+
+**Global Bus (Default)**: Everyone hears everything.
+
+```mermaid
+graph TD
+    GBus[Global Bus]
+    Auth -->|Event| GBus
+    Chat -->|Event| GBus
+    Cart -->|Event| GBus
+    GBus --> Auth
+    GBus --> Chat
+    GBus --> Cart
+```
+
+**Scoped Bus (Isolated)**: Events stay within their module.
+
+```mermaid
+graph TD
+    subgraph "Auth Module"
+        ABus[Auth Bus (Scoped)]
+        AuthOrc[Auth Orchestrator] <--> ABus
+    end
+
+    subgraph "Chat Module"
+        CBus[Chat Bus (Scoped)]
+        ChatOrc[Chat Orchestrator] <--> CBus
+    end
+
+    AuthOrc -.->|Important Events| GBus[Global Bus]
+```
+
+### Implementation
+
+1. **Create a Scoped Bus**:
+
+```dart
+// Create a private bus for this module
+final authBus = SignalBus.scoped();
+```
+
+2. **Inject into Orchestrator**:
+
+```dart
+// Orchestrator will listen/emit to this bus ONLY
+final orchestrator = AuthOrchestrator(bus: authBus);
+```
+
+3. **Execution**:
+   - When `orchestrator.dispatch(job)` is called, the job is explicitly tagged with `authBus`.
+   - The Executor automatically routes events (Success/Failure/Progress) back to `authBus`.
+   - Global listeners (on `SignalBus.instance`) will **NOT** see these events.
+
+### Best Practice
+
+- Use **Scoped Bus** for internal module logic (loading states, step transitions).
+- Use **Global Bus** (`SignalBus.instance`) only for public events that other modules need to react to (e.g., `UserLoggedInEvent`, `ThemeChangedEvent`).
+
+---
 
 ## 5.7. Safety Mechanisms
 

@@ -345,6 +345,76 @@ class OrchestratorConfig {
 ---
 
 ---
+---
+
+## 5.6. Kiến trúc Mở rộng với Scoped Bus (Bus Cục bộ)
+
+Đối với các ứng dụng lớn bao gồm nhiều module độc lập (ví dụ: Auth, Chat, Cart), việc sử dụng một global signal bus duy nhất có thể dẫn đến:
+1.  **Nhiễu loạn**: Mọi module đều nhận được tất cả event của nhau.
+2.  **Rủi ro bảo mật**: Event nhạy cảm có thể bị nghe trộm bởi module không liên quan.
+3.  **Thắt cổ chai hiệu năng**: Quá nhiều traffic trên một stream duy nhất.
+
+Kiến trúc **Scoped Bus** giải quyết vấn đề này bằng cách tạo ra các kênh giao tiếp cô lập.
+
+### So sánh Kiến trúc
+
+**Global Bus (Mặc định)**: Mọi người đều nghe thấy mọi thứ.
+
+```mermaid
+graph TD
+    GBus[Global Bus]
+    Auth -->|Event| GBus
+    Chat -->|Event| GBus
+    Cart -->|Event| GBus
+    GBus --> Auth
+    GBus --> Chat
+    GBus --> Cart
+```
+
+**Scoped Bus (Cô lập)**: Event chỉ lưu thông trong nội bộ module.
+
+```mermaid
+graph TD
+    subgraph "Auth Module"
+        ABus[Auth Bus (Scoped)]
+        AuthOrc[Auth Orchestrator] <--> ABus
+    end
+
+    subgraph "Chat Module"
+        CBus[Chat Bus (Scoped)]
+        ChatOrc[Chat Orchestrator] <--> CBus
+    end
+
+    AuthOrc -.->|Important Events| GBus[Global Bus]
+```
+
+### Cách triển khai
+
+1. **Tạo Scoped Bus**:
+
+```dart
+// Tạo một bus riêng tư cho module này
+final authBus = SignalBus.scoped();
+```
+
+2. **Inject vào Orchestrator**:
+
+```dart
+// Orchestrator sẽ chỉ lắng nghe và phát event trên bus này
+final orchestrator = AuthOrchestrator(bus: authBus);
+```
+
+3. **Cơ chế hoạt động**:
+   - Khi gọi `orchestrator.dispatch(job)`, job sẽ được gắn thẻ với `authBus`.
+   - Executor sẽ tự động định tuyến các event (Thành công/Lỗi/Tiến độ) về lại `authBus`.
+   - Các listener trên Global Bus (`SignalBus.instance`) sẽ **KHÔNG** thấy các event này.
+
+### Best Practice
+
+- Sử dụng **Scoped Bus** cho logic nội bộ của module (loading state, chuyển bước wizard).
+- Sử dụng **Global Bus** (`SignalBus.instance`) chỉ cho các event công khai mà các module khác cần phản ứng (ví dụ: `UserLoggedInEvent`, `ThemeChangedEvent`).
+
+---
 
 ## 5.7. Cơ chế An toàn (Safety Mechanisms)
 
