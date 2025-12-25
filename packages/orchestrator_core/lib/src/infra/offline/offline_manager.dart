@@ -218,14 +218,27 @@ class NetworkQueueManager {
 }
 
 /// Global registry for network job factories.
-/// Register job types here so they can be deserialized from storage.
+///
+/// Register job types here so they can be deserialized from storage
+/// when processing the offline queue.
+///
+/// Usage:
+/// ```dart
+/// // Option 1: Register with string type name
+/// NetworkJobRegistry.register('SendMessageJob', SendMessageJob.fromJson);
+///
+/// // Option 2: Register using type (preferred for type safety)
+/// NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
+/// ```
 class NetworkJobRegistry {
   static final Map<String, BaseJob Function(Map<String, dynamic>)> _factories =
       {};
 
-  /// Register a factory for a job type.
-  /// [type] is the class name (String).
-  /// [factory] is the fromJson method.
+  /// Register a factory for a job type using string name.
+  ///
+  /// [type] is the class name (String). Must match exactly what's stored
+  /// in the queue (typically `runtimeType.toString()`).
+  /// [factory] is the fromJson method that creates the job from JSON.
   static void register(
     String type,
     BaseJob Function(Map<String, dynamic>) factory,
@@ -233,7 +246,23 @@ class NetworkJobRegistry {
     _factories[type] = factory;
   }
 
+  /// Register a factory using the type parameter for type safety.
+  ///
+  /// This is the preferred method as it avoids typos in string names.
+  ///
+  /// Example:
+  /// ```dart
+  /// NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
+  /// ```
+  static void registerType<T extends BaseJob>(
+    BaseJob Function(Map<String, dynamic>) factory,
+  ) {
+    _factories[T.toString()] = factory;
+  }
+
   /// Reconstruct a job from JSON + Type.
+  ///
+  /// Returns null if the type is not registered.
   static BaseJob? restore(String type, Map<String, dynamic> json) {
     final factory = _factories[type];
     if (factory == null) return null;
@@ -242,6 +271,13 @@ class NetworkJobRegistry {
 
   /// Check if a type is registered.
   static bool isRegistered(String type) => _factories.containsKey(type);
+
+  /// Check if a type T is registered.
+  static bool isTypeRegistered<T extends BaseJob>() =>
+      _factories.containsKey(T.toString());
+
+  /// Get all registered type names (for debugging).
+  static List<String> get registeredTypes => _factories.keys.toList();
 
   /// Clear all factories (for testing).
   static void clear() => _factories.clear();

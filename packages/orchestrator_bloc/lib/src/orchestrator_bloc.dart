@@ -38,7 +38,7 @@ class CancelJobEvent extends OrchestratorBlocEvent {
 /// ```
 abstract class OrchestratorBloc<E extends OrchestratorBlocEvent, S>
     extends Bloc<E, S> {
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus = SignalBus.instance;
   final Dispatcher _dispatcher = Dispatcher();
 
   final Set<String> _activeJobIds = {};
@@ -138,6 +138,7 @@ abstract class OrchestratorBloc<E extends OrchestratorBlocEvent, S>
   @override
   Future<void> close() {
     _busSubscription?.cancel();
+    _busSubscription = null;
     _activeJobIds.clear();
     _jobProgress.clear();
     return super.close();

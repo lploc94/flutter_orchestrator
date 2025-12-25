@@ -24,7 +24,7 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// ```
 abstract class OrchestratorNotifier<S> extends ChangeNotifier {
   S _state;
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus = SignalBus.instance;
   final Dispatcher _dispatcher = Dispatcher();
 
   /// Active job IDs being tracked
@@ -165,6 +165,7 @@ abstract class OrchestratorNotifier<S> extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _busSubscription?.cancel();
+    _busSubscription = null;
     _activeJobIds.clear();
     _jobProgress.clear();
     super.dispose();

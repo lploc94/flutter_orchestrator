@@ -247,8 +247,11 @@ abstract class BaseOrchestrator<S> {
   @mustCallSuper
   void dispose() {
     _busSubscription?.cancel();
+    _busSubscription = null;
     _stateController.close();
     _activeJobIds.clear();
+    _activeJobTypes.clear();
     _jobProgress.clear();
+    _eventTypeCounts.clear();
   }
 }

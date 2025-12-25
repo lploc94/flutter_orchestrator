@@ -332,14 +332,32 @@ class Dispatcher {
     _isProcessingQueue = false;
   }
 
-  /// Stop connectivity listener (for cleanup)
+  /// Stop connectivity listener (for cleanup).
+  ///
+  /// Note: For the singleton instance, this should typically only be called
+  /// during app shutdown or in test teardown.
   void dispose() {
     _connectivitySub?.cancel();
+    _connectivitySub = null;
     _eventSub?.cancel();
+    _eventSub = null;
+    _isProcessingQueue = false;
+    _currentSyncJobId = null;
   }
 
-  /// For testing cleanup
+  /// For testing cleanup - clears registry only.
   void clear() {
     _registry.clear();
+  }
+
+  /// Reset the dispatcher completely for testing.
+  ///
+  /// This clears the registry, disposes listeners, and reinitializes them.
+  /// Useful for test isolation.
+  void resetForTesting() {
+    clear();
+    dispose();
+    // Re-initialize listeners for next test
+    _initConnectivityListener();
   }
 }

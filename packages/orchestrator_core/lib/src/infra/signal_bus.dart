@@ -15,6 +15,7 @@ class SignalBus {
   static SignalBus get instance => _instance;
 
   /// Default constructor returns the global instance (Backward Compatibility).
+  /// Note: Consider using [SignalBus.instance] for clarity.
   factory SignalBus() => _instance;
 
   /// Create a new scoped bus instance (Isolated).
@@ -24,11 +25,23 @@ class SignalBus {
 
   final _controller = StreamController<BaseEvent>.broadcast();
 
+  /// Check if the bus has been disposed.
+  bool get isDisposed => _controller.isClosed;
+
   /// Stream of ALL events running through the system.
-  Stream<BaseEvent> get stream => _controller.stream;
+  /// Throws [StateError] if the bus has been disposed.
+  Stream<BaseEvent> get stream {
+    if (_controller.isClosed) {
+      throw StateError(
+        'SignalBus has been disposed. Cannot access stream after disposal.',
+      );
+    }
+    return _controller.stream;
+  }
 
   /// Fire an event into the bus.
   /// In a strict architecture, this method should be protected.
+  /// Silently ignores if bus is disposed (prevents crashes during cleanup).
   void emit(BaseEvent event) {
     if (!_controller.isClosed) {
       _controller.add(event);
@@ -38,7 +51,12 @@ class SignalBus {
   }
 
   /// Close the bus (rarely used in App lifecycle, maybe for testing).
+  ///
+  /// WARNING: For the global [instance], calling dispose will make it
+  /// permanently unusable. Only dispose scoped buses or in test teardown.
   void dispose() {
-    _controller.close();
+    if (!_controller.isClosed) {
+      _controller.close();
+    }
   }
 }

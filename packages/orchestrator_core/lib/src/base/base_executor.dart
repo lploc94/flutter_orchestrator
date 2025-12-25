@@ -104,9 +104,10 @@ abstract class BaseExecutor<T extends BaseJob> {
         );
       }
 
-      // Setup cancellation listener
+      // Setup cancellation listener with cleanup capability
+      void Function()? cancelListenerCleanup;
       if (job.cancellationToken != null) {
-        job.cancellationToken!.onCancel(() {
+        cancelListenerCleanup = job.cancellationToken!.onCancel(() {
           log.info('Job ${job.id} was cancelled');
           final b = _activeBus[job.id] ?? _globalBus;
           b.emit(JobCancelledEvent(job.id));
@@ -115,6 +116,9 @@ abstract class BaseExecutor<T extends BaseJob> {
 
       // Execute and emit result
       final result = await executionFuture;
+
+      // Cleanup cancellation listener since job completed normally
+      cancelListenerCleanup?.call();
 
       // Check cancellation after completion
       if (job.cancellationToken?.isCancelled == true) {
@@ -134,13 +138,18 @@ abstract class BaseExecutor<T extends BaseJob> {
       log.debug('Job ${job.id} completed successfully');
       emitResult(job.id, result);
     } on CancelledException {
-      // Already handled by listener
-    } on TimeoutException {
-      // Already handled by timeout callback
+      // Already handled by listener - no need for additional action
+      log.debug('Job ${job.id} cancelled via CancelledException');
+    } on TimeoutException catch (e) {
+      // Timeout event already emitted in callback, but also emit failure for consistency
+      log.debug('Job ${job.id} timed out');
+      emitFailure(job.id, e);
     } catch (e, stack) {
       log.error('Job ${job.id} failed', e, stack);
       emitFailure(job.id, e, stack);
     } finally {
+      // Cleanup: remove listener if still registered (in case of error)
+      job.cancellationToken?.clearListeners();
       // Cleanup bus tracking
       _activeBus.remove(job.id);
     }
@@ -225,6 +234,32 @@ abstract class BaseExecutor<T extends BaseJob> {
     );
   }
 
+  /// Emit progress using step-based calculation.
+  ///
+  /// Convenience method that calculates progress from steps.
+  ///
+  /// Example:
+  /// ```dart
+  /// for (int i = 0; i < items.length; i++) {
+  ///   await processItem(items[i]);
+  ///   emitStep(job.id, current: i + 1, total: items.length);
+  /// }
+  /// ```
+  void emitStep(
+    String correlationId, {
+    required int current,
+    required int total,
+    String? message,
+  }) {
+    emitProgress(
+      correlationId,
+      progress: total > 0 ? current / total : 0.0,
+      message: message,
+      currentStep: current,
+      totalSteps: total,
+    );
+  }
+
   /// Emit any custom event.
   /// Note: Without correlationId, we default to Global Bus unless specified.
   /// Ideally Pass correlationId if you want event scoped.
@@ -233,7 +268,7 @@ abstract class BaseExecutor<T extends BaseJob> {
     bus.emit(event);
   }
 
-  // --- Helper Methods for Method 1 (Side Effects) ---
+  // --- Helper Methods for Cache Management ---
 
   /// Invalidate a specific cache key.
   /// Call this from [process] when you need to clear related data.
@@ -246,5 +281,27 @@ abstract class BaseExecutor<T extends BaseJob> {
   Future<void> invalidateMatching(bool Function(String key) predicate) async {
     OrchestratorConfig.logger.debug('Executor invalidating matching keys');
     await cacheProvider.deleteMatching(predicate);
+  }
+
+  /// Invalidate cache keys starting with a prefix.
+  Future<void> invalidatePrefix(String prefix) async {
+    OrchestratorConfig.logger.debug('Executor invalidating prefix: $prefix');
+    await cacheProvider.deleteMatching((key) => key.startsWith(prefix));
+  }
+
+  /// Read from cache directly.
+  ///
+  /// Useful when you need to check cache in your process logic.
+  Future<R?> readCache<R>(String key) async {
+    final value = await cacheProvider.read(key);
+    if (value is R) return value;
+    return null;
+  }
+
+  /// Write to cache directly.
+  ///
+  /// Useful when you need to cache intermediate results.
+  Future<void> writeCache(String key, dynamic value, {Duration? ttl}) async {
+    await cacheProvider.write(key, value, ttl: ttl);
   }
 }

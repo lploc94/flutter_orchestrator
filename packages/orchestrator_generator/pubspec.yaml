@@ -1,6 +1,6 @@
 name: orchestrator_generator
 description: Code generator for orchestrator_core's Offline Support.
-version: 0.1.0
+version: 0.1.1
 publish_to: none
 environment:
   sdk: ^3.0.0

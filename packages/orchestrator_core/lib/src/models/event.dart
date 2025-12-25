@@ -96,6 +96,8 @@ class JobPlaceholderEvent<T> extends BaseEvent {
 /// Emitted to report progress of a long-running job.
 class JobProgressEvent extends BaseEvent {
   /// Progress value (0.0 to 1.0).
+  ///
+  /// Values outside this range will be clamped automatically.
   final double progress;
 
   /// Optional message.
@@ -107,11 +109,16 @@ class JobProgressEvent extends BaseEvent {
 
   JobProgressEvent(
     super.correlationId, {
-    required this.progress,
+    required double progress,
     this.message,
     this.currentStep,
     this.totalSteps,
-  });
+  }) : progress = progress.clamp(0.0, 1.0) {
+    assert(
+      currentStep == null || totalSteps == null || currentStep! <= totalSteps!,
+      'currentStep ($currentStep) cannot be greater than totalSteps ($totalSteps)',
+    );
+  }
 
   @override
   String toString() =>

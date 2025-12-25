@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-12-25
+
+### Added
+- **New**: `JobBuilder` - Fluent API for configuring jobs with timeout, retry, cache, placeholder.
+- **New**: `JobResult` - Sealed class for type-safe result handling with `when`/`maybeWhen` pattern matching.
+- **New**: `AsyncState` - Common state pattern with `AsyncStatus` enum and state transitions.
+- **New**: Event extensions - `dataOrNull<T>()`, `dataOr<T>()`, `errorMessage` helpers.
+- **New**: `OrchestratorHelpers` mixin - `dispatchAll()`, `dispatchReplacingPrevious()`, etc.
+- **New**: `NetworkJobRegistry.registerType<T>()` for type-safe registration.
+- **New**: `CancellationToken` improvements - `removeListener()`, `clearListeners()`, return unregister function.
+- **New**: `SignalBus.isDisposed` getter and safer `dispose()` handling.
+- **New**: `Dispatcher.resetForTesting()` for test isolation.
+- **New**: `BaseExecutor` helpers - `emitStep()`, `invalidatePrefix()`, `readCache()`, `writeCache()`.
+
+### Fixed
+- `generateJobId()` now uses microseconds + cryptographic random for better uniqueness.
+- `JobProgressEvent.progress` now auto-clamps to 0.0-1.0 range.
+- Proper cleanup of `_busSubscription` in all dispose methods.
+- `SignalBus.stream` throws `StateError` if accessed after disposal.
+
+### Changed
+- All adapters now use `SignalBus.instance` for consistency.
+
 ## [0.1.0] - 2025-12-25
 
 ### Features: Unified Data Flow & Caching

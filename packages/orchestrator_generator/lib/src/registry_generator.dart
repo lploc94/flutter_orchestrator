@@ -3,6 +3,11 @@ import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:orchestrator_core/orchestrator_core.dart';
 
+/// Generator for [NetworkRegistry] annotation.
+///
+/// This generates a `registerNetworkJobs()` function that registers
+/// all annotated job types with the [NetworkJobRegistry] for offline
+/// queue restoration.
 class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
   @override
   String generateForAnnotatedElement(
@@ -17,8 +22,14 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
     final jobs = annotation.read('jobs').listValue;
 
     if (jobs.isEmpty) {
+      // Log warning to build output
+      log.warning(
+        'Empty @NetworkRegistry annotation on ${element.name}. '
+        'Add job types to enable offline queue restoration.',
+      );
       // Return a no-op function with a warning comment
       buffer.writeln('// WARNING: No jobs registered in @NetworkRegistry');
+      buffer.writeln('// Add job types to the annotation: @NetworkRegistry([MyJob, OtherJob])');
       buffer.writeln('void registerNetworkJobs() {}');
       return buffer.toString();
     }
@@ -28,21 +39,33 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
     buffer.writeln('/// Call this during app initialization before processing offline queue.');
     buffer.writeln('///');
     buffer.writeln('/// Registered jobs:');
-    
+
     final jobClassNames = <String>[];
-    
+
     for (final jobObject in jobs) {
       final jobType = jobObject.toTypeValue();
-      if (jobType == null) continue;
+      if (jobType == null) {
+        log.warning('Could not resolve type for job in @NetworkRegistry');
+        continue;
+      }
 
       // Get the class name without generic parameters for cleaner output
-      final element = jobType.element;
-      final className = element?.name ?? jobType.getDisplayString();
-      
+      final typeElement = jobType.element;
+      final className = typeElement?.name ?? jobType.getDisplayString();
+
       if (className.isNotEmpty) {
         jobClassNames.add(className);
         buffer.writeln('/// - `$className`');
       }
+    }
+
+    if (jobClassNames.isEmpty) {
+      log.warning(
+        'No valid job types found in @NetworkRegistry on ${element.name}. '
+        'Make sure all types are properly imported.',
+      );
+      buffer.writeln('void registerNetworkJobs() {}');
+      return buffer.toString();
     }
 
     buffer.writeln('void registerNetworkJobs() {');
