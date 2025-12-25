@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.0] - 2025-12-25
+
+### Features: Unified Data Flow & Caching
+- **New**: **Unified Data Flow** architecture supporting Placeholder -> Cache (SWR) -> Process -> Cache Write.
+- **New**: `DataStrategy` configuration for Jobs.
+  - `placeholder`: Emit temporary data immediately (Skeleton UI).
+  - `cachePolicy`: Configure caching behavior (TTL, Key, Revalidate, Force Refresh).
+- **New**: **3 Ways of Cache Management**:
+  1. **Config**: `CachePolicy(forceRefresh: true)` for Pull-to-Refresh.
+  2. **Utility**: `InvalidateCacheJob` for system-wide clearing (e.g. Logout).
+  3. **Side-Effect**: Methods `invalidateKey` / `invalidateMatching` in `BaseExecutor`.
+- **New**: `CacheProvider` interface with default `InMemoryCacheProvider`.
+- **New**: Events `JobPlaceholderEvent` and `JobCacheHitEvent`.
+
 ## [0.0.3] - 2024-12-24
 
 ### Architecture (Scoped Bus)

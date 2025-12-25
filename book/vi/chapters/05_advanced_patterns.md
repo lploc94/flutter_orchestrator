@@ -287,7 +287,56 @@ class UploadExecutor extends BaseExecutor<UploadJob> {
 
 ---
 
-## 5.5. Hệ thống Ghi nhật ký (Logging)
+## 5.5. Quản lý Cache Nâng cao (Unified Data Flow)
+
+Framework cung cấp một luồng dữ liệu thống nhất và 3 cơ chế quản lý cache để đáp ứng mọi tình huống thực tế.
+
+### Luồng dữ liệu (Unified Flow)
+
+1.  **Placeholder**: Hiển thị dữ liệu giả định ngay lập tức (Skeleton).
+2.  **Cache Read**: Đọc dữ liệu cũ (Stale) để hiển thị trong khi tải.
+3.  **Process (Worker)**: Tải dữ liệu mới từ Server.
+4.  **Cache Write**: Cập nhật cache với dữ liệu mới.
+
+### 3 Phương pháp Quản lý Cache (The 3 Ways)
+
+Để hệ thống linh hoạt tối đa, chúng ta hỗ trợ 3 cách tương tác với Cache:
+
+#### Cách 1: Side Effect (API Exposure)
+Dùng khi một Job nghiệp vụ cần xóa cache của các Job khác (ví dụ: `UpdateProfile` xóa cache của `GetProfile`).
+Executor cung cấp các hàm helper protected:
+- `invalidateKey(key)`
+- `invalidateMatching(predicate)`
+
+```dart
+// UpdateProfileExecutor
+await api.updateProfile(job.data);
+await invalidateKey('user_profile'); // Side effect
+```
+
+#### Cách 2: Built-in Utility Job
+Dùng khi cần xóa cache từ bên ngoài hoặc xóa hàng loạt (ví dụ: Logout, Settings).
+Framework cung cấp sẵn `InvalidateCacheJob`:
+
+```dart
+// Logout: Xóa toàn bộ cache user
+orchestrator.dispatch(InvalidateCacheJob(prefix: 'user_'));
+```
+
+#### Cách 3: Configuration (Force Refresh)
+Dùng khi người dùng chủ động muốn làm mới dữ liệu (Pull-to-Refresh).
+Cấu hình trực tiếp trên `CachePolicy`.
+
+```dart
+CachePolicy(
+  key: 'news_feed',
+  forceRefresh: true, // Bỏ qua Cache Read, ép tải mới
+)
+```
+
+---
+
+## 5.6. Hệ thống Ghi nhật ký (Logging)
 
 Hệ thống log linh hoạt hỗ trợ debug trong quá trình phát triển và giám sát trong môi trường production.
 
@@ -347,7 +396,10 @@ class OrchestratorConfig {
 ---
 ---
 
-## 5.6. Kiến trúc Mở rộng với Scoped Bus (Bus Cục bộ)
+---
+---
+
+## 5.7. Kiến trúc Mở rộng với Scoped Bus (Bus Cục bộ)
 
 Đối với các ứng dụng lớn bao gồm nhiều module độc lập (ví dụ: Auth, Chat, Cart), việc sử dụng một global signal bus duy nhất có thể dẫn đến:
 1.  **Nhiễu loạn**: Mọi module đều nhận được tất cả event của nhau.
@@ -416,7 +468,7 @@ final orchestrator = AuthOrchestrator(bus: authBus);
 
 ---
 
-## 5.7. Cơ chế An toàn (Safety Mechanisms)
+## 5.8. Cơ chế An toàn (Safety Mechanisms)
 
 Để ngăn chặn app bị crash hoặc rơi vào vòng lặp vô tận, framework tích hợp sẵn các cơ chế bảo vệ.
 

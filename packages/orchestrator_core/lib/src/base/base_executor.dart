@@ -5,6 +5,9 @@ import '../models/event.dart';
 import '../utils/cancellation_token.dart';
 import '../utils/logger.dart';
 
+// Placeholder to force tool usage, actual implementation details below
+import '../infra/cache/cache_provider.dart';
+
 /// Abstract Worker that performs actual business logic.
 ///
 /// Features:
@@ -13,9 +16,13 @@ import '../utils/logger.dart';
 /// - Retry with exponential backoff
 /// - Cancellation support
 /// - Progress reporting
+/// - Unified Data Flow (Placeholder -> Cache -> Real)
 abstract class BaseExecutor<T extends BaseJob> {
   /// Map tracking active jobs to their respective buses (Scoped or Global).
   final Map<String, SignalBus> _activeBus = {};
+
+  /// Cache Provider (Shared Singleton from Config).
+  CacheProvider get cacheProvider => OrchestratorConfig.cacheProvider;
 
   /// Global fallback.
   SignalBus get _globalBus => SignalBus.instance;
@@ -41,9 +48,36 @@ abstract class BaseExecutor<T extends BaseJob> {
     // Emit started event
     bus.emit(JobStartedEvent(job.id));
 
+    // --- Unified Data Flow: 1. Placeholder ---
+    if (job.strategy?.placeholder != null) {
+      log.debug('Job ${job.id} emitting placeholder');
+      bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder));
+    }
+
     try {
       // Check cancellation before starting
       job.cancellationToken?.throwIfCancelled();
+
+      // --- Unified Data Flow: 2. Cache Read ---
+      final cachePolicy = job.strategy?.cachePolicy;
+      // Way 3: Force Refresh support (Skip cache read)
+      final shouldReadCache = cachePolicy != null && !cachePolicy.forceRefresh;
+
+      if (shouldReadCache) {
+        final cachedData = await cacheProvider.read(cachePolicy.key);
+        if (cachedData != null) {
+          log.debug('Job ${job.id} cache hit: ${cachePolicy.key}');
+          bus.emit(JobCacheHitEvent(job.id, cachedData));
+
+          // If NOT revalidating (Cache-First), return immediately
+          if (!cachePolicy.revalidate) {
+            log.debug(
+                'Job ${job.id} cache-first strategy. Stopping execution.');
+            bus.emit(JobSuccessEvent(job.id, cachedData));
+            return;
+          }
+        }
+      }
 
       // Build the execution future
       Future<dynamic> executionFuture;
@@ -85,6 +119,16 @@ abstract class BaseExecutor<T extends BaseJob> {
       // Check cancellation after completion
       if (job.cancellationToken?.isCancelled == true) {
         return; // Don't emit success if cancelled
+      }
+
+      // --- Unified Data Flow: 3. Cache Write ---
+      if (cachePolicy != null && result != null) {
+        log.debug('Job ${job.id} writing to cache: ${cachePolicy.key}');
+        await cacheProvider.write(
+          cachePolicy.key,
+          result,
+          ttl: cachePolicy.ttl,
+        );
       }
 
       log.debug('Job ${job.id} completed successfully');
@@ -187,5 +231,20 @@ abstract class BaseExecutor<T extends BaseJob> {
   void emit(BaseEvent event) {
     final bus = _activeBus[event.correlationId] ?? _globalBus;
     bus.emit(event);
+  }
+
+  // --- Helper Methods for Method 1 (Side Effects) ---
+
+  /// Invalidate a specific cache key.
+  /// Call this from [process] when you need to clear related data.
+  Future<void> invalidateKey(String key) async {
+    OrchestratorConfig.logger.debug('Executor invalidating key: $key');
+    await cacheProvider.delete(key);
+  }
+
+  /// Invalidate cache keys matching a predicate.
+  Future<void> invalidateMatching(bool Function(String key) predicate) async {
+    OrchestratorConfig.logger.debug('Executor invalidating matching keys');
+    await cacheProvider.deleteMatching(predicate);
   }
 }

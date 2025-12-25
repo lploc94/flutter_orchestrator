@@ -1,6 +1,7 @@
 import '../utils/cancellation_token.dart';
 import '../utils/retry_policy.dart';
 import '../infra/signal_bus.dart';
+import 'data_strategy.dart';
 
 /// Base class for all Jobs (Commands/Intents) in the system.
 /// A Job represents a "Packet of Work" sent from Orchestrator to Executor.
@@ -24,12 +25,16 @@ abstract class BaseJob {
   /// Set by Orchestrator before dispatching.
   SignalBus? bus;
 
+  /// Optional data strategy (Cache, Placeholder, etc).
+  final DataStrategy? strategy;
+
   BaseJob({
     required this.id,
     this.timeout,
     this.cancellationToken,
     this.retryPolicy,
     this.metadata,
+    this.strategy,
   });
 
   @override

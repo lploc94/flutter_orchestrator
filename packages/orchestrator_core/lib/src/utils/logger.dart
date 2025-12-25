@@ -1,4 +1,6 @@
 import '../models/event.dart';
+import '../infra/cache/cache_provider.dart';
+import '../infra/cache/in_memory_cache_provider.dart';
 
 /// Logging levels for the Orchestrator system.
 enum LogLevel { debug, info, warning, error }
@@ -87,5 +89,15 @@ class OrchestratorConfig {
   /// Enable debug logging to console.
   static void enableDebugLogging() {
     _logger = ConsoleLogger(minLevel: LogLevel.debug);
+  }
+
+  // --- Cache Configuration ---
+
+  static CacheProvider _cacheProvider = InMemoryCacheProvider();
+
+  static CacheProvider get cacheProvider => _cacheProvider;
+
+  static void setCacheProvider(CacheProvider provider) {
+    _cacheProvider = provider;
   }
 }

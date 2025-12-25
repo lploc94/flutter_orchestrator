@@ -25,10 +25,13 @@ abstract class BaseJob {
   /// Metadata tùy chọn
   final Map<String, dynamic>? metadata;
 
+  /// Chiến lược dữ liệu (Cache, Placeholder, SWR)
+  final DataStrategy? strategy;
+
   /// Context: Bus mà job này thuộc về
   SignalBus? bus;
 
-  BaseJob({required this.id, this.metadata});
+  BaseJob({required this.id, this.metadata, this.strategy});
   
   @override
   String toString() => '$runtimeType(id: $id)';
@@ -69,11 +72,54 @@ class JobFailureEvent extends BaseEvent {
   final StackTrace? stackTrace;
   JobFailureEvent(super.correlationId, this.error, [this.stackTrace]);
 }
+
+### DataStrategy & CachePolicy
+
+Cấu hình hành vi cache và dữ liệu tạm thời cho từng Job.
+
+```dart
+// lib/src/models/data_strategy.dart
+class DataStrategy {
+  final dynamic placeholder; // Dữ liệu hiển thị ngay lập tức (Skeleton/Optimistic)
+  final CachePolicy? cachePolicy; // Cấu hình Cache
+
+  const DataStrategy({this.placeholder, this.cachePolicy});
+}
+
+class CachePolicy {
+  final String key;
+  final Duration? ttl;
+  final bool revalidate; // True: SWR (trả cache rồi fetch mới), False: Cache-First
+  final bool forceRefresh; // True: Bỏ qua đọc cache (Pull-to-Refresh)
+
+  const CachePolicy({
+    required this.key, 
+    this.ttl, 
+    this.revalidate = true,
+    this.forceRefresh = false,
+  });
+}
+```
 ```
 
 ---
 
-## 3.2. Hạ tầng Giao tiếp
+## 3.2. Hạ tầng Giao tiếp & Lưu trữ
+
+### Cache Provider
+
+Giao diện trừu tượng cho việc lưu trữ cache, giúp tách biệt logic nghiệp vụ khỏi giải pháp lưu trữ cụ thể (In-Memory, Hive, SQLite).
+
+```dart
+// lib/src/infra/cache/cache_provider.dart
+abstract class CacheProvider {
+  Future<void> write(String key, dynamic value, {Duration? ttl});
+  Future<dynamic> read(String key);
+  Future<void> delete(String key);
+  Future<void> deleteMatching(bool Function(String key) predicate);
+  Future<void> clear();
+}
+```
 
 ### Signal Bus
 
@@ -170,17 +216,41 @@ abstract class BaseExecutor<T extends BaseJob> {
 
   /// Điểm vào được gọi bởi Dispatcher
   Future<void> execute(T job) async {
-    // Xác định bus cần dùng (Scoped hoặc Global)
     final bus = job.bus ?? SignalBus.instance;
     _activeBus[job.id] = bus;
 
     try {
+      // 1. Unified Data Flow: Placeholder
+      if (job.strategy?.placeholder != null) {
+        bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder));
+      }
+
+      // 2. Unified Data Flow: Cache Read
+      final cachePolicy = job.strategy?.cachePolicy;
+      if (cachePolicy != null && !cachePolicy.forceRefresh) {
+        final cached = await OrchestratorConfig.cacheProvider.read(cachePolicy.key);
+        if (cached != null) {
+          bus.emit(JobCacheHitEvent(job.id, cached));
+          if (!cachePolicy.revalidate) return; // Cache-First: Dừng tại đây
+        }
+      }
+
+      // 3. Process (Thực thi logic chính)
       final result = await process(job);
+      
+      // 4. Unified Data Flow: Cache Write
+      if (cachePolicy != null) {
+        await OrchestratorConfig.cacheProvider.write(
+          cachePolicy.key, 
+          result, 
+          ttl: cachePolicy.ttl
+        );
+      }
+
       emitResult(job.id, result);
     } catch (e, stack) {
       emitFailure(job.id, e, stack);
     } finally {
-      // Dọn dẹp
       _activeBus.remove(job.id);
     }
   }

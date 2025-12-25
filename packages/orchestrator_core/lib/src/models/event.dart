@@ -73,6 +73,24 @@ class JobTimeoutEvent extends BaseEvent {
       'JobTimeoutEvent(id: $correlationId, timeout: ${timeout.inSeconds}s)';
 }
 
+/// Emitted when data is found in cache (Unified Data Flow).
+class JobCacheHitEvent<T> extends BaseEvent {
+  final T data;
+  JobCacheHitEvent(super.correlationId, this.data);
+
+  @override
+  String toString() => 'JobCacheHitEvent(id: $correlationId, data: $data)';
+}
+
+/// Emitted when placeholder data is available (Unified Data Flow).
+class JobPlaceholderEvent<T> extends BaseEvent {
+  final T data;
+  JobPlaceholderEvent(super.correlationId, this.data);
+
+  @override
+  String toString() => 'JobPlaceholderEvent(id: $correlationId, data: $data)';
+}
+
 // ============ Progress Events ============
 
 /// Emitted to report progress of a long-running job.
