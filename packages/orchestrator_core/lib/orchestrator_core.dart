@@ -14,10 +14,13 @@ library;
 // Models
 export 'src/models/event.dart';
 export 'src/models/job.dart';
+export 'src/models/network_action.dart';
 
 // Infrastructure
 export 'src/infra/signal_bus.dart';
 export 'src/infra/dispatcher.dart';
+export 'src/infra/offline/offline_manager.dart';
+export 'src/infra/offline/connectivity_provider.dart';
 
 // Base classes
 export 'src/base/base_executor.dart';
