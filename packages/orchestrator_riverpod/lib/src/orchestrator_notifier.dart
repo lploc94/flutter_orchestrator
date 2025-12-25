@@ -45,7 +45,6 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   /// Override this method to provide initial state.
   ///
   /// Note: The bus subscription is automatically set up when [build] is called.
-  /// You don't need to call [initialize] manually unless you need custom setup.
   @override
   S build() {
     // Auto-subscribe to bus on first build

@@ -2,6 +2,7 @@
 ///
 /// These mixins and base classes provide reusable state patterns
 /// that are commonly needed in Flutter applications.
+library;
 
 /// Mixin for states that have loading status.
 mixin LoadingState {
