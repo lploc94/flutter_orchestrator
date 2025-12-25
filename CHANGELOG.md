@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-12-25
+
+### Added
+- **orchestrator_core**: New utilities - `JobBuilder`, `JobResult`, `AsyncState`, Event Extensions
+- **orchestrator_core**: `NetworkJobRegistry.registerType<T>()` for type-safe registration
+- **orchestrator_core**: `CancellationToken` improvements - `removeListener()`, `clearListeners()`
+- **orchestrator_core**: `BaseExecutor` helpers - `emitStep()`, `invalidatePrefix()`, `readCache()`, `writeCache()`
+- **orchestrator_core**: `Dispatcher.resetForTesting()` for test isolation
+
+### Fixed
+- **All packages**: Use `SignalBus.instance` for consistent singleton access
+- **All packages**: Proper cleanup of `_busSubscription` in dispose methods
+- **orchestrator_core**: `generateJobId()` uniqueness with microseconds + random
+- **orchestrator_core**: `JobProgressEvent.progress` auto-clamps to 0.0-1.0
+
+### ⚠️ Breaking Changes
+- **orchestrator_riverpod**: `OrchestratorNotifier.build()` renamed to `buildState()` (bus subscription is now automatic)
+
+## [0.1.0] - 2025-12-25
+
+### Added
+- **orchestrator_core**: Unified Data Flow architecture (Placeholder → Cache → Process)
+- **orchestrator_core**: `DataStrategy`, `CachePolicy`, `CacheProvider` interface
+- **orchestrator_core**: Offline Support - `NetworkQueueManager`, `NetworkQueueStorage`
+- **orchestrator_flutter**: New package with `FlutterFileSafetyDelegate`, `FlutterConnectivityProvider`
+- **orchestrator_generator**: New package for `NetworkJobRegistry` code generation
+
 ## [0.0.2] - 2024-12-24
 
 ### Added

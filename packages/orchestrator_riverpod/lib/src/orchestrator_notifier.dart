@@ -29,7 +29,7 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// );
 /// ```
 abstract class OrchestratorNotifier<S> extends Notifier<S> {
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus = SignalBus.instance;
   final Dispatcher _dispatcher = Dispatcher();
 
   /// Active job IDs being tracked
@@ -40,12 +40,32 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
 
   StreamSubscription? _busSubscription;
   bool _isDisposed = false;
+  bool _isInitialized = false;
 
-  /// Override this method to provide initial state
+  /// Override this method to provide initial state.
+  ///
+  /// Note: The bus subscription is automatically set up when [build] is called.
+  /// You don't need to call [initialize] manually unless you need custom setup.
   @override
-  S build();
+  S build() {
+    // Auto-subscribe to bus on first build
+    if (!_isInitialized) {
+      _subscribeToBus();
+      _isInitialized = true;
+    }
+    return buildState();
+  }
 
-  /// Initialize the notifier - call this in build() if you need setup
+  /// Override this method to provide the initial state.
+  ///
+  /// This is called by [build] after the bus subscription is set up.
+  S buildState();
+
+  /// Initialize the notifier manually (optional).
+  ///
+  /// This is called automatically by [build], so you typically don't need
+  /// to call this directly.
+  @Deprecated('Bus subscription is now automatic in build(). This method is no longer needed.')
   void initialize() {
     _subscribeToBus();
   }
@@ -66,7 +86,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   }
 
   void _ensureSubscribed() {
-    if (_busSubscription == null) {
+    if (_busSubscription == null && !_isDisposed) {
       _subscribeToBus();
     }
   }
@@ -169,10 +189,14 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   /// Handler for passive events (from other orchestrators)
   void onPassiveEvent(BaseEvent event) {}
 
-  /// Dispose resources - call when provider is disposed
+  /// Dispose resources - call when provider is disposed.
+  ///
+  /// Note: Riverpod handles provider lifecycle automatically,
+  /// but you can call this manually if needed for cleanup.
   void dispose() {
     _isDisposed = true;
     _busSubscription?.cancel();
+    _busSubscription = null;
     _activeJobIds.clear();
     _jobProgress.clear();
   }

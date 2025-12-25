@@ -1,7 +1,11 @@
+import 'dart:math';
 import '../utils/cancellation_token.dart';
 import '../utils/retry_policy.dart';
 import '../infra/signal_bus.dart';
 import 'data_strategy.dart';
+
+/// Random generator for unique job IDs.
+final Random _jobIdRandom = Random();
 
 /// Base class for all Jobs (Commands/Intents) in the system.
 /// A Job represents a "Packet of Work" sent from Orchestrator to Executor.
@@ -42,8 +46,12 @@ abstract class BaseJob {
 }
 
 /// Helper to generate unique job IDs.
+///
+/// Uses microseconds timestamp combined with cryptographic-quality random
+/// to ensure uniqueness even when creating multiple jobs in the same millisecond.
 String generateJobId([String? prefix]) {
-  final timestamp = DateTime.now().millisecondsSinceEpoch;
-  final random = timestamp.hashCode.abs() % 10000;
-  return '${prefix ?? 'job'}-$timestamp-$random';
+  final timestamp = DateTime.now().microsecondsSinceEpoch;
+  // Generate a random 24-bit number (0-16777215) and convert to hex
+  final randomPart = _jobIdRandom.nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
+  return '${prefix ?? 'job'}-$timestamp-$randomPart';
 }

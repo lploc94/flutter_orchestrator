@@ -2,7 +2,7 @@ name: orchestrator_provider
 description: >-
   Provider/ChangeNotifier integration for orchestrator_core. Build scalable 
   Flutter apps with Event-Driven Orchestrator pattern.
-version: 0.1.0
+version: 0.2.0
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues

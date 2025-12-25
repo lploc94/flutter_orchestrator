@@ -2,6 +2,9 @@ import '../models/event.dart';
 import '../infra/cache/cache_provider.dart';
 import '../infra/cache/in_memory_cache_provider.dart';
 
+import '../infra/offline/connectivity_provider.dart';
+import '../infra/offline/offline_manager.dart';
+
 /// Logging levels for the Orchestrator system.
 enum LogLevel { debug, info, warning, error }
 
@@ -99,5 +102,23 @@ class OrchestratorConfig {
 
   static void setCacheProvider(CacheProvider provider) {
     _cacheProvider = provider;
+  }
+
+  // --- Network Queue Configuration ---
+
+  static ConnectivityProvider _connectivityProvider = AlwaysOnlineProvider();
+
+  static ConnectivityProvider get connectivityProvider => _connectivityProvider;
+
+  static void setConnectivityProvider(ConnectivityProvider provider) {
+    _connectivityProvider = provider;
+  }
+
+  static NetworkQueueManager? _networkQueueManager;
+
+  static NetworkQueueManager? get networkQueueManager => _networkQueueManager;
+
+  static void setNetworkQueueManager(NetworkQueueManager manager) {
+    _networkQueueManager = manager;
   }
 }

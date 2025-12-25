@@ -36,7 +36,7 @@ class CounterState {
 
 class TestNotifier extends OrchestratorNotifier<CounterState> {
   @override
-  CounterState build() => const CounterState();
+  CounterState buildState() => const CounterState();
 
   void calculate(int value) {
     state = state.copyWith(isLoading: true);

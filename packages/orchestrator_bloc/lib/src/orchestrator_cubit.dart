@@ -23,7 +23,7 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// }
 /// ```
 abstract class OrchestratorCubit<S> extends Cubit<S> {
-  final SignalBus _bus = SignalBus();
+  final SignalBus _bus = SignalBus.instance;
   final Dispatcher _dispatcher = Dispatcher();
 
   /// Active job IDs being tracked by this cubit
@@ -152,6 +152,7 @@ abstract class OrchestratorCubit<S> extends Cubit<S> {
   @override
   Future<void> close() {
     _busSubscription?.cancel();
+    _busSubscription = null;
     _activeJobIds.clear();
     _jobProgress.clear();
     return super.close();

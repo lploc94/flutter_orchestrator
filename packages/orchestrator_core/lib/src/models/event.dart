@@ -96,6 +96,8 @@ class JobPlaceholderEvent<T> extends BaseEvent {
 /// Emitted to report progress of a long-running job.
 class JobProgressEvent extends BaseEvent {
   /// Progress value (0.0 to 1.0).
+  ///
+  /// Values outside this range will be clamped automatically.
   final double progress;
 
   /// Optional message.
@@ -107,11 +109,16 @@ class JobProgressEvent extends BaseEvent {
 
   JobProgressEvent(
     super.correlationId, {
-    required this.progress,
+    required double progress,
     this.message,
     this.currentStep,
     this.totalSteps,
-  });
+  }) : progress = progress.clamp(0.0, 1.0) {
+    assert(
+      currentStep == null || totalSteps == null || currentStep! <= totalSteps!,
+      'currentStep ($currentStep) cannot be greater than totalSteps ($totalSteps)',
+    );
+  }
 
   @override
   String toString() =>
@@ -143,4 +150,39 @@ class JobRetryingEvent extends BaseEvent {
   @override
   String toString() =>
       'JobRetryingEvent(id: $correlationId, attempt: $attempt/$maxRetries)';
+}
+
+// ============ Network Sync Events ============
+
+/// Emitted when a network-queued job fails during background sync.
+///
+/// Orchestrators can listen to this event to:
+/// - Rollback optimistic UI updates
+/// - Show error notifications to user
+/// - Log sync failures
+class NetworkSyncFailureEvent extends BaseEvent {
+  /// The error that caused the sync failure.
+  final Object error;
+
+  /// Stack trace of the error.
+  final StackTrace? stackTrace;
+
+  /// Number of times this job has been retried.
+  final int retryCount;
+
+  /// If true, this job has exceeded max retries and will be abandoned.
+  /// Orchestrators should treat this as a permanent failure.
+  final bool isPoisoned;
+
+  NetworkSyncFailureEvent(
+    super.correlationId, {
+    required this.error,
+    this.stackTrace,
+    required this.retryCount,
+    required this.isPoisoned,
+  });
+
+  @override
+  String toString() =>
+      'NetworkSyncFailureEvent(id: $correlationId, retry: $retryCount, poisoned: $isPoisoned)';
 }

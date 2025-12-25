@@ -14,10 +14,20 @@ library;
 // Models
 export 'src/models/event.dart';
 export 'src/models/job.dart';
+export 'src/models/network_action.dart';
+export 'src/models/data_strategy.dart';
 
 // Infrastructure
 export 'src/infra/signal_bus.dart';
 export 'src/infra/dispatcher.dart';
+export 'src/infra/offline/offline_manager.dart';
+export 'src/infra/offline/connectivity_provider.dart';
+
+// Cache
+export 'src/infra/cache/cache_provider.dart';
+export 'src/infra/cache/in_memory_cache_provider.dart';
+export 'src/infra/cache/cache_job_executor.dart';
+export 'src/jobs/invalidate_cache_job.dart';
 
 // Base classes
 export 'src/base/base_executor.dart';
@@ -27,3 +37,8 @@ export 'src/base/base_orchestrator.dart';
 export 'src/utils/cancellation_token.dart';
 export 'src/utils/retry_policy.dart';
 export 'src/utils/logger.dart';
+export 'src/utils/job_builder.dart';
+export 'src/utils/job_result.dart';
+export 'src/utils/event_extensions.dart';
+export 'src/utils/state_patterns.dart';
+export 'src/utils/orchestrator_helpers.dart';
