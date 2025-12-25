@@ -1,0 +1,25 @@
+name: orchestrator_app
+description: "Orchestrator approach Task Manager - Demonstrates smooth, maintainable code"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_bloc: ^9.1.1
+  shared:
+    path: ../shared
+  orchestrator_bloc:
+    path: ../../../packages/orchestrator_bloc
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

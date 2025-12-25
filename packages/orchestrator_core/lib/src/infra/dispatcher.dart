@@ -75,6 +75,11 @@ class Dispatcher {
     _registry[J] = executor;
   }
 
+  /// Register an executor by runtime type (for cases where generic type is not available).
+  void registerByType(Type jobType, BaseExecutor executor) {
+    _registry[jobType] = executor;
+  }
+
   /// Dispatch a job to the subscribed executor.
   /// Returns the Job ID (Correlation ID) immediately.
   String dispatch(BaseJob job) {

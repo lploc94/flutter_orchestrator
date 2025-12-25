@@ -1,0 +1,21 @@
+{
+  "roots": [
+    "shared"
+  ],
+  "packages": [
+    {
+      "name": "shared",
+      "version": "1.0.0",
+      "dependencies": [
+        "meta"
+      ],
+      "devDependencies": []
+    },
+    {
+      "name": "meta",
+      "version": "1.17.0",
+      "dependencies": []
+    }
+  ],
+  "configVersion": 1
+}
