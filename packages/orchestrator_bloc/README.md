@@ -13,7 +13,7 @@ Flutter BLoC/Cubit integration for orchestrator_core. Build scalable Flutter app
 
 ```yaml
 dependencies:
-  orchestrator_bloc: ^0.0.3
+  orchestrator_bloc: ^0.2.0
 ```
 
 ## Usage

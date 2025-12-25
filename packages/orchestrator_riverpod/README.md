@@ -12,7 +12,7 @@ Riverpod integration for orchestrator_core. Build scalable Flutter apps with Eve
 
 ```yaml
 dependencies:
-  orchestrator_riverpod: ^0.0.3
+  orchestrator_riverpod: ^0.2.0
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ dependencies:
 ```dart
 class CounterNotifier extends OrchestratorNotifier<CounterState> {
   @override
-  CounterState build() => const CounterState();
+  CounterState buildState() => const CounterState();
 
   void increment() {
     state = state.copyWith(isLoading: true);

@@ -25,7 +25,7 @@
 ```
 flutter_orchestrator/
 ├── book/                    # Documentation
-│   ├── chapters/            # 6 chapters (English - Primary)
+│   ├── chapters/            # 7 chapters (English - Primary)
 │   ├── vi/                  # Vietnamese version (Tiếng Việt)
 │   │   └── chapters/
 │   └── GLOSSARY.md          # English-Vietnamese Glossary
@@ -34,7 +34,9 @@ flutter_orchestrator/
 │   ├── orchestrator_core/   # Core framework (Pure Dart)
 │   ├── orchestrator_bloc/   # BLoC integration
 │   ├── orchestrator_provider/  # Provider integration
-│   └── orchestrator_riverpod/  # Riverpod integration
+│   ├── orchestrator_riverpod/  # Riverpod integration
+│   ├── orchestrator_flutter/   # Flutter utilities (file safety, connectivity)
+│   └── orchestrator_generator/ # Code generation for offline support
 │
 └── examples/                # Example applications
 ```
@@ -45,7 +47,7 @@ flutter_orchestrator/
 
 ```yaml
 dependencies:
-  orchestrator_bloc: ^0.0.3  # or orchestrator_provider / orchestrator_riverpod
+  orchestrator_bloc: ^0.2.0  # or orchestrator_provider / orchestrator_riverpod
 ```
 
 ### 2. Create Executor
@@ -87,7 +89,7 @@ cd packages/orchestrator_provider && flutter test
 cd packages/orchestrator_riverpod && flutter test
 ```
 
-**Total: 28 tests passing ✅**
+**Total: 95+ tests passing ✅**
 
 ## License
 

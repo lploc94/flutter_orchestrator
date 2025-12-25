@@ -12,7 +12,7 @@ Provider/ChangeNotifier integration for orchestrator_core. Build scalable Flutte
 
 ```yaml
 dependencies:
-  orchestrator_provider: ^0.0.3
+  orchestrator_provider: ^0.2.0
 ```
 
 ## Usage
