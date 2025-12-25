@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      orchestrator_generator|network_registry:
+        enabled: true
+
+builders:
+  network_registry:
+    target: ":orchestrator_generator"
+    import: "package:orchestrator_generator/builder.dart"
+    builder_factories: ["networkRegistryBuilder"]
+    build_extensions: {".dart": [".network_registry.g.dart"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen:combining_builder"]
