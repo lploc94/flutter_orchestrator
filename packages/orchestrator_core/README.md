@@ -132,7 +132,7 @@ void onActiveSuccess(JobSuccessEvent event) {
 
 ## Documentation
 
-See the full [documentation](https://github.com/phatdat-dev/flutter_orchestrator/tree/main/book).
+See the full [documentation](https://github.com/lploc94/flutter_orchestrator/tree/main/book).
 
 ## License
 
