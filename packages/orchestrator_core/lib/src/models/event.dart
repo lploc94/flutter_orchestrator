@@ -144,3 +144,38 @@ class JobRetryingEvent extends BaseEvent {
   String toString() =>
       'JobRetryingEvent(id: $correlationId, attempt: $attempt/$maxRetries)';
 }
+
+// ============ Network Sync Events ============
+
+/// Emitted when a network-queued job fails during background sync.
+///
+/// Orchestrators can listen to this event to:
+/// - Rollback optimistic UI updates
+/// - Show error notifications to user
+/// - Log sync failures
+class NetworkSyncFailureEvent extends BaseEvent {
+  /// The error that caused the sync failure.
+  final Object error;
+
+  /// Stack trace of the error.
+  final StackTrace? stackTrace;
+
+  /// Number of times this job has been retried.
+  final int retryCount;
+
+  /// If true, this job has exceeded max retries and will be abandoned.
+  /// Orchestrators should treat this as a permanent failure.
+  final bool isPoisoned;
+
+  NetworkSyncFailureEvent(
+    super.correlationId, {
+    required this.error,
+    this.stackTrace,
+    required this.retryCount,
+    required this.isPoisoned,
+  });
+
+  @override
+  String toString() =>
+      'NetworkSyncFailureEvent(id: $correlationId, retry: $retryCount, poisoned: $isPoisoned)';
+}
