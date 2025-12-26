@@ -5,20 +5,21 @@
 </p>
 
 <p align="center">
-  <a href="docs/vi/README.md">📚 Tài liệu Kỹ thuật (Framework Docs)</a> •
-  <a href="book/vi/README.md">📖 Đọc Sách (Tư duy kiến trúc)</a> •
+  <a href="README_vi.md">🇻🇳 Tiếng Việt</a> •
+  <a href="docs/vi/README.md">📚 Documentation</a> •
+  <a href="book/vi/README.md">📖 Book (Architecture)</a> •
   <a href="packages/orchestrator_core">📦 Core Package</a>
 </p>
 
 ---
 
-## Giới thiệu
+## Introduction
 
-**Flutter Orchestrator** là một kiến trúc hướng sự kiện (Event-driven) được thiết kế để giải quyết vấn đề "God Classes" trong các ứng dụng Flutter lớn. Thay vì để Controller/BLoC quản lý cả UI State nhận Business Logic, kiến trúc này tách biệt rõ ràng:
+**Flutter Orchestrator** is an Event-Driven architecture designed to solve the "God Classes" problem in large Flutter applications. Instead of having Controllers/BLoCs manage both UI State and Business Logic, this architecture separates concerns clearly:
 
-- **Orchestrator**: Quản lý UI State & Điều phối
-- **Executor**: Thực thi Business Logic (Thuần Dart)
-- **Dispatcher**: Trung tâm điều phối & Xử lý sự kiện (Offline, Logging...)
+- **Orchestrator**: Manages UI State & Coordination
+- **Executor**: Executes Business Logic (Pure Dart)
+- **Dispatcher**: Central hub for routing & event handling (Offline, Logging...)
 
 ```mermaid
 flowchart LR
@@ -33,7 +34,7 @@ flowchart LR
         Executor["Executor"]
     end
     
-    Widget -->|"gọi hàm"| Orchestrator
+    Widget -->|"call method"| Orchestrator
     Orchestrator -->|"dispatch(Job)"| Dispatcher
     Dispatcher -->|"execute()"| Executor
     Executor -->|"emit(Event)"| Orchestrator
@@ -41,27 +42,26 @@ flowchart LR
     State -->|"rebuild"| Widget
 ```
 
+## Why Flutter Orchestrator?
 
-## Tại sao chọn Flutter Orchestrator?
+1. **Complete Logic Separation**: Executors know nothing about UI, Orchestrators know nothing about API/DB calls.
+2. **Easy Testing**: With logic in pure Dart Executors, you can Unit Test 100% of logic without mocking Context or Widgets.
+3. **Automatic Offline Support**: Just mark with `@NetworkJob`, and queuing, retry, sync when online are all handled automatically.
+4. **Better Teamwork**: Dev A works on screens (Orchestrator), Dev B works on logic (Executor). No more conflicts in a 2000-line Controller.
 
-1.  **Tách biệt logic hoàn toàn**: Executor không biết gì về UI, Orchestrator không biết gì về logic gọi API/DB.
-2.  **Test dễ dàng**: Với logic được tách ra Executor thuần Dart, bạn có thể Unit Test 100% logic mà không cần Mock Context hay Widget.
-3.  **Hỗ trợ Offline tự động**: Chỉ cần đánh dấu `@NetworkJob`, mọi vấn đề lưu queue, retry, sync khi có mạng đều được handle tự động.
-4.  **Teamwork tốt hơn**: Dev A làm màn hình (Orchestrator), Dev B làm logic (Executor). Không còn conflict code trong một file Controller dài 2000 dòng.
+## Getting Started
 
-## Bắt đầu ngay
+See detailed documentation at: [Framework Docs (Vietnamese)](docs/vi/README.md)
 
-Xem hướng dẫn chi tiết tại: [Tài liệu Framework (Tiếng Việt)](docs/vi/README.md)
-
-### Cài đặt nhanh
+### Quick Installation
 
 ```bash
 flutter pub add orchestrator_core orchestrator_bloc
 ```
 
-### Ví dụ đơn giản
+### Simple Example
 
-**1. Định nghĩa Job:**
+**1. Define a Job:**
 ```dart
 class LoginJob extends BaseJob {
   final String username;
@@ -70,9 +70,9 @@ class LoginJob extends BaseJob {
 }
 ```
 
-**2. Viết Logic (Executor):**
+**2. Write Logic (Executor):**
 ```dart
-class LoginExecutor extends BaseExecutor<LoginJob, User> {
+class LoginExecutor extends BaseExecutor<LoginJob> {
   @override
   Future<User> process(LoginJob job) async {
     return api.login(job.username, job.password);
@@ -80,7 +80,7 @@ class LoginExecutor extends BaseExecutor<LoginJob, User> {
 }
 ```
 
-**3. Gọi từ UI (Orchestrator):**
+**3. Call from UI (Orchestrator):**
 ```dart
 class LoginCubit extends OrchestratorCubit<LoginState> {
   void onLoginPressed() {
@@ -91,25 +91,39 @@ class LoginCubit extends OrchestratorCubit<LoginState> {
 
 ---
 
-## Cấu trúc dự án
+## Project Structure
 
 ```
 flutter_orchestrator/
-├── book/                    # Sách (Tư duy & Kiến trúc)
-│   └── vi/                  # Tiếng Việt
+├── book/                    # Book (Architecture Philosophy)
+│   └── vi/                  # Vietnamese
 │
-├── docs/                    # Tài liệu kỹ thuật (Cách sử dụng Framework)
-│   └── vi/                  # Tiếng Việt
-│       ├── guide/           # Hướng dẫn cơ bản
-│       └── advanced/        # Tính năng nâng cao
+├── docs/                    # Technical Documentation
+│   └── vi/                  # Vietnamese
+│       ├── guide/           # Basic guides
+│       ├── concepts/        # Core concepts
+│       └── advanced/        # Advanced features
 │
-├── packages/                # Các gói thư viện (Packages)
+├── packages/                # Library packages
 │   ├── orchestrator_core/   # Core framework
 │   ├── orchestrator_bloc/   # BLoC integration
-│   └── ...
+│   ├── orchestrator_provider/   # Provider integration
+│   └── orchestrator_riverpod/   # Riverpod integration
 │
-└── examples/                # Ứng dụng mẫu
+└── examples/                # Example applications
+    └── simple_counter/      # Hello World example
 ```
 
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [orchestrator_core](packages/orchestrator_core) | Core framework (Pure Dart) |
+| [orchestrator_bloc](packages/orchestrator_bloc) | flutter_bloc integration |
+| [orchestrator_provider](packages/orchestrator_provider) | provider integration |
+| [orchestrator_riverpod](packages/orchestrator_riverpod) | riverpod integration |
+| [orchestrator_generator](packages/orchestrator_generator) | Code generation for NetworkJob |
+
 ## License
+
 MIT License.
