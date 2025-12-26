@@ -1,0 +1,27 @@
+# Golden example files for CLI template generation
+# These files are used as source templates, not runnable code
+# Run: dart run scripts/sync_templates.dart
+
+name: cli_templates
+description: Golden example files for sync_templates.dart
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  # Path to local packages for IDE analysis
+  orchestrator_core:
+    path: ../../packages/orchestrator_core
+  orchestrator_bloc:
+    path: ../../packages/orchestrator_bloc
+  orchestrator_provider:
+    path: ../../packages/orchestrator_provider
+  orchestrator_riverpod:
+    path: ../../packages/orchestrator_riverpod
+  flutter_riverpod: ^2.4.0
+
+dependency_overrides:
+  orchestrator_core:
+    path: ../../packages/orchestrator_core
+

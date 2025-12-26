@@ -1,0 +1,170 @@
+{
+  "roots": [
+    "cli_templates"
+  ],
+  "packages": [
+    {
+      "name": "cli_templates",
+      "version": "0.0.0",
+      "dependencies": [
+        "flutter_riverpod",
+        "orchestrator_bloc",
+        "orchestrator_core",
+        "orchestrator_provider",
+        "orchestrator_riverpod"
+      ],
+      "devDependencies": []
+    },
+    {
+      "name": "orchestrator_core",
+      "version": "0.3.0",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "orchestrator_riverpod",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "flutter_riverpod",
+        "orchestrator_core"
+      ]
+    },
+    {
+      "name": "orchestrator_provider",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "orchestrator_core",
+        "provider"
+      ]
+    },
+    {
+      "name": "orchestrator_bloc",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "flutter_bloc",
+        "orchestrator_core"
+      ]
+    },
+    {
+      "name": "flutter",
+      "version": "0.0.0",
+      "dependencies": [
+        "characters",
+        "collection",
+        "material_color_utilities",
+        "meta",
+        "sky_engine",
+        "vector_math"
+      ]
+    },
+    {
+      "name": "meta",
+      "version": "1.16.0",
+      "dependencies": []
+    },
+    {
+      "name": "vector_math",
+      "version": "2.1.4",
+      "dependencies": []
+    },
+    {
+      "name": "sky_engine",
+      "version": "0.0.0",
+      "dependencies": []
+    },
+    {
+      "name": "material_color_utilities",
+      "version": "0.11.1",
+      "dependencies": [
+        "collection"
+      ]
+    },
+    {
+      "name": "collection",
+      "version": "1.19.1",
+      "dependencies": []
+    },
+    {
+      "name": "characters",
+      "version": "1.4.0",
+      "dependencies": []
+    },
+    {
+      "name": "flutter_bloc",
+      "version": "9.1.1",
+      "dependencies": [
+        "bloc",
+        "flutter",
+        "provider"
+      ]
+    },
+    {
+      "name": "bloc",
+      "version": "9.1.0",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "provider",
+      "version": "6.1.5+1",
+      "dependencies": [
+        "collection",
+        "flutter",
+        "nested"
+      ]
+    },
+    {
+      "name": "nested",
+      "version": "1.0.0",
+      "dependencies": [
+        "flutter"
+      ]
+    },
+    {
+      "name": "flutter_riverpod",
+      "version": "2.6.1",
+      "dependencies": [
+        "collection",
+        "flutter",
+        "meta",
+        "riverpod",
+        "state_notifier"
+      ]
+    },
+    {
+      "name": "riverpod",
+      "version": "2.6.1",
+      "dependencies": [
+        "collection",
+        "meta",
+        "stack_trace",
+        "state_notifier"
+      ]
+    },
+    {
+      "name": "state_notifier",
+      "version": "1.0.0",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "stack_trace",
+      "version": "1.12.1",
+      "dependencies": [
+        "path"
+      ]
+    },
+    {
+      "name": "path",
+      "version": "1.9.1",
+      "dependencies": []
+    }
+  ],
+  "configVersion": 1
+}

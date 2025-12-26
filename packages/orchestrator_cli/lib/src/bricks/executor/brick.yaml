@@ -1,0 +1,8 @@
+name: orchestrator_executor
+description: Creates an Orchestrator Executor class
+version: 0.1.0
+vars:
+  name:
+    type: string
+    description: The name of the executor (e.g., FetchUser)
+    prompt: What is the executor name?

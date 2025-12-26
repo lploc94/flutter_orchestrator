@@ -1,0 +1,29 @@
+name: orchestrator_cli
+description: CLI tool for scaffolding Flutter Orchestrator components (Job, Executor, Cubit, Notifier, State)
+version: 0.1.0
+repository: https://github.com/lploc94/flutter_orchestrator
+homepage: https://github.com/lploc94/flutter_orchestrator
+topics:
+  - flutter
+  - cli
+  - scaffolding
+  - state-management
+  - code-generation
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  args: ^2.4.0
+  mason: ^0.1.0-dev.60
+  mason_logger: ^0.3.0
+  path: ^1.8.0
+  yaml: ^3.1.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.24.0
+  mocktail: ^1.0.0
+
+executables:
+  orchestrator:

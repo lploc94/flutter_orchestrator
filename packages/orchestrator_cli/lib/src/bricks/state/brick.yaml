@@ -1,0 +1,8 @@
+name: orchestrator_state
+description: Creates an immutable State class with copyWith
+version: 0.1.0
+vars:
+  name:
+    type: string
+    description: The name of the state (e.g., User)
+    prompt: What is the state name?
