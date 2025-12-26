@@ -1,366 +1,473 @@
 # Code Generation
 
-Flutter Orchestrator sử dụng `build_runner` để tự động sinh code, giúp giảm boilerplate và tránh lỗi khi làm việc với **Network Jobs** (Offline Support).
+Hướng dẫn sử dụng các annotation để sinh code tự động, giảm boilerplate và tăng tốc phát triển.
+
+## Mục lục
+
+1. [Tổng quan](#tổng-quan)
+2. [Cài đặt](#cài-đặt)
+3. [@NetworkJob - Serialization](#networkjob---serialization)
+4. [@NetworkRegistry - Đăng ký Job Offline](#networkregistry---đăng-ký-job-offline)
+5. [@ExecutorRegistry - Đăng ký Executor](#executorregistry---đăng-ký-executor)
+6. [@Orchestrator & @OnEvent - Declarative Routing](#orchestrator--onevent---declarative-routing)
+7. [@GenerateAsyncState - State Pattern](#generateasyncstate---state-pattern)
+8. [@GenerateJob - Job Boilerplate](#generatejob---job-boilerplate)
+9. [@GenerateEvent - Event Boilerplate](#generateevent---event-boilerplate)
+10. [Chạy Code Generator](#chạy-code-generator)
 
 ---
 
-## 1. Tổng quan
+## Tổng quan
 
-### 1.1. Tại sao cần Code Generation?
+`orchestrator_generator` cung cấp các annotation và generator để tự động sinh code, bao gồm:
 
-Khi sử dụng **Offline Support** với `NetworkAction`, mỗi Job cần:
-- Được **serialize** (`toJson`) để lưu vào queue khi offline
-- Được **deserialize** (`fromJson`) để khôi phục khi online
-
-Code generation giúp **tự động đăng ký** tất cả Jobs vào `NetworkJobRegistry`, đảm bảo:
-- ✅ Không sót Job nào
-- ✅ Type-safe tại compile time
-- ✅ Giảm boilerplate
-
-### 1.2. Flow hoạt động
-
-```mermaid
-flowchart LR
-    subgraph Dev["Developer"]
-        Annotation["@NetworkRegistry([...])"]
-    end
-    
-    subgraph BuildRunner["build_runner"]
-        Generator["NetworkRegistryGenerator"]
-    end
-    
-    subgraph Generated["Generated Code"]
-        Function["registerNetworkJobs()"]
-    end
-    
-    subgraph Runtime["Runtime"]
-        Registry["NetworkJobRegistry"]
-    end
-    
-    Annotation -->|"build"| Generator
-    Generator -->|"generate"| Function
-    Function -->|"register"| Registry
-    
-    style Generated fill:#e8f5e9,stroke:#2e7d32,color:#000
-```
+| Annotation | Mục đích |
+|------------|----------|
+| `@NetworkJob` | Sinh `toJson`/`fromJson` cho Job hỗ trợ offline |
+| `@NetworkRegistry` | Sinh hàm đăng ký tất cả NetworkJob |
+| `@ExecutorRegistry` | Sinh hàm đăng ký Executor với Dispatcher |
+| `@Orchestrator` + `@OnEvent` | Declarative event routing (thay vì if-else) |
+| `@GenerateAsyncState` | Sinh `copyWith`, `toLoading`, `when`, `maybeWhen` |
+| `@GenerateJob` | Sinh boilerplate cho Job (ID, timeout, retry) |
+| `@GenerateEvent` | Sinh boilerplate cho Event |
 
 ---
 
-## 2. Cài đặt
-
-### 2.1. pubspec.yaml
+## Cài đặt
 
 ```yaml
+# pubspec.yaml
 dependencies:
-  orchestrator_core: ^1.0.0
+  orchestrator_core: ^0.3.0
 
 dev_dependencies:
+  orchestrator_generator: ^0.3.0
   build_runner: ^2.4.0
-  orchestrator_generator: ^1.0.0
-```
-
-### 2.2. Chạy Installation
-
-```bash
-flutter pub get
 ```
 
 ---
 
-## 3. Sử dụng
+## @NetworkJob - Serialization
 
-### 3.1. Bước 1: Định nghĩa Network Jobs
+Tự động sinh `toJson()`, `fromJson()` và `fromJsonToBase()` cho Job cần hỗ trợ offline queue.
 
-Mỗi Job cần implement `NetworkAction` và có `fromJson` factory:
+### Sử dụng
 
 ```dart
-// lib/jobs/send_message_job.dart
 import 'package:orchestrator_core/orchestrator_core.dart';
 
-class SendMessageJob extends BaseJob implements NetworkAction<Message> {
+part 'send_message_job.g.dart';
+
+@NetworkJob(generateSerialization: true)
+class SendMessageJob extends BaseJob implements NetworkAction {
+  final String message;
+  final int priority;
+  
+  @JsonKey(name: 'msg')  // Đổi tên field trong JSON
   final String content;
-  final String recipientId;
   
-  SendMessageJob(this.content, this.recipientId)
-    : super(id: generateJobId('send_message'));
-  
-  // BẮT BUỘC: Serialize để lưu queue
+  @JsonIgnore()  // Bỏ qua field này khi serialize
+  final DateTime localTimestamp;
+
+  SendMessageJob({
+    required this.message,
+    required this.priority,
+    required this.content,
+    DateTime? localTimestamp,
+  }) : localTimestamp = localTimestamp ?? DateTime.now(),
+       super(id: generateJobId('send_msg'));
+
+  // Pessimistic action cho offline sync
   @override
-  Map<String, dynamic> toJson() => {
-    'content': content,
-    'recipientId': recipientId,
-  };
-  
-  // BẮT BUỘC: Deserialize khi khôi phục từ queue
-  factory SendMessageJob.fromJson(Map<String, dynamic> json) {
-    return SendMessageJob(
-      json['content'] as String,
-      json['recipientId'] as String,
-    );
-  }
-  
-  // Wrapper cho NetworkJobRegistry (trả về BaseJob)
-  static BaseJob fromJsonToBase(Map<String, dynamic> json) {
-    return SendMessageJob.fromJson(json);
-  }
-  
-  @override
-  Message createOptimisticResult() {
-    return Message(
-      id: id,
-      content: content,
-      status: MessageStatus.sending,
-    );
-  }
+  String get deduplicationKey => 'send_msg_$message';
 }
 ```
 
-### 3.2. Bước 2: Tạo Registry File
-
-Tạo file để khai báo tất cả Network Jobs:
+### Generated Code
 
 ```dart
-// lib/network_config.dart
-import 'package:orchestrator_core/orchestrator_core.dart';
-import 'jobs/send_message_job.dart';
-import 'jobs/like_post_job.dart';
-import 'jobs/upload_photo_job.dart';
+// send_message_job.g.dart
+extension _$SendMessageJobSerialization on SendMessageJob {
+  Map<String, dynamic> toJson() => {
+    'message': message,
+    'priority': priority,
+    'msg': content,  // Sử dụng JsonKey name
+    // localTimestamp bị bỏ qua do @JsonIgnore
+  };
 
-part 'network_config.g.dart';
+  static SendMessageJob fromJson(Map<String, dynamic> json) => SendMessageJob(
+    message: json['message'] as String,
+    priority: json['priority'] as int,
+    content: json['msg'] as String,
+  );
+}
+
+BaseJob _$SendMessageJobFromJsonToBase(Map<String, dynamic> json) =>
+    _$SendMessageJobSerialization.fromJson(json);
+```
+
+### Tùy chọn
+
+| Tham số | Mặc định | Mô tả |
+|---------|----------|-------|
+| `generateSerialization` | `true` | Có sinh `toJson`/`fromJson` không |
+
+---
+
+## @NetworkRegistry - Đăng ký Job Offline
+
+Sinh hàm `registerNetworkJobs()` để đăng ký tất cả NetworkJob với `NetworkJobRegistry`.
+
+### Sử dụng
+
+```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'app_config.g.dart';
 
 @NetworkRegistry([
   SendMessageJob,
-  LikePostJob,
-  UploadPhotoJob,
+  UploadFileJob,
+  SyncDataJob,
 ])
-void setupNetworkRegistry() {}
+class AppConfig {}
 ```
 
-### 3.3. Bước 3: Chạy Code Generation
-
-```bash
-# Build một lần
-dart run build_runner build
-
-# Hoặc watch mode (auto-rebuild khi file thay đổi)
-dart run build_runner watch
-```
-
-### 3.4. Generated Code
-
-File `network_config.g.dart` sẽ được tạo tự động:
+### Generated Code
 
 ```dart
-// GENERATED CODE - DO NOT MODIFY BY HAND
-
-part of 'network_config.dart';
-
-/// Auto-generated function to register all network jobs.
-/// Call this during app initialization before processing offline queue.
-///
-/// Registered jobs:
-/// - `SendMessageJob`
-/// - `LikePostJob`
-/// - `UploadPhotoJob`
+// app_config.g.dart
+/// Đăng ký tất cả NetworkJob.
+/// Gọi hàm này trong main() trước khi xử lý offline queue.
 void registerNetworkJobs() {
-  NetworkJobRegistry.register('SendMessageJob', SendMessageJob.fromJsonToBase);
-  NetworkJobRegistry.register('LikePostJob', LikePostJob.fromJsonToBase);
-  NetworkJobRegistry.register('UploadPhotoJob', UploadPhotoJob.fromJsonToBase);
+  NetworkJobRegistry.register('SendMessageJob', SendMessageJob.fromJson);
+  NetworkJobRegistry.register('UploadFileJob', UploadFileJob.fromJson);
+  NetworkJobRegistry.register('SyncDataJob', SyncDataJob.fromJson);
 }
 ```
 
-### 3.5. Bước 4: Sử dụng trong main()
-
-```dart
-// main.dart
-import 'package:flutter/material.dart';
-import 'package:orchestrator_core/orchestrator_core.dart';
-import 'network_config.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. Đăng ký tất cả network jobs
-  registerNetworkJobs();
-  
-  // 2. (Tùy chọn) Cấu hình connectivity provider
-  OrchestratorConfig.setConnectivityProvider(ConnectivityPlusProvider());
-  
-  // 3. (Tùy chọn) Cấu hình network queue manager
-  final queueManager = NetworkQueueManager(
-    storage: FileNetworkQueueStorage(),
-  );
-  OrchestratorConfig.setNetworkQueueManager(queueManager);
-  
-  runApp(MyApp());
-}
-```
-
----
-
-## 4. Annotations
-
-### 4.1. @NetworkRegistry
-
-Đánh dấu danh sách các Job types cần đăng ký vào registry:
-
-```dart
-@NetworkRegistry([
-  JobA,
-  JobB,
-  JobC,
-])
-void setupNetworkRegistry() {}
-```
-
-**Lưu ý:**
-- Mỗi Job trong danh sách phải có `fromJsonToBase` static method
-- Function body có thể để trống (chỉ cần annotation)
-- Nên đặt tất cả Jobs trong cùng một annotation
-
-### 4.2. @NetworkJob (Tùy chọn)
-
-Đánh dấu một Job class là Network Job (cho documentation):
-
-```dart
-@NetworkJob()
-class SendMessageJob extends BaseJob implements NetworkAction<Message> {
-  // ...
-}
-```
-
----
-
-## 5. NetworkJobRegistry
-
-### 5.1. API Reference
-
-```dart
-class NetworkJobRegistry {
-  /// Đăng ký một Job type với factory function
-  static void register(String typeName, BaseJob Function(Map<String, dynamic>) factory);
-  
-  /// Đăng ký bằng generic type (alternative)
-  static void registerType<T>(BaseJob Function(Map<String, dynamic>) factory);
-  
-  /// Kiểm tra xem Job type đã được đăng ký chưa
-  static bool isRegistered(String typeName);
-  
-  /// Khôi phục Job từ persisted data
-  static BaseJob? restore(String typeName, Map<String, dynamic> payload);
-  
-  /// Xóa tất cả registrations (cho testing)
-  static void clear();
-}
-```
-
-### 5.2. Manual Registration (Alternative)
-
-Nếu không dùng code generation, bạn có thể đăng ký thủ công:
+### Khởi tạo
 
 ```dart
 void main() {
-  // Manual registration
-  NetworkJobRegistry.register('SendMessageJob', SendMessageJob.fromJsonToBase);
-  NetworkJobRegistry.register('LikePostJob', LikePostJob.fromJsonToBase);
-  
+  registerNetworkJobs();  // Gọi trước runApp
   runApp(MyApp());
 }
 ```
 
 ---
 
-## 6. Troubleshooting
+## @ExecutorRegistry - Đăng ký Executor
 
-### 6.1. Lỗi thường gặp
+Sinh hàm `registerExecutors()` để tự động đăng ký Executor với Dispatcher.
 
-| Lỗi | Nguyên nhân | Cách sửa |
-|-----|-------------|----------|
-| `fromJsonToBase not found` | Job thiếu static method | Thêm `static BaseJob fromJsonToBase(Map<String, dynamic> json)` |
-| `Type not found` | Chưa import Job | Thêm import statement |
-| `Part directive not found` | Thiếu `part` directive | Thêm `part 'filename.g.dart';` |
-| `Conflicting outputs` | File cũ conflict | Chạy với `--delete-conflicting-outputs` |
-
-### 6.2. Clean và Rebuild
-
-```bash
-# Xóa tất cả generated files
-dart run build_runner clean
-
-# Rebuild với force delete
-dart run build_runner build --delete-conflicting-outputs
-```
-
-### 6.3. Debug Generated Code
-
-Xem file `.g.dart` để kiểm tra code được generate đúng không:
-
-```bash
-cat lib/network_config.g.dart
-```
-
----
-
-## 7. Best Practices
-
-### ✅ Nên làm
-
-- **Một file registry duy nhất:** Quản lý tập trung tất cả Network Jobs
-- **Commit file .g.dart:** Để không phải chạy build_runner mỗi lần clone
-- **Chạy trong CI/CD:** Verify generated code trong pipeline
-- **Naming convention:** `fromJsonToBase` để phân biệt với `fromJson`
-
-### ❌ Không nên làm
+### Sử dụng
 
 ```dart
-// ❌ SAI: Quên part directive
-@NetworkRegistry([SendMessageJob])
-void setupRegistry() {}
+import 'package:orchestrator_core/orchestrator_core.dart';
 
-// ✅ ĐÚNG: Có part directive
-part 'network_config.g.dart';
+part 'executor_config.g.dart';
 
-@NetworkRegistry([SendMessageJob])
-void setupRegistry() {}
+@ExecutorRegistry([
+  (FetchUserJob, FetchUserExecutor),
+  (SendMessageJob, SendMessageExecutor),
+  (UploadFileJob, UploadFileExecutor),
+])
+class ExecutorConfig {}
+```
 
-// ❌ SAI: fromJson trả về Type thay vì BaseJob
-factory SendMessageJob.fromJson(Map<String, dynamic> json) {
-  return SendMessageJob(...);  // NetworkJobRegistry cần BaseJob
+### Generated Code
+
+```dart
+// executor_config.g.dart
+void registerExecutors(Dispatcher dispatcher) {
+  dispatcher.register<FetchUserJob>(FetchUserExecutor());
+  dispatcher.register<SendMessageJob>(SendMessageExecutor());
+  dispatcher.register<UploadFileJob>(UploadFileExecutor());
 }
+```
 
-// ✅ ĐÚNG: fromJsonToBase trả về BaseJob
-static BaseJob fromJsonToBase(Map<String, dynamic> json) {
-  return SendMessageJob.fromJson(json);
+### Khởi tạo
+
+```dart
+void main() {
+  final dispatcher = Dispatcher.instance;
+  registerExecutors(dispatcher);
+  runApp(MyApp());
 }
 ```
 
 ---
 
-## 8. Workflow đầy đủ
+## @Orchestrator & @OnEvent - Declarative Routing
 
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant Build as build_runner
-    participant App as App Runtime
-    participant Queue as Offline Queue
-    
-    Dev->>Dev: 1. Tạo Job với NetworkAction
-    Dev->>Dev: 2. Thêm vào @NetworkRegistry
-    Dev->>Build: 3. dart run build_runner build
-    Build->>Build: Generate registerNetworkJobs()
-    Build-->>Dev: 4. network_config.g.dart
-    
-    Note over App: App Startup
-    App->>App: 5. registerNetworkJobs()
-    App->>Queue: 6. Khôi phục jobs từ queue
-    Queue->>App: 7. NetworkJobRegistry.restore()
-    App->>App: 8. Execute restored jobs
+Thay vì viết `if (event is UserLoggedIn) { ... }`, sử dụng annotation để khai báo handler.
+
+### Trước đây (Manual)
+
+```dart
+class UserOrchestrator extends BaseOrchestrator<UserState> {
+  @override
+  void onActiveEvent(BaseEvent event) {
+    if (event is UserLoggedIn) {
+      _handleLogin(event);
+    } else if (event is UserLoggedOut) {
+      _handleLogout(event);
+    } else if (event is DataRefreshed) {
+      _handleDataRefresh(event);
+    }
+  }
+}
+```
+
+### Bây giờ (Declarative)
+
+```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'user_orchestrator.g.dart';
+
+@Orchestrator()
+class UserOrchestrator extends BaseOrchestrator<UserState> 
+    with _$UserOrchestratorEventRouting {
+  
+  UserOrchestrator() : super(const UserState());
+
+  @OnEvent(UserLoggedIn)
+  void _handleLogin(UserLoggedIn event) {
+    emit(state.copyWith(user: event.user, isLoggedIn: true));
+  }
+
+  @OnEvent(UserLoggedOut)
+  void _handleLogout(UserLoggedOut event) {
+    emit(UserState());  // Reset state
+  }
+
+  @OnEvent(DataRefreshed, passive: true)  // Passive event từ orchestrator khác
+  void _handleDataRefresh(DataRefreshed event) {
+    emit(state.copyWith(lastRefresh: DateTime.now()));
+  }
+}
+```
+
+### Tùy chọn @OnEvent
+
+| Tham số | Mặc định | Mô tả |
+|---------|----------|-------|
+| `passive` | `false` | `true` = event từ orchestrator khác |
+
+### Generated Mixin
+
+```dart
+// user_orchestrator.g.dart
+mixin _$UserOrchestratorEventRouting on BaseOrchestrator<UserState> {
+  void _handleLogin(UserLoggedIn event);
+  void _handleLogout(UserLoggedOut event);
+  void _handleDataRefresh(DataRefreshed event);
+
+  @override
+  void onActiveEvent(BaseEvent event) {
+    if (event is UserLoggedIn) { _handleLogin(event); return; }
+    if (event is UserLoggedOut) { _handleLogout(event); return; }
+    super.onActiveEvent(event);
+  }
+
+  @override
+  void onPassiveEvent(BaseEvent event) {
+    if (event is DataRefreshed) { _handleDataRefresh(event); return; }
+    super.onPassiveEvent(event);
+  }
+}
 ```
 
 ---
 
-## Xem thêm
+## @GenerateAsyncState - State Pattern
 
-- [Offline Support](offline_support.md) - Tổng quan về NetworkAction
-- [Dispatcher - NetworkAction](../concepts/dispatcher.md#5-xử-lý-networkaction-offline-support) - Cách Dispatcher xử lý
+Tự động sinh `copyWith`, state transitions (`toLoading`, `toSuccess`, `toFailure`), và pattern matching (`when`, `maybeWhen`).
+
+### Sử dụng
+
+```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'user_state.g.dart';
+
+@GenerateAsyncState()
+class UserState {
+  final AsyncStatus status;
+  final User? data;
+  final Object? error;
+  final String? username;
+
+  const UserState({
+    this.status = AsyncStatus.initial,
+    this.data,
+    this.error,
+    this.username,
+  });
+}
+```
+
+### Generated Methods
+
+```dart
+// user_state.g.dart
+extension UserStateGenerated on UserState {
+  // copyWith hỗ trợ đặt giá trị null tường minh
+  UserState copyWith({
+    Object? status = _sentinel,
+    Object? data = _sentinel,
+    Object? error = _sentinel,
+    Object? username = _sentinel,
+  }) { ... }
+
+  // State transitions
+  UserState toLoading() => copyWith(status: AsyncStatus.loading);
+  UserState toRefreshing() => copyWith(status: AsyncStatus.refreshing);
+  UserState toSuccess(User? data) => copyWith(status: AsyncStatus.success, data: data);
+  UserState toFailure(Object error) => copyWith(status: AsyncStatus.failure, error: error);
+
+  // Pattern matching
+  R when<R>({
+    required R Function() initial,
+    required R Function() loading,
+    required R Function(User? data) success,
+    required R Function(Object error) failure,
+    R Function(User? data)? refreshing,
+  }) { ... }
+
+  R maybeWhen<R>({
+    R Function()? initial,
+    R Function()? loading,
+    R Function(User? data)? success,
+    R Function(Object error)? failure,
+    required R Function() orElse,
+  }) { ... }
+}
+```
+
+### Ví dụ sử dụng
+
+```dart
+// Trong Orchestrator
+void onActiveSuccess(JobSuccessEvent event) {
+  emit(state.toSuccess(event.data as User));
+}
+
+void onActiveFailure(JobFailureEvent event) {
+  emit(state.toFailure(event.error));
+}
+
+// Trong Widget
+Widget build(BuildContext context) {
+  return state.when(
+    initial: () => const SizedBox(),
+    loading: () => const CircularProgressIndicator(),
+    success: (user) => UserProfile(user: user!),
+    failure: (error) => ErrorView(message: error.toString()),
+  );
+}
+```
+
+### Lưu ý: Reset về null
+
+Do pattern sentinel, có thể đặt về null tường minh:
+
+```dart
+// Có thể reset username về null
+emit(state.copyWith(username: null));  // ✅ Hoạt động đúng
+```
+
+---
+
+## @GenerateJob - Job Boilerplate
+
+Sinh boilerplate cho Job (ID tự động, cấu hình timeout/retry).
+
+### Sử dụng
+
+```dart
+@GenerateJob(
+  generateId: true,
+  defaultTimeout: Duration(seconds: 30),
+  defaultRetryCount: 3,
+)
+class FetchUserJob extends BaseJob {
+  final String userId;
+  
+  FetchUserJob(this.userId);
+}
+```
+
+> **Lưu ý**: Feature này đang trong giai đoạn phát triển. Hiện tại sinh mixin cơ bản.
+
+---
+
+## @GenerateEvent - Event Boilerplate
+
+Sinh boilerplate cho Event class.
+
+### Sử dụng
+
+```dart
+@GenerateEvent()
+class UserLoggedIn extends BaseEvent {
+  final String username;
+  
+  UserLoggedIn(this.username);
+}
+```
+
+> **Lưu ý**: Feature này đang trong giai đoạn phát triển. Hiện tại sinh mixin cơ bản.
+
+---
+
+## Chạy Code Generator
+
+### Build một lần
+
+```bash
+flutter pub run build_runner build --delete-conflicting-outputs
+```
+
+### Watch mode (tự động rebuild)
+
+```bash
+flutter pub run build_runner watch --delete-conflicting-outputs
+```
+
+### Clean và rebuild
+
+```bash
+flutter pub run build_runner clean
+flutter pub run build_runner build --delete-conflicting-outputs
+```
+
+---
+
+## Troubleshooting
+
+### Lỗi "part of" không tìm thấy
+
+Đảm bảo khai báo `part` directive đúng:
+
+```dart
+part 'my_file.g.dart';  // Phải match tên file
+```
+
+### Lỗi "No generator" 
+
+Kiểm tra `build.yaml` của `orchestrator_generator` đã được include trong project.
+
+### copyWith không reset về null
+
+Đảm bảo bạn đang sử dụng `@GenerateAsyncState` (v0.3.0+). Các phiên bản cũ dùng pattern `??` không hỗ trợ null tường minh.
+
+---
+
+## Tham khảo
+
+- [RFC 002: Enhanced Code Generation](../../design_proposals/002_enhanced_code_generation.md)
+- [Offline Support Guide](./offline_support.md)
+- [Testing Guide](./testing.md)

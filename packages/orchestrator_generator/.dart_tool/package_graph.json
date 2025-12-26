@@ -19,13 +19,6 @@
       ]
     },
     {
-      "name": "orchestrator_core",
-      "version": "0.3.0",
-      "dependencies": [
-        "meta"
-      ]
-    },
-    {
       "name": "test",
       "version": "1.26.3",
       "dependencies": [
@@ -55,6 +48,13 @@
         "web_socket_channel",
         "webkit_inspection_protocol",
         "yaml"
+      ]
+    },
+    {
+      "name": "orchestrator_core",
+      "version": "0.3.0",
+      "dependencies": [
+        "meta"
       ]
     },
     {
@@ -133,11 +133,6 @@
         "path",
         "pool"
       ]
-    },
-    {
-      "name": "meta",
-      "version": "1.17.0",
-      "dependencies": []
     },
     {
       "name": "yaml",
@@ -373,6 +368,11 @@
         "collection",
         "meta"
       ]
+    },
+    {
+      "name": "meta",
+      "version": "1.17.0",
+      "dependencies": []
     },
     {
       "name": "pub_semver",
