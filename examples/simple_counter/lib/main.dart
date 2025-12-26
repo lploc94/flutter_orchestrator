@@ -4,6 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:orchestrator_core/orchestrator_core.dart';
+// Import orchestrator_flutter to auto-activate DevTools observer
+// ignore: unused_import
+import 'package:orchestrator_flutter/orchestrator_flutter.dart';
 
 import 'jobs/counter_jobs.dart';
 import 'executors/counter_executor.dart';
@@ -16,6 +19,9 @@ void main() {
 
   // 2. (Optional) Enable debug logging
   OrchestratorConfig.enableDebugLogging();
+
+  // 3. DevTools Observer
+  initDevToolsObserver();
 
   runApp(const MyApp());
 }

@@ -1,0 +1,23 @@
+name: orchestrator_devtools_extension
+description: DevTools extension for Orchestrator framework - inspect events, jobs, and executors in real-time.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.0
+
+# For DevTools extensions, the web platform is required
+dependencies:
+  flutter:
+    sdk: flutter
+  devtools_extensions: ^0.4.0
+  devtools_app_shared: ^0.4.0
+  vm_service: ^15.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

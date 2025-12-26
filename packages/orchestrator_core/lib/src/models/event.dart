@@ -21,7 +21,9 @@ abstract class BaseEvent {
 /// Emitted when a Job completes successfully.
 class JobSuccessEvent<T> extends BaseEvent {
   final T data;
-  JobSuccessEvent(super.correlationId, this.data);
+  final bool isOptimistic;
+
+  JobSuccessEvent(super.correlationId, this.data, {this.isOptimistic = false});
 
   /// Safe cast helper.
   /// Returns [data] as [R] if type matches, otherwise returns null.
@@ -32,7 +34,8 @@ class JobSuccessEvent<T> extends BaseEvent {
   }
 
   @override
-  String toString() => 'JobSuccessEvent(id: $correlationId, data: $data)';
+  String toString() =>
+      'JobSuccessEvent(id: $correlationId, data: $data, optimistic: $isOptimistic)';
 }
 
 /// Emitted when a Job fails.
@@ -185,4 +188,17 @@ class NetworkSyncFailureEvent extends BaseEvent {
   @override
   String toString() =>
       'NetworkSyncFailureEvent(id: $correlationId, retry: $retryCount, poisoned: $isPoisoned)';
+}
+
+// ============ DevTools Events ============
+
+/// Emitted to update the Executor Registry in DevTools.
+class ExecutorRegistryEvent extends BaseEvent {
+  /// Map of Job Type Name -> Executor Type Name
+  final Map<String, String> registry;
+
+  ExecutorRegistryEvent(this.registry) : super('system_registry_event');
+
+  @override
+  String toString() => 'ExecutorRegistryEvent(count: ${registry.length})';
 }

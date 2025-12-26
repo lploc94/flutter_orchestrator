@@ -18,6 +18,8 @@ dependencies:
     path: ../../packages/orchestrator_core
   orchestrator_bloc:
     path: ../../packages/orchestrator_bloc
+  orchestrator_flutter:
+    path: ../../packages/orchestrator_flutter
   
   # Bloc for state management
   flutter_bloc: ^8.0.0

@@ -21,7 +21,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  orchestrator_core: ^0.2.0
+  orchestrator_core:
+    path: ../orchestrator_core
+
   
   # Offline Support Default Impl
   path_provider: ^2.0.0

@@ -26,6 +26,13 @@ class ExecutorNotFoundException implements Exception {
 class Dispatcher {
   final Map<Type, BaseExecutor> _registry = {};
 
+  /// Get map of registered executors (JobType Name -> ExecutorType Name)
+  Map<String, String> get registeredExecutors {
+    return _registry.map((jobType, executor) {
+      return MapEntry(jobType.toString(), executor.runtimeType.toString());
+    });
+  }
+
   /// Max retry attempts before abandoning a job (poison pill)
   final int maxRetries;
 
@@ -127,7 +134,8 @@ class Dispatcher {
           // 3. Emit Events (Started + Fake Success)
           final bus = job.bus ?? SignalBus.instance;
           bus.emit(JobStartedEvent(job.id));
-          bus.emit(JobSuccessEvent(job.id, optimisticResult));
+          bus.emit(
+              JobSuccessEvent(job.id, optimisticResult, isOptimistic: true));
 
           return; // Stop here, do not execute real worker
         } else {

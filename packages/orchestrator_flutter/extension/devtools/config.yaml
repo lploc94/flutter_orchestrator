@@ -1,0 +1,5 @@
+name: orchestrator_flutter
+issueTracker: https://github.com/user/flutter_orchestrator/issues
+version: 0.1.0
+materialIconCodePoint: '0xe6e1'
+requiresConnection: true
