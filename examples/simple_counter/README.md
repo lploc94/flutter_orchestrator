@@ -1,8 +1,8 @@
 # Simple Counter Example
 
-Ứng dụng Counter đơn giản sử dụng **Flutter Orchestrator** - Ví dụ Hello World.
+A simple Counter app using **Flutter Orchestrator** - Hello World example.
 
-## 📁 Cấu trúc
+## 📁 Structure
 
 ```
 lib/
@@ -16,7 +16,7 @@ lib/
 └── main.dart                  # Entry point & UI
 ```
 
-## 🚀 Chạy ứng dụng
+## 🚀 Run the App
 
 ```bash
 cd examples/simple_counter
@@ -24,31 +24,31 @@ flutter pub get
 flutter run
 ```
 
-## 🎯 Luồng hoạt động
+## 🎯 Data Flow
 
 ```
-1. User nhấn nút (+) 
+1. User taps (+) button 
    → CounterCubit.increment()
    
-2. Cubit dispatch Job
+2. Cubit dispatches Job
    → dispatch(IncrementJob())
    
-3. Dispatcher tìm Executor
+3. Dispatcher finds Executor
    → IncrementWithServiceExecutor.process()
    
-4. Executor xử lý & emit Event
+4. Executor processes & emits Event
    → emit(JobSuccessEvent(newCount))
    
-5. Cubit nhận Event qua hook
+5. Cubit receives Event via hook
    → onActiveSuccess(event)
    
-6. Cubit cập nhật State
+6. Cubit updates State
    → emit(state.copyWith(count: newCount))
    
-7. UI rebuild với count mới
+7. UI rebuilds with new count
 ```
 
-## 📖 Tài liệu tham khảo
+## 📖 Documentation
 
 - [Getting Started](../../docs/vi/guide/getting_started.md)
 - [Core Concepts](../../docs/vi/guide/core_concepts.md)
@@ -56,14 +56,14 @@ flutter run
 
 ## 🔑 Key Takeaways
 
-1. **Job** = Data class mô tả action (không có logic)
-2. **Executor** = Pure Dart business logic (dễ test)
-3. **Cubit** = Orchestrator kết nối UI và logic
-4. **State** = Immutable với `copyWith`
+1. **Job** = Data class describing an action (no logic)
+2. **Executor** = Pure Dart business logic (easy to test)
+3. **Cubit** = Orchestrator connecting UI and logic
+4. **State** = Immutable with `copyWith`
 
-## 🧪 Test
+## 🧪 Testing
 
-Executor thuần Dart → Test đơn giản:
+Executors are pure Dart → Easy to test:
 
 ```dart
 test('increment should increase count', () async {
