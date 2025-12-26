@@ -1,302 +1,352 @@
-# Chapter 3: Building the Core Framework
+# Chapter 3: The Component Details
 
-This chapter guides you through building the `orchestrator_core` package - the technical foundation of the entire architecture. The goal is to create a lightweight, high-performance framework independent of Flutter (Pure Dart).
+> *"Simplicity is the ultimate sophistication."* — Leonardo da Vinci
 
-> **Note**: All source code in this chapter has been tested and confirmed working.
-
----
-
-## 3.1. Basic Data Models
-
-### BaseJob
-
-Base class for all work requests in the system. The `id` property serves as Correlation ID to identify transactions.
-
-```dart
-// lib/src/models/job.dart
-import '../utils/cancellation_token.dart';
-import '../utils/retry_policy.dart';
-import '../infra/signal_bus.dart';
-
-abstract class BaseJob {
-  /// Unique transaction identifier (Correlation ID)
-  final String id;
-
-  /// Optional metadata
-  final Map<String, dynamic>? metadata;
-
-  /// Context: The bus instance this job belongs to.
-  SignalBus? bus;
-
-  BaseJob({required this.id, this.metadata});
-  
-  @override
-  String toString() => '$runtimeType(id: $id)';
-}
-
-/// Utility function to generate unique ID
-String generateJobId([String? prefix]) {
-  final timestamp = DateTime.now().millisecondsSinceEpoch;
-  final random = timestamp.hashCode.abs() % 10000;
-  return '${prefix ?? 'job'}-$timestamp-$random';
-}
-```
-
-### BaseEvent
-
-Base class for all events emitted from Executors. The `correlationId` property allows Orchestrators to identify the event's origin.
-
-```dart
-// lib/src/models/event.dart
-@immutable
-abstract class BaseEvent {
-  /// ID of the Job that generated this event
-  final String correlationId;
-  final DateTime timestamp;
-
-  BaseEvent(this.correlationId) : timestamp = DateTime.now();
-}
-
-/// Event when Job completes successfully
-class JobSuccessEvent<T> extends BaseEvent {
-  final T data;
-  JobSuccessEvent(super.correlationId, this.data);
-}
-
-/// Event when Job encounters error
-class JobFailureEvent extends BaseEvent {
-  final Object error;
-  final StackTrace? stackTrace;
-  JobFailureEvent(super.correlationId, this.error, [this.stackTrace]);
-}
-```
+This chapter dives deeper into each component's internal structure and behavior, using diagrams to explain the mechanics.
 
 ---
 
-## 3.2. Communication Infrastructure
+## 3.1. The Job
 
-### Signal Bus
-
-Central communication channel using Dart's `StreamController.broadcast()`. Singleton design ensures the entire application has only one broadcast point.
-
-```dart
-// lib/src/infra/signal_bus.dart
-import 'dart:async';
-
-class SignalBus {
-  static final SignalBus _instance = SignalBus._internal();
-  
-  /// Default factory returns the Global Singleton
-  factory SignalBus() => _instance;
-
-  /// Global singleton instance
-  static SignalBus get instance => _instance;
-
-  /// Create a new isolated bus
-  factory SignalBus.scoped() => SignalBus._internal();
-  
-  SignalBus._internal();
-
-  final _controller = StreamController<BaseEvent>.broadcast();
-
-  /// Stream allowing multiple Orchestrators to listen simultaneously
-  Stream<BaseEvent> get stream => _controller.stream;
-
-  /// Emit event on Bus
-  void emit(BaseEvent event) {
-    if (!_controller.isClosed) {
-      _controller.add(event);
-    }
-  }
-
-  void dispose() => _controller.close();
-}
-```
-
-### Dispatcher
-
-Router using Registry Pattern to map Job types to corresponding Executors. O(1) lookup complexity.
-
-```dart
-// lib/src/infra/dispatcher.dart
-class ExecutorNotFoundException implements Exception {
-  final Type jobType;
-  ExecutorNotFoundException(this.jobType);
-  @override
-  String toString() => 'No Executor found for type $jobType';
-}
-
-class Dispatcher {
-  final Map<Type, BaseExecutor> _registry = {};
-  
-  static final Dispatcher _instance = Dispatcher._internal();
-  factory Dispatcher() => _instance;
-  Dispatcher._internal();
-
-  /// Register Executor for a specific Job type
-  void register<J extends BaseJob>(BaseExecutor<J> executor) {
-    _registry[J] = executor;
-  }
-
-  /// Route Job to appropriate Executor
-  String dispatch(BaseJob job) {
-    final executor = _registry[job.runtimeType];
-    if (executor == null) {
-      throw ExecutorNotFoundException(job.runtimeType);
-    }
-    
-    executor.execute(job);
-    return job.id;
-  }
-  
-  void clear() => _registry.clear();
-}
-```
-
----
-
-## 3.3. BaseExecutor
-
-Abstract class defining the interface for all Workers. Includes built-in Error Boundary to ensure all exceptions are handled and converted to error events.
-
-```dart
-// lib/src/base/base_executor.dart
-abstract class BaseExecutor<T extends BaseJob> {
-  // Track active bus for each job
-  final Map<String, SignalBus> _activeBus = {};
-
-  /// Abstract method - subclasses implement business logic
-  Future<dynamic> process(T job);
-
-  /// Entry point called by Dispatcher
-  Future<void> execute(T job) async {
-    // Determine which bus to use (Scoped or Global)
-    final bus = job.bus ?? SignalBus.instance;
-    _activeBus[job.id] = bus;
-
-    try {
-      final result = await process(job);
-      emitResult(job.id, result);
-    } catch (e, stack) {
-      emitFailure(job.id, e, stack);
-    } finally {
-      // Cleanup
-      _activeBus.remove(job.id);
-    }
-  }
-
-  /// Emit success event
-  void emitResult<R>(String correlationId, R data) {
-    // Look up correct bus for this job
-    final bus = _activeBus[correlationId] ?? SignalBus.instance;
-    bus.emit(JobSuccessEvent<R>(correlationId, data));
-  }
-
-  /// Emit error event
-  void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
-    final bus = _activeBus[correlationId] ?? SignalBus.instance;
-    bus.emit(JobFailureEvent(correlationId, error, stack));
-  }
-}
-```
-
----
-
-## 3.4. BaseOrchestrator
-
-Abstract class implementing State Machine mechanism with automatic event classification.
+A Job is a **request for work** — an immutable data object describing what needs to be done.
 
 ```mermaid
-flowchart LR
-    subgraph SignalBus
-        Event[Event arrives]
-    end
+classDiagram
+    class BaseJob {
+        +String id
+        +Map~String, dynamic~? metadata
+        +CancellationToken? cancellationToken
+        +Duration? timeout
+        +RetryPolicy? retryPolicy
+    }
     
-    Event --> Check{correlationId<br/>in activeJobIds?}
-    Check --> |YES| Active["Direct Mode<br/>onActiveSuccess/Failure"]
-    Check --> |NO| Passive["Observer Mode<br/>onPassiveEvent"]
+    class FetchUserJob {
+        +String userId
+    }
     
-    Active --> UpdateState[Update State]
-    Passive --> UpdateState
+    class UploadFileJob {
+        +File file
+        +String destination
+    }
+    
+    BaseJob <|-- FetchUserJob
+    BaseJob <|-- UploadFileJob
 ```
 
-```dart
-// lib/src/base/base_orchestrator.dart
-abstract class BaseOrchestrator<S> {
-  S _state;
-  final StreamController<S> _stateController = StreamController<S>.broadcast();
-  final SignalBus _bus;
-  final Dispatcher _dispatcher = Dispatcher();
-  
-  /// Set of Jobs being tracked
-  final Set<String> _activeJobIds = {};
-  
-  StreamSubscription? _busSubscription;
+### Job Properties
 
-  BaseOrchestrator(this._state, {SignalBus? bus}) 
-      : _bus = bus ?? SignalBus.instance {
-    _stateController.add(_state);
-    _subscribeToBus();
-  }
+| Property | Purpose |
+|----------|---------|
+| `id` | Correlation ID for tracking |
+| `metadata` | Optional context data |
+| `cancellationToken` | For explicit cancellation |
+| `timeout` | Maximum execution time |
+| `retryPolicy` | Retry configuration |
 
-  S get state => _state;
-  Stream<S> get stream => _stateController.stream;
-  bool get hasActiveJobs => _activeJobIds.isNotEmpty;
+---
 
-  @protected
-  void emit(S newState) {
-    if (_stateController.isClosed) return;
-    _state = newState;
-    _stateController.add(newState);
-  }
+## 3.2. The Event
 
-  @protected
-  String dispatch(BaseJob job) {
-    // Attach current bus to job
-    job.bus = _bus;
-    
-    final id = _dispatcher.dispatch(job);
-    _activeJobIds.add(id);
-    return id;
-  }
+An Event is a **notification of what happened** — the result of job execution.
 
-  void _subscribeToBus() {
-    _busSubscription = _bus.stream.listen(_routeEvent);
-  }
-
-  void _routeEvent(BaseEvent event) {
-    final isActive = _activeJobIds.contains(event.correlationId);
-    
-    if (isActive) {
-      if (event is JobSuccessEvent) onActiveSuccess(event);
-      else if (event is JobFailureEvent) onActiveFailure(event);
-      _activeJobIds.remove(event.correlationId);
-    } else {
-      onPassiveEvent(event);
+```mermaid
+classDiagram
+    class BaseEvent {
+        +String correlationId
+        +DateTime timestamp
     }
-  }
+    
+    class JobSuccessEvent~T~ {
+        +T data
+    }
+    
+    class JobFailureEvent {
+        +Object error
+        +StackTrace? stackTrace
+    }
+    
+    class JobProgressEvent {
+        +double progress
+        +String? message
+    }
+    
+    BaseEvent <|-- JobSuccessEvent
+    BaseEvent <|-- JobFailureEvent
+    BaseEvent <|-- JobProgressEvent
+```
 
-  @protected void onActiveSuccess(JobSuccessEvent event) {}
-  @protected void onActiveFailure(JobFailureEvent event) {}
-  @protected void onPassiveEvent(BaseEvent event) {}
+### Event Types
 
-  @mustCallSuper
-  void dispose() {
-    _busSubscription?.cancel();
-    _stateController.close();
-    _activeJobIds.clear();
-  }
-}
+| Event Type | When Emitted |
+|------------|--------------|
+| `JobSuccessEvent` | Job completed successfully |
+| `JobFailureEvent` | Job encountered an error |
+| `JobProgressEvent` | Job is partially complete |
+| `JobTimeoutEvent` | Job exceeded time limit |
+| `JobRetryingEvent` | Job is being retried |
+
+---
+
+## 3.3. The Dispatcher (Routing)
+
+The Dispatcher maintains a registry mapping Job types to Executors.
+
+```mermaid
+graph LR
+    subgraph Registry["📮 Dispatcher Registry"]
+        R1["FetchUserJob → UserExecutor"]
+        R2["LoginJob → AuthExecutor"]
+        R3["UploadJob → UploadExecutor"]
+    end
+    
+    Job["Incoming Job"] --> Lookup{"Type Lookup<br/>O(1)"}
+    Lookup --> Executor["Matched Executor"]
+    
+    style Registry fill:#f3f0ff
+```
+
+### Registration Flow
+
+```mermaid
+sequenceDiagram
+    participant App as 🚀 App Startup
+    participant Disp as 📮 Dispatcher
+    participant Exec as ⚙️ Executor
+    
+    App->>Disp: register<FetchUserJob>(UserExecutor())
+    App->>Disp: register<LoginJob>(AuthExecutor())
+    
+    Note over Disp: Registry populated
+    
+    App->>Disp: dispatch(FetchUserJob(...))
+    Disp->>Exec: execute(job)
 ```
 
 ---
 
-## 3.5. Summary
+## 3.4. The Executor (Processing)
 
-With approximately 200 lines of core code, we've built a complete framework:
+The Executor is a **stateless worker** with built-in error handling.
 
-- **Separation**: Executor and Orchestrator operate independently.
-- **Reactivity**: Orchestrator automatically handles incoming events.
-- **High Performance**: Uses Broadcast Stream and O(1) lookup.
+```mermaid
+flowchart TB
+    subgraph Executor["⚙️ Executor"]
+        Start["execute(job)"] --> CheckCancel{"Cancelled?"}
+        CheckCancel -->|"YES"| Cancelled["❌ CancelledException"]
+        CheckCancel -->|"NO"| Process["process(job)"]
+        Process --> Success{"Success?"}
+        Success -->|"YES"| EmitSuccess["emit(SuccessEvent)"]
+        Success -->|"ERROR"| CheckRetry{"Can Retry?"}
+        CheckRetry -->|"YES"| Wait["Wait (backoff)"]
+        Wait --> Process
+        CheckRetry -->|"NO"| EmitFailure["emit(FailureEvent)"]
+    end
+    
+    style EmitSuccess fill:#37b24d,color:#fff
+    style EmitFailure fill:#f03e3e,color:#fff
+```
 
-Advanced features like Cancellation, Timeout, Retry are covered in **Chapter 5**.
+### Error Boundary
+
+Every Executor has an automatic error boundary:
+
+```mermaid
+graph TB
+    subgraph ErrorBoundary["🛡️ Error Boundary"]
+        Try["try { process(job) }"]
+        Catch["catch (error) { emitFailure() }"]
+    end
+    
+    Try -->|"Exception"| Catch
+    
+    Note["✅ Exceptions NEVER escape<br/>Always converted to Events"]
+```
+
+---
+
+## 3.5. The Orchestrator (State Machine)
+
+The Orchestrator is a **stateful coordinator** managing UI state and job tracking.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    
+    Idle --> Loading: dispatch(Job)
+    Loading --> Success: onActiveSuccess
+    Loading --> Error: onActiveFailure
+    
+    Error --> Loading: retry()
+    Success --> Loading: refresh()
+    
+    state Loading {
+        [*] --> Waiting
+        Waiting --> Progress: onProgress
+        Progress --> Progress: more progress
+    }
+```
+
+### Internal Structure
+
+```mermaid
+graph TB
+    subgraph Orchestrator["🎭 Orchestrator"]
+        State["📊 Current State"]
+        ActiveJobs["🏃 Active Job IDs<br/>{abc123, xyz789}"]
+        Subscription["📡 Bus Subscription"]
+        
+        Handlers["Event Handlers"]
+        Handlers --> OnSuccess["onActiveSuccess()"]
+        Handlers --> OnFailure["onActiveFailure()"]
+        Handlers --> OnPassive["onPassiveEvent()"]
+    end
+```
+
+### Event Routing Logic
+
+```mermaid
+flowchart TD
+    Event["📨 Event Received"] --> Extract["Extract correlationId"]
+    Extract --> Check{"correlationId ∈ activeJobIds?"}
+    
+    Check -->|"YES"| Direct["🎯 Direct Mode"]
+    Check -->|"NO"| Observer["👀 Observer Mode"]
+    
+    Direct --> Remove["Remove from activeJobIds"]
+    Remove --> TypeCheck{"Event Type?"}
+    TypeCheck -->|"Success"| OnSuccess["onActiveSuccess()"]
+    TypeCheck -->|"Failure"| OnFailure["onActiveFailure()"]
+    
+    Observer --> OnPassive["onPassiveEvent()"]
+```
+
+---
+
+## 3.6. The Signal Bus (Broadcasting)
+
+The Signal Bus is a **publish-subscribe** mechanism for event distribution.
+
+```mermaid
+graph TB
+    subgraph Publishers["Publishers"]
+        E1["Executor 1"]
+        E2["Executor 2"]
+        E3["Executor 3"]
+    end
+    
+    subgraph Bus["📡 Signal Bus"]
+        Stream["Broadcast Stream"]
+    end
+    
+    subgraph Subscribers["Subscribers"]
+        O1["Orchestrator A"]
+        O2["Orchestrator B"]
+        O3["Orchestrator C"]
+    end
+    
+    E1 & E2 & E3 --> Stream
+    Stream --> O1 & O2 & O3
+    
+    style Stream fill:#f59f00,color:#fff
+```
+
+### Global vs Scoped Bus
+
+```mermaid
+graph TB
+    subgraph GlobalBus["🌍 Global Bus"]
+        GB["All events visible<br/>to all orchestrators"]
+    end
+    
+    subgraph ScopedBus["🔒 Scoped Bus"]
+        SB1["Auth Module Bus"]
+        SB2["Chat Module Bus"]
+        SB3["Cart Module Bus"]
+    end
+    
+    GlobalBus -.->|"Use for"| Public["Public Events<br/>(UserLoggedIn, ThemeChanged)"]
+    ScopedBus -.->|"Use for"| Private["Private Events<br/>(Internal state changes)"]
+```
+
+---
+
+## 3.7. Complete System Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as 🖥️ UI
+    participant Orch as 🎭 Orchestrator
+    participant Disp as 📮 Dispatcher
+    participant Exec as ⚙️ Executor
+    participant API as 🌐 API
+    participant Bus as 📡 Bus
+    
+    rect rgb(240, 247, 255)
+        Note over UI,Orch: 1. User Action
+        UI->>+Orch: fetchUser()
+        Orch->>Orch: emit(Loading)
+    end
+    
+    rect rgb(240, 255, 240)
+        Note over Orch,Exec: 2. Dispatch
+        Orch->>+Disp: dispatch(FetchUserJob)
+        Disp-->>Orch: correlationId
+        Orch->>Orch: activeJobs.add(id)
+        Disp->>+Exec: execute(job)
+        Disp-->>-Orch: 
+    end
+    
+    rect rgb(255, 250, 240)
+        Note over Exec,API: 3. Execution
+        Exec->>+API: GET /users/123
+        API-->>-Exec: User data
+    end
+    
+    rect rgb(255, 240, 240)
+        Note over Exec,Orch: 4. Event Broadcast
+        Exec->>-Bus: emit(SuccessEvent)
+        Bus->>Orch: Event(correlationId=id)
+    end
+    
+    rect rgb(240, 240, 255)
+        Note over Orch,UI: 5. State Update
+        Orch->>Orch: onActiveSuccess()
+        Orch->>Orch: emit(Success)
+        Orch-->>-UI: New State
+    end
+```
+
+---
+
+## Summary
+
+```mermaid
+mindmap
+  root((Architecture))
+    Job
+      Request for work
+      Immutable data
+      Carries correlationId
+    Event
+      Notification of result
+      Success/Failure/Progress
+      Broadcast to all
+    Dispatcher
+      Routes Jobs to Executors
+      Registry pattern
+      O(1) lookup
+    Executor
+      Stateless worker
+      Error boundary
+      Emits events
+    Orchestrator
+      Stateful coordinator
+      Tracks active jobs
+      Direct + Observer modes
+    Signal Bus
+      Pub/Sub mechanism
+      Global or Scoped
+      Decoupled communication
+```
+
+**Key Takeaway**: Each component has a single responsibility, connected through well-defined interfaces. This makes the system testable, maintainable, and scalable.

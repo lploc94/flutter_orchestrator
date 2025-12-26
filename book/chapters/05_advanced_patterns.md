@@ -1,433 +1,397 @@
 # Chapter 5: Advanced Patterns
 
-This chapter adds essential features for the framework to be Production-Ready. These features help the system handle real-world scenarios like network timeouts, request cancellation, and automatic retry on errors.
+> *"Make it work, make it right, make it fast."* — Kent Beck
+
+This chapter covers patterns for production-ready systems: handling failures, managing long-running tasks, and scaling.
 
 ---
 
-## 5.1. Task Cancellation
+## 5.1. The Cancellation Pattern
 
-**Philosophy:** Jobs run independently of UI lifecycle. Only cancel when:
-- User EXPLICITLY presses Cancel button
-- Business logic determines result is no longer needed (e.g., user sends new request replacing old one)
+**Problem**: How to stop unnecessary work when it's no longer needed?
 
-**Note:** DO NOT auto-cancel when user navigates away. Results are still cached and displayed when user returns.
+**Solution**: Cooperative cancellation through tokens.
 
-### CancellationToken
-
-```dart
-// lib/src/utils/cancellation_token.dart
-class CancellationToken {
-  bool _isCancelled = false;
-  final List<void Function()> _listeners = [];
-
-  bool get isCancelled => _isCancelled;
-
-  void cancel() {
-    if (_isCancelled) return;
-    _isCancelled = true;
-    for (final listener in _listeners) {
-      listener();
-    }
-    _listeners.clear();
-  }
-
-  /// Register callback when token is cancelled
-  void onCancel(void Function() callback) {
-    if (_isCancelled) {
-      callback();
-    } else {
-      _listeners.add(callback);
-    }
-  }
-
-  /// Check and throw exception if cancelled
-  void throwIfCancelled() {
-    if (_isCancelled) throw CancelledException();
-  }
-}
-
-class CancelledException implements Exception {
-  @override
-  String toString() => 'CancelledException: Operation was cancelled.';
-}
-```
-
-### Integration with Job
-
-```dart
-abstract class BaseJob {
-  final String id;
-  final CancellationToken? cancellationToken;
-  
-  const BaseJob({required this.id, this.cancellationToken});
-}
-```
-
-### Practical Usage
-
-```dart
-class _MyScreenState extends State<MyScreen> {
-  CancellationToken? _token;
-
-  void _loadData() {
-    _token = CancellationToken();
-    orchestrator.dispatch(FetchDataJob(cancellationToken: _token));
-  }
-
-  // User EXPLICITLY presses Cancel button
-  void _onCancelPressed() {
-    _token?.cancel();
-  }
-  
-  // User sends new request replacing old one
-  void _loadNewData() {
-    _token?.cancel(); // Cancel old request as no longer needed
-    _token = CancellationToken();
-    orchestrator.dispatch(FetchDataJob(cancellationToken: _token));
-  }
-
-  @override
-  void dispose() {
-    // DO NOT cancel here - results are still cached
-    super.dispose();
-  }
-}
-```
-
----
-
-## 5.2. Timeout
-
-Long-running tasks need handling to prevent UI from hanging.
-
-### Timeout Event
-
-```dart
-class JobTimeoutEvent extends BaseEvent {
-  final Duration timeout;
-  JobTimeoutEvent(super.correlationId, this.timeout);
-}
-```
-
-### Executor Implementation
-
-```dart
-Future<void> execute(T job) async {
-  try {
-    Future<dynamic> executionFuture = process(job);
+```mermaid
+sequenceDiagram
+    participant UI as 🖥️ UI
+    participant Orch as 🎭 Orchestrator
+    participant Exec as ⚙️ Executor
+    participant Token as 🎫 Token
     
-    if (job.timeout != null) {
-      executionFuture = executionFuture.timeout(
-        job.timeout!,
-        onTimeout: () {
-          _bus.emit(JobTimeoutEvent(job.id, job.timeout!));
-          throw TimeoutException('Task exceeded allowed time', job.timeout);
-        },
-      );
-    }
+    UI->>Orch: startSearch(query)
+    Orch->>Token: create()
+    Orch->>Orch: track token
+    Orch->>Exec: dispatch(SearchJob, token)
     
-    final result = await executionFuture;
-    emitResult(job.id, result);
-  } catch (e, stack) {
-    emitFailure(job.id, e, stack);
-  }
-}
+    Note over Exec: Processing...
+    
+    UI->>Orch: newSearch(newQuery)
+    Orch->>Token: cancel()
+    
+    Exec->>Token: isCancelled?
+    Token-->>Exec: true
+    Exec->>Exec: throw CancelledException
+```
+
+### When to Cancel
+
+```mermaid
+graph TB
+    subgraph CancelTriggers["🛑 When to Cancel"]
+        User["User clicks Cancel button"]
+        Replace["New request replaces old"]
+        Timeout["Timeout exceeded"]
+    end
+    
+    subgraph DontCancel["✅ When NOT to Cancel"]
+        Navigate["User navigates away"]
+        Background["App goes to background"]
+    end
+    
+    Note["💡 Results are cached.<br/>Don't cancel just because view is gone."]
+```
+
+### Cancellation Checkpoints
+
+```mermaid
+flowchart TD
+    Start["Executor.process()"] --> Check1["token.throwIfCancelled()"]
+    Check1 --> Step1["Step 1: API Call"]
+    Step1 --> Check2["token.throwIfCancelled()"]
+    Check2 --> Step2["Step 2: Process Data"]
+    Step2 --> Check3["token.throwIfCancelled()"]
+    Check3 --> Step3["Step 3: Save to DB"]
+    Step3 --> Done["Complete"]
+    
+    Check1 & Check2 & Check3 -->|"Cancelled"| Throw["throw CancelledException"]
 ```
 
 ---
 
-## 5.3. Automatic Retry
+## 5.2. The Timeout Pattern
 
-Automatic retry with Exponential Backoff algorithm improves reliability when encountering temporary errors.
+**Problem**: How to prevent operations from running forever?
+
+**Solution**: Wrap execution with a time limit.
+
+```mermaid
+sequenceDiagram
+    participant Exec as ⚙️ Executor
+    participant Timer as ⏱️ Timer
+    participant API as 🌐 API
+    
+    Exec->>Timer: start(30 seconds)
+    Exec->>API: request()
+    
+    alt API responds in time
+        API-->>Exec: response
+        Exec->>Timer: cancel
+        Exec->>Exec: emit(Success)
+    else Timeout expires
+        Timer-->>Exec: TimeoutException
+        Exec->>Exec: emit(TimeoutEvent)
+        Exec->>Exec: emit(Failure)
+    end
+```
+
+### Timeout Strategy
+
+```mermaid
+graph LR
+    subgraph Strategy["⏱️ Timeout Strategy"]
+        Overall["Overall Timeout<br/>Total time allowed"]
+        PerStep["Per-Step Timeout<br/>Each operation limited"]
+    end
+    
+    Overall --> Total["e.g., 60 seconds total"]
+    PerStep --> Each["e.g., 10 seconds per API call"]
+```
+
+---
+
+## 5.3. The Retry Pattern
+
+**Problem**: How to recover from transient failures?
+
+**Solution**: Automatic retry with exponential backoff.
+
+```mermaid
+flowchart TD
+    Start["Execute"] --> Try["Attempt n"]
+    Try --> Success{"Success?"}
+    
+    Success -->|"YES"| Done["✅ emit(Success)"]
+    Success -->|"NO"| CanRetry{"n < maxRetries?"}
+    
+    CanRetry -->|"YES"| Wait["Wait 2^n seconds"]
+    Wait --> Notify["emit(RetryingEvent)"]
+    Notify --> Try
+    
+    CanRetry -->|"NO"| Fail["❌ emit(Failure)"]
+    
+    style Done fill:#37b24d,color:#fff
+    style Fail fill:#f03e3e,color:#fff
+```
+
+### Backoff Visualization
+
+```mermaid
+gantt
+    title Exponential Backoff
+    dateFormat s
+    axisFormat %S
+    
+    section Attempt 1
+    Execute :a1, 0, 1s
+    
+    section Wait 1s
+    Backoff :crit, w1, after a1, 1s
+    
+    section Attempt 2
+    Execute :a2, after w1, 1s
+    
+    section Wait 2s
+    Backoff :crit, w2, after a2, 2s
+    
+    section Attempt 3
+    Execute :a3, after w2, 1s
+    
+    section Wait 4s
+    Backoff :crit, w3, after a3, 4s
+    
+    section Attempt 4
+    Execute :a4, after w3, 1s
+```
+
+### Retry Policy Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `maxRetries` | Maximum attempts | 3 |
+| `baseDelay` | Initial wait | 1 second |
+| `maxDelay` | Cap on wait time | 30 seconds |
+| `shouldRetry` | Condition function | Always true |
+
+---
+
+## 5.4. The Progress Pattern
+
+**Problem**: How to show progress for long-running tasks?
+
+**Solution**: Emit progress events during execution.
+
+```mermaid
+sequenceDiagram
+    participant Orch as 🎭 Orchestrator
+    participant Exec as ⚙️ Executor
+    participant Bus as 📡 Bus
+    
+    Orch->>Exec: dispatch(UploadJob)
+    
+    loop For each chunk
+        Exec->>Bus: emit(Progress 10%)
+        Bus->>Orch: progress update
+        Exec->>Bus: emit(Progress 50%)
+        Bus->>Orch: progress update
+        Exec->>Bus: emit(Progress 90%)
+        Bus->>Orch: progress update
+    end
+    
+    Exec->>Bus: emit(Success)
+    Bus->>Orch: complete
+```
+
+### Progress Reporting Structure
+
+```mermaid
+graph LR
+    subgraph ProgressEvent["📊 Progress Event"]
+        Value["progress: 0.0 - 1.0"]
+        Message["message: 'Uploading...'"]
+        Current["currentStep: 3"]
+        Total["totalSteps: 10"]
+    end
+```
+
+### UI Binding
+
+```mermaid
+flowchart LR
+    Event["ProgressEvent"] --> Handler["onProgress()"]
+    Handler --> State["state.copyWith(progress: event.progress)"]
+    State --> UI["ProgressBar(value: state.progress)"]
+```
+
+---
+
+## 5.5. The Circuit Breaker Pattern
+
+**Problem**: How to prevent cascading failures?
+
+**Solution**: Stop calling failing services temporarily.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed: Normal
+    
+    Closed --> Open: failures > threshold
+    Open --> HalfOpen: after cooldown
+    HalfOpen --> Closed: success
+    HalfOpen --> Open: failure
+    
+    state Closed {
+        [*] --> Operational
+        Operational: Allow requests
+        Operational: Count failures
+    }
+    
+    state Open {
+        [*] --> Blocked
+        Blocked: Reject requests immediately
+        Blocked: Wait for cooldown
+    }
+    
+    state HalfOpen {
+        [*] --> Testing
+        Testing: Allow limited requests
+        Testing: Check if recovered
+    }
+```
+
+### Circuit States
+
+| State | Behavior |
+|-------|----------|
+| **Closed** | Normal operation, counting failures |
+| **Open** | Requests fail immediately, no execution |
+| **Half-Open** | Testing if service recovered |
+
+---
+
+## 5.6. The Logging Pattern
+
+**Problem**: How to debug and monitor the system?
+
+**Solution**: Pluggable logging at key points.
+
+```mermaid
+graph TB
+    subgraph LogPoints["📝 Logging Points"]
+        Dispatch["Job dispatched"]
+        Start["Executor started"]
+        Progress["Progress emitted"]
+        Success["Success emitted"]
+        Failure["Failure emitted"]
+        Retry["Retry attempted"]
+    end
+    
+    subgraph Levels["Log Levels"]
+        Debug["🔍 Debug"]
+        Info["ℹ️ Info"]
+        Warn["⚠️ Warning"]
+        Error["❌ Error"]
+    end
+    
+    Dispatch --> Info
+    Start --> Debug
+    Progress --> Debug
+    Success --> Info
+    Failure --> Error
+    Retry --> Warn
+```
+
+### Logger Configuration
+
+```mermaid
+flowchart LR
+    subgraph Development["🛠️ Development"]
+        ConsoleLogger["Console Logger<br/>Level: Debug"]
+    end
+    
+    subgraph Production["🚀 Production"]
+        CloudLogger["Cloud Logger<br/>Level: Warning+"]
+        NoOpLogger["No-Op Logger<br/>Disabled"]
+    end
+```
+
+---
+
+## 5.7. The Deduplication Pattern
+
+**Problem**: How to prevent duplicate concurrent requests?
+
+**Solution**: Track in-flight jobs and reject duplicates.
+
+```mermaid
+sequenceDiagram
+    participant UI as 🖥️ UI
+    participant Orch as 🎭 Orchestrator
+    
+    UI->>Orch: fetchUser("123")
+    Note over Orch: inFlight["user:123"] = true
+    Orch->>Orch: dispatch(FetchUserJob)
+    
+    UI->>Orch: fetchUser("123")
+    Note over Orch: Already in flight!
+    Orch-->>UI: Ignored (or return existing job ID)
+    
+    Note over Orch: Job completes
+    Note over Orch: inFlight["user:123"] = false
+```
+
+### Deduplication Key
+
+```mermaid
+graph LR
+    Job["Job"] --> Key["Deduplication Key"]
+    
+    subgraph Examples["Key Examples"]
+        E1["FetchUserJob(123) → 'user:123'"]
+        E2["SearchJob('flutter') → 'search:flutter'"]
+        E3["RefreshJob → 'refresh'"]
+    end
+```
+
+---
+
+## 5.8. Pattern Combinations
 
 ```mermaid
 flowchart TB
-    Start[Execute Job] --> Exec[process job]
-    Exec --> Result{Success?}
-    Result --> |YES| Success[Emit Success Event]
-    Result --> |ERROR| CanRetry{Retries<br/>remaining?}
-    CanRetry --> |NO| Fail[Emit Failure Event]
-    CanRetry --> |YES| Delay["Wait 2^n seconds<br/>(Exponential Backoff)"]
-    Delay --> Retry[Emit Retrying Event]
-    Retry --> Exec
-```
-
-### RetryPolicy
-
-```dart
-// lib/src/utils/retry_policy.dart
-class RetryPolicy {
-  final int maxRetries;
-  final Duration baseDelay;
-  final bool exponentialBackoff;
-  final Duration maxDelay;
-  final bool Function(Object error)? shouldRetry;
-
-  const RetryPolicy({
-    this.maxRetries = 3,
-    this.baseDelay = const Duration(seconds: 1),
-    this.exponentialBackoff = true,
-    this.maxDelay = const Duration(seconds: 30),
-    this.shouldRetry,
-  });
-  
-  /// Calculate wait time for attempt n
-  Duration getDelay(int attempt) {
-    if (!exponentialBackoff) return baseDelay;
-    
-    final delay = baseDelay * (1 << attempt); // 2^attempt
-    return delay > maxDelay ? maxDelay : delay;
-  }
-  
-  bool canRetry(Object error, int currentAttempt) {
-    if (currentAttempt >= maxRetries) return false;
-    if (shouldRetry != null) return shouldRetry!(error);
-    return true;
-  }
-}
-```
-
-### Retry Event
-
-```dart
-class JobRetryingEvent extends BaseEvent {
-  final int attempt;
-  final int maxRetries;
-  final Object lastError;
-  final Duration delayBeforeRetry;
-
-  JobRetryingEvent(super.correlationId, {
-    required this.attempt,
-    required this.maxRetries,
-    required this.lastError,
-    required this.delayBeforeRetry,
-  });
-}
-```
-
----
-
-## 5.4. Progress Reporting
-
-For long-running tasks (file upload, AI processing), progress reporting helps users track status.
-
-### JobProgressEvent
-
-```dart
-class JobProgressEvent extends BaseEvent {
-  final double progress; // 0.0 to 1.0
-  final String? message;
-  final int? currentStep;
-  final int? totalSteps;
-
-  JobProgressEvent(super.correlationId, {
-    required this.progress,
-    this.message,
-    this.currentStep,
-    this.totalSteps,
-  });
-}
-```
-
-### Usage in Executor
-
-```dart
-class UploadExecutor extends BaseExecutor<UploadJob> {
-  @override
-  Future<dynamic> process(UploadJob job) async {
-    final totalChunks = 10;
-    
-    for (int i = 1; i <= totalChunks; i++) {
-      await uploadChunk(i);
-      
-      emitProgress(
-        job.id,
-        progress: i / totalChunks,
-        message: 'Uploading part $i/$totalChunks',
-        currentStep: i,
-        totalSteps: totalChunks,
-      );
-    }
-    
-    return 'Complete';
-  }
-}
-```
-
----
-
-## 5.5. Logging System
-
-Flexible logging system supports debugging during development and monitoring in production.
-
-### Logger Interface
-
-```dart
-// lib/src/utils/logger.dart
-enum LogLevel { debug, info, warning, error }
-
-abstract class OrchestratorLogger {
-  void log(LogLevel level, String message, [Object? error, StackTrace? stack]);
-  
-  void debug(String message) => log(LogLevel.debug, message);
-  void info(String message) => log(LogLevel.info, message);
-  void warning(String message, [Object? error]) => log(LogLevel.warning, message, error);
-  void error(String message, Object error, [StackTrace? stack]) => 
-      log(LogLevel.error, message, error, stack);
-}
-
-/// Console logger (for development)
-class ConsoleLogger extends OrchestratorLogger {
-  final LogLevel minLevel;
-  ConsoleLogger({this.minLevel = LogLevel.info});
-  
-  @override
-  void log(LogLevel level, String message, [Object? error, StackTrace? stack]) {
-    if (level.index < minLevel.index) return;
-    print('[${level.name.toUpperCase()}] $message');
-  }
-}
-
-/// Silent logger (for production)
-class NoOpLogger extends OrchestratorLogger {
-  @override
-  void log(LogLevel level, String message, [Object? error, StackTrace? stack]) {}
-}
-```
-
----
----
-
-## 5.6. Scalable Architecture with Scoped Bus
-
-For large applications composed of loosely coupled modules (e.g., Auth, Chat, Cart), using a single global event bus can lead to:
-1.  **Noise**: All modules receive all events.
-2.  **Security Risks**: Sensitive events leak to unintended listeners.
-3.  **Performance Bottlenecks**: High traffic on a single stream.
-
-The **Scoped Bus** architecture solves this by creating isolated communication channels.
-
-### Architecture Comparison
-
-**Global Bus (Default)**: Everyone hears everything.
-
-```mermaid
-graph TD
-    GBus[Global Bus]
-    Auth -->|Event| GBus
-    Chat -->|Event| GBus
-    Cart -->|Event| GBus
-    GBus --> Auth
-    GBus --> Chat
-    GBus --> Cart
-```
-
-**Scoped Bus (Isolated)**: Events stay within their module.
-
-```mermaid
-graph TD
-    subgraph AuthMod [Auth Module]
-        ABus["Auth Bus (Scoped)"]
-        AuthOrc[Auth Orchestrator] <--> ABus
+    subgraph FullFlow["🔄 Production-Ready Flow"]
+        Start["dispatch(Job)"] --> Dedup{"Duplicate?"}
+        Dedup -->|"YES"| Skip["Skip"]
+        Dedup -->|"NO"| Execute["Execute"]
+        
+        Execute --> Timeout{"Timeout?"}
+        Timeout -->|"YES"| Fail1["Fail"]
+        Timeout -->|"NO"| Success1{"Success?"}
+        
+        Success1 -->|"YES"| EmitSuccess["✅ Success"]
+        Success1 -->|"NO"| Retry{"Retry?"}
+        
+        Retry -->|"YES"| Wait["Wait (backoff)"]
+        Wait --> Execute
+        Retry -->|"NO"| Circuit{"Circuit Open?"}
+        
+        Circuit -->|"YES"| OpenCircuit["Open Circuit"]
+        Circuit -->|"NO"| Fail2["❌ Failure"]
     end
-
-    subgraph ChatMod [Chat Module]
-        CBus["Chat Bus (Scoped)"]
-        ChatOrc[Chat Orchestrator] <--> CBus
-    end
-
-    AuthOrc -.->|Important Events| GBus[Global Bus]
-```
-
-### Implementation
-
-1. **Create a Scoped Bus**:
-
-```dart
-// Create a private bus for this module
-final authBus = SignalBus.scoped();
-```
-
-2. **Inject into Orchestrator**:
-
-```dart
-// Orchestrator will listen/emit to this bus ONLY
-final orchestrator = AuthOrchestrator(bus: authBus);
-```
-
-3. **Execution**:
-   - When `orchestrator.dispatch(job)` is called, the job is explicitly tagged with `authBus`.
-   - The Executor automatically routes events (Success/Failure/Progress) back to `authBus`.
-   - Global listeners (on `SignalBus.instance`) will **NOT** see these events.
-
-### Best Practice
-
-- Use **Scoped Bus** for internal module logic (loading states, step transitions).
-- Use **Global Bus** (`SignalBus.instance`) only for public events that other modules need to react to (e.g., `UserLoggedInEvent`, `ThemeChangedEvent`).
-
----
-
-## 5.7. Safety Mechanisms
-
-To prevent application crashes and infinite loops, the core framework includes built-in safety mechanisms.
-
-### Circuit Breaker (Loop Protection)
-
-The framework automatically detects if an Orchestrator processes too many events in a short period (Infinite Loop).
-
-- **Default Limit**: 50 events/second.
-- **Behavior**: Stops processing events and logs an error to `OrchestratorLogger`.
-- **Configuration**:
-
-```dart
-// 1. Global limit (applies to all events)
-OrchestratorConfig.maxEventsPerSecond = 100;
-
-// 2. Specific limit override (e.g., for high-frequency sensor data)
-OrchestratorConfig.setTypeLimit<MouseMovementEvent>(500);
-```
-
-### Type Safety Isolation
-
-All event handlers (`onActiveSuccess`, `onPassiveEvent`, etc.) are wrapped in a `try-catch` block.
-
-#### Safe Data Casting
-To avoid runtime exceptions when casting event data, use `dataAs<T>()`:
-
-```dart
-@override
-void onActiveSuccess(JobSuccessEvent event) {
-  // Returns 'User?' (null if type mismatch), instead of crashing
-  final user = event.dataAs<User>(); 
-  if (user != null) {
-    emit(state.copyWith(user: user));
-  }
-}
-```
-
-### Preventing UI Race Conditions
-
-When multiple jobs run in parallel, checking simple `isLoading` can be risky. Use `isJobTypeRunning<T>` for precise UI updates:
-
-```dart
-// Check valid state before emitting
-if (isJobTypeRunning<FetchUserJob>() && !isJobTypeRunning<LogoutJob>()) {
-  emit(state.copyWith(isLoading: false));
-}
 ```
 
 ---
 
-## 5.8. Summary
+## Summary
 
-With these advanced features, the framework meets Production-Ready requirements:
+| Pattern | Solves | Key Mechanism |
+|---------|--------|---------------|
+| **Cancellation** | Stop unwanted work | Cooperative tokens |
+| **Timeout** | Prevent infinite waits | Time limits |
+| **Retry** | Recover from failures | Exponential backoff |
+| **Progress** | Show long task status | Intermediate events |
+| **Circuit Breaker** | Prevent cascading failures | State machine |
+| **Logging** | Debug and monitor | Pluggable loggers |
+| **Deduplication** | Prevent duplicate requests | In-flight tracking |
 
-| Feature | Benefit |
-|---------|---------|
-| **Cancellation** | Cancel when user explicitly requests or by business logic |
-| **Timeout** | Ensure system doesn't hang indefinitely |
-| **Retry** | Auto-recover from temporary errors |
-| **Progress** | Improve user experience with long tasks |
-| **Logging** | Support debugging and system monitoring |
-
-The next chapter applies all knowledge to a real-world case study.
+**Key Takeaway**: Production systems require defense in depth. These patterns layer together to create resilient applications.

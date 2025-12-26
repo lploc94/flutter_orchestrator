@@ -1,355 +1,347 @@
-# Chapter 6: Case Study - AI Chatbot with Context Enrichment
+# Chapter 6: Case Studies
 
-This chapter applies the entire Event-Driven Orchestrator architecture to a real-world application: **an intelligent AI Chatbot** capable of accessing and understanding context from multiple data sources.
+> *"In theory, there is no difference between theory and practice. In practice, there is."* — Yogi Berra
 
----
-
-## 6.1. Use Case Description
-
-### Requirements
-Build an AI Chatbot that can:
-- Answer questions based on **real application data**
-- Access multiple sources: Metrics, Forecast, Charts, ETL data
-- Streaming response (typing effect)
-- Run in background (results are cached when user navigates away)
-
-### Example Interaction
-```
-User: "How is this month's financial situation?"
-
-AI: [Collecting data...]
-    → Calls MetricsExecutor (revenue, expenses, profit)
-    → Calls ForecastExecutor (next month forecast)
-    → Calls ChartExecutor (trend data)
-    
-AI: "This month's revenue reached $150K, up 12% from last month.
-     Expenses stable at $80K. Net profit $70K.
-     Next month forecast: revenue could reach $165K if..."
-```
+This chapter applies the architecture to real-world scenarios.
 
 ---
 
-## 6.2. System Architecture
+## 6.1. Case Study: AI Chatbot
+
+An AI chatbot demonstrates multiple patterns working together:
+- Long-running execution
+- Streaming responses
+- Multi-step processing
+- Cross-cutting concerns (analytics, logging)
+
+### System Overview
 
 ```mermaid
-flowchart TB
-    UI["UI Layer<br/>(ChatScreen - observe State)"]
-    
-    Orch["AIChatOrchestrator<br/>• Manage ChatState<br/>• Dispatch Context Jobs in parallel<br/>• WAIT for all → Call LLM"]
-    
-    Orch --> |State Stream| UI
-    
-    subgraph Executors
-        E1[MetricsExecutor]
-        E2[ForecastExecutor]
-        E3[ChartExecutor]
-        E4[LLMExecutor]
+graph TB
+    subgraph UI["🖥️ Chat UI"]
+        Input["Message Input"]
+        Messages["Message List"]
+        Typing["Typing Indicator"]
     end
     
-    Orch --> |dispatch| Executors
-    Executors --> |Events| Bus[Signal Bus]
-    Bus --> |broadcast| Orch
+    subgraph Orchestrator["🎭 Chat Orchestrator"]
+        State["Chat State"]
+        ActiveJobs["Active Jobs"]
+    end
+    
+    subgraph Executors["⚙️ Executors"]
+        Context["Context Executor<br/>(RAG)"]
+        AI["AI Executor<br/>(LLM)"]
+        Save["Save Executor<br/>(Persistence)"]
+    end
+    
+    UI --> Orchestrator
+    Orchestrator --> Context
+    Context -->|"Context Ready"| AI
+    AI -->|"AI Response"| Save
+    Save -->|"Saved"| Orchestrator
+    Orchestrator --> UI
 ```
 
-### Sequential Processing Flow
+### The Flow
 
 ```mermaid
-flowchart TB
-    subgraph Phase1["PHASE 1: Collect Context (Parallel)"]
-        User[User sends message] --> Dispatch
-        Dispatch --> MetricsJob[MetricsExecutor]
-        Dispatch --> ForecastJob[ForecastExecutor]
-        Dispatch --> ChartJob[ChartExecutor]
+sequenceDiagram
+    participant User as 👤 User
+    participant Chat as 🎭 ChatOrchestrator
+    participant RAG as 📚 ContextExecutor
+    participant LLM as 🤖 AIExecutor
+    participant DB as 💾 SaveExecutor
+    
+    User->>Chat: sendMessage("What is...")
+    
+    rect rgb(240, 247, 255)
+        Note over Chat: Phase 1: Context
+        Chat->>RAG: dispatch(GetContextJob)
+        RAG-->>Chat: ContextReadyEvent
+    end
+    
+    rect rgb(240, 255, 240)
+        Note over Chat: Phase 2: AI Response
+        Chat->>LLM: dispatch(GenerateResponseJob)
+        loop Streaming
+            LLM-->>Chat: ProgressEvent(token)
+        end
+        LLM-->>Chat: AIResponseEvent
+    end
+    
+    rect rgb(255, 250, 240)
+        Note over Chat: Phase 3: Persist
+        Chat->>DB: dispatch(SaveMessageJob)
+        DB-->>Chat: SavedEvent
+    end
+    
+    Chat-->>User: Updated State
+```
+
+### Chained Jobs Pattern
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    
+    Idle --> GettingContext: sendMessage()
+    GettingContext --> Generating: onContextReady
+    Generating --> Generating: onProgress (streaming)
+    Generating --> Saving: onAIResponse
+    Saving --> Idle: onSaved
+    
+    GettingContext --> Error: onFailure
+    Generating --> Error: onFailure
+    Saving --> Error: onFailure
+```
+
+### Key Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **Separate RAG executor** | Can be reused, tested independently |
+| **Streaming via Progress** | User sees tokens as they arrive |
+| **Save after AI complete** | Ensures complete response is persisted |
+
+---
+
+## 6.2. Case Study: File Upload
+
+File upload demonstrates:
+- Progress reporting
+- Cancellation
+- Retry on failure
+- Large file handling
+
+### The Flow
+
+```mermaid
+sequenceDiagram
+    participant User as 👤 User
+    participant UI as 🖥️ Upload UI
+    participant Orch as 🎭 Orchestrator
+    participant Exec as ⚙️ UploadExecutor
+    participant S3 as ☁️ Cloud Storage
+    
+    User->>UI: Select file
+    UI->>Orch: startUpload(file)
+    Orch->>Orch: token = new CancellationToken()
+    Orch->>Exec: dispatch(UploadJob, token)
+    
+    loop Chunks
+        Exec->>S3: Upload chunk
+        Exec-->>Orch: Progress(30%)
+        Exec->>S3: Upload chunk
+        Exec-->>Orch: Progress(60%)
         
-        MetricsJob --> |Event| Collect[Orchestrator collects]
-        ForecastJob --> |Event| Collect
-        ChartJob --> |Event| Collect
+        alt User cancels
+            User->>Orch: cancel()
+            Orch->>Token: cancel()
+            Exec->>Exec: throw CancelledException
+            Exec-->>Orch: CancelledEvent
+        end
     end
     
-    Collect --> Check{All context<br/>collected?}
-    Check --> |NO| Wait[Wait...]
-    Wait --> Collect
-    Check --> |YES| Phase2
+    Exec->>S3: Complete multipart
+    Exec-->>Orch: SuccessEvent(url)
+    Orch-->>UI: Upload complete
+```
+
+### Chunked Upload State
+
+```mermaid
+graph LR
+    subgraph UploadState["📤 Upload State"]
+        File["file: File"]
+        Progress["progress: 0.65"]
+        Status["status: uploading"]
+        URL["url: null"]
+        ChunksDone["chunksComplete: 6/10"]
+    end
+```
+
+### Retry Strategy
+
+```mermaid
+flowchart TD
+    Upload["Upload Chunk"] --> Success{"Success?"}
+    Success -->|"YES"| Next["Next Chunk"]
+    Success -->|"NO"| Transient{"Transient Error?"}
     
-    subgraph Phase2["PHASE 2: Call LLM"]
-        LLMDispatch[dispatch LLMJob<br/>with enriched context] --> LLMExecutor[LLM Executor]
-        LLMExecutor --> |Stream token| UpdateState[Update State]
-        UpdateState --> |State change| UIRender[UI re-render]
+    Transient -->|"YES (5xx, timeout)"| Retry["Retry with backoff"]
+    Transient -->|"NO (4xx)"| Fail["Fail immediately"]
+    
+    Retry --> Attempts{"Attempts < 3?"}
+    Attempts -->|"YES"| Upload
+    Attempts -->|"NO"| Fail
+```
+
+---
+
+## 6.3. Case Study: Shopping Cart
+
+Shopping cart demonstrates:
+- Observer mode for cross-module updates
+- Optimistic updates
+- Conflict resolution
+
+### System Architecture
+
+```mermaid
+graph TB
+    subgraph ProductModule["📦 Product Module"]
+        ProductOrch["Product Orchestrator"]
+        ProductExec["Product Executor"]
     end
     
-    Phase2 --> Done[Complete]
+    subgraph CartModule["🛒 Cart Module"]
+        CartOrch["Cart Orchestrator"]
+        CartExec["Cart Executor"]
+    end
+    
+    subgraph GlobalBus["📡 Global Bus"]
+        Events["CartUpdatedEvent<br/>StockChangedEvent"]
+    end
+    
+    ProductExec --> GlobalBus
+    CartExec --> GlobalBus
+    GlobalBus --> ProductOrch
+    GlobalBus --> CartOrch
+    
+    Note["💡 Both orchestrators observe<br/>each other's events"]
 ```
 
-**Key Point:** LLM Job is **NOT** dispatched in parallel with Context Jobs. Must wait for all context to complete first.
+### Observer Mode Example
 
----
-
-## 6.3. Components
-
-### Jobs
-
-```dart
-// Collect metrics
-class GetMetricsJob extends BaseJob {
-  final String period;
-  GetMetricsJob({required this.period}) 
-    : super(id: generateJobId('metrics'));
-}
-
-// Forecast
-class GetForecastJob extends BaseJob {
-  final String period;
-  GetForecastJob({required this.period})
-    : super(id: generateJobId('forecast'));
-}
-
-// Call LLM
-class LLMJob extends BaseJob {
-  final String prompt;
-  final String context;
-  
-  LLMJob({
-    required this.prompt, 
-    required this.context,
-    super.cancellationToken,
-  }) : super(id: generateJobId('llm'));
-}
+```mermaid
+sequenceDiagram
+    participant Cart as 🛒 CartOrchestrator
+    participant Product as 📦 ProductOrchestrator
+    participant Bus as 📡 Global Bus
+    participant Exec as ⚙️ CartExecutor
+    
+    Note over Cart: User adds item
+    Cart->>Exec: dispatch(AddToCartJob)
+    Exec->>Bus: CartUpdatedEvent
+    
+    Bus->>Cart: event (Direct Mode)
+    Note over Cart: Update cart state
+    
+    Bus->>Product: event (Observer Mode)
+    Note over Product: Update product stock display
 ```
 
-### Executors
+### Optimistic Update Pattern
 
-```dart
-class MetricsExecutor extends BaseExecutor<GetMetricsJob> {
-  @override
-  Future<dynamic> process(GetMetricsJob job) async {
-    final metrics = await metricsRepository.getForPeriod(job.period);
-    return metrics;
-  }
-}
-
-class LLMExecutor extends BaseExecutor<LLMJob> {
-  @override
-  Future<dynamic> process(LLMJob job) async {
-    final stream = await llmService.streamCompletion(
-      prompt: job.prompt,
-      context: job.context,
-    );
+```mermaid
+flowchart TD
+    Start["User clicks Add to Cart"]
     
-    final buffer = StringBuffer();
+    Start --> Optimistic["Immediately update state<br/>(optimistic)"]
+    Optimistic --> Dispatch["dispatch(AddToCartJob)"]
     
-    await for (final chunk in stream) {
-      job.cancellationToken?.throwIfCancelled();
-      
-      buffer.write(chunk);
-      // Emit progress for each chunk (streaming effect)
-      emitProgress(job.id, 
-        progress: 0.5,
-        message: chunk,
-      );
-    }
+    Dispatch --> Result{"Result?"}
     
-    return buffer.toString();
-  }
-}
+    Result -->|"Success"| Confirm["Keep optimistic state"]
+    Result -->|"Failure"| Rollback["Revert to previous state<br/>Show error"]
+    
+    style Optimistic fill:#37b24d,color:#fff
+    style Rollback fill:#f03e3e,color:#fff
 ```
 
 ---
 
-## 6.4. AIChatOrchestrator
+## 6.4. Case Study: Authentication
 
-```dart
-class ChatState {
-  final List<Message> messages;
-  final ChatStatus status;
-  final String streamingText;
-  final double contextProgress;
-  
-  const ChatState({
-    this.messages = const [],
-    this.status = ChatStatus.idle,
-    this.streamingText = '',
-    this.contextProgress = 0,
-  });
-}
+Authentication demonstrates:
+- Scoped bus for security
+- Global events for cross-app notification
+- Token refresh handling
 
-enum ChatStatus { idle, collectingContext, generatingResponse }
+### Architecture
 
-class AIChatOrchestrator extends OrchestratorCubit<ChatState> {
-  final Set<String> _pendingContextJobs = {};
-  final Map<String, dynamic> _collectedContext = {};
-  String _currentPrompt = '';
-  CancellationToken? _llmToken;
-
-  AIChatOrchestrator() : super(const ChatState());
-
-  void sendMessage(String text) {
-    // Cancel old LLM request if running (business logic)
-    if (state.status == ChatStatus.generatingResponse) {
-      _llmToken?.cancel();
-    }
+```mermaid
+graph TB
+    subgraph AuthModule["🔐 Auth Module"]
+        AuthBus["Scoped Bus"]
+        AuthOrch["Auth Orchestrator"]
+        AuthExec["Auth Executor"]
+        
+        AuthOrch <-.-> AuthBus
+        AuthExec --> AuthBus
+    end
     
-    _currentPrompt = text;
-    _collectedContext.clear();
+    subgraph OtherModules["📱 Other Modules"]
+        Home["Home Orchestrator"]
+        Profile["Profile Orchestrator"]
+        Settings["Settings Orchestrator"]
+    end
     
-    // Add user message to state
-    emit(state.copyWith(
-      messages: [...state.messages, UserMessage(text)],
-      status: ChatStatus.collectingContext,
-      streamingText: '',
-      contextProgress: 0,
-    ));
+    subgraph GlobalBus["🌍 Global Bus"]
+        Public["UserLoggedInEvent<br/>UserLoggedOutEvent"]
+    end
     
-    // Dispatch context jobs in parallel
-    _pendingContextJobs.addAll({
-      dispatch(GetMetricsJob(period: 'this_month')),
-      dispatch(GetForecastJob(period: 'next_month')),
-    });
-  }
-
-  @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    if (_pendingContextJobs.contains(event.correlationId)) {
-      // Collect context
-      _pendingContextJobs.remove(event.correlationId);
-      _collectedContext[event.correlationId] = event.data;
-      
-      emit(state.copyWith(
-        contextProgress: 1 - (_pendingContextJobs.length / 2),
-      ));
-      
-      // When all context collected → Call LLM
-      if (_pendingContextJobs.isEmpty) {
-        _dispatchLLM();
-      }
-    } else {
-      // LLM completed
-      emit(state.copyWith(
-        status: ChatStatus.idle,
-        messages: [...state.messages, AIMessage(state.streamingText)],
-        streamingText: '',
-      ));
-    }
-  }
-
-  @override
-  void onProgress(JobProgressEvent event) {
-    // LLM streaming tokens
-    emit(state.copyWith(
-      streamingText: state.streamingText + (event.message ?? ''),
-    ));
-  }
-
-  void _dispatchLLM() {
-    _llmToken = CancellationToken();
+    AuthExec -->|"Public events"| GlobalBus
+    GlobalBus --> OtherModules
     
-    final context = '''
-=== CONTEXT DATA ===
-Metrics: ${_collectedContext.values.first}
-Forecast: ${_collectedContext.values.last}
-''';
+    Note["🔒 Internal auth state stays private<br/>Only login/logout events are public"]
+```
 
-    emit(state.copyWith(status: ChatStatus.generatingResponse));
-    dispatch(LLMJob(
-      prompt: _currentPrompt,
-      context: context,
-      cancellationToken: _llmToken,
-    ));
-  }
+### Token Refresh Flow
 
-  void cancelCurrentRequest() {
-    _llmToken?.cancel();
-    emit(state.copyWith(
-      status: ChatStatus.idle,
-      streamingText: '',
-    ));
-  }
-}
+```mermaid
+sequenceDiagram
+    participant Any as 📱 Any Executor
+    participant Auth as 🔐 AuthExecutor
+    participant API as 🌐 API
+    
+    Any->>API: Request with token
+    API-->>Any: 401 Unauthorized
+    
+    Any->>Auth: dispatch(RefreshTokenJob)
+    Auth->>API: POST /refresh
+    API-->>Auth: New token
+    Auth-->>Any: TokenRefreshedEvent
+    
+    Any->>API: Retry request with new token
+    API-->>Any: Success
 ```
 
 ---
 
-## 6.5. UI Layer
+## 6.5. Lessons Learned
 
-```dart
-class ChatScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<AIChatOrchestrator, ChatState>(
-      builder: (context, state) {
-        return Column(
-          children: [
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final msg in state.messages)
-                    MessageBubble(message: msg),
-                  
-                  // Context loading indicator
-                  if (state.status == ChatStatus.collectingContext)
-                    ContextLoadingWidget(
-                      progress: state.contextProgress,
-                    ),
-                  
-                  // Streaming text (typing effect)
-                  if (state.streamingText.isNotEmpty)
-                    TypingBubble(text: state.streamingText),
-                ],
-              ),
-            ),
-            
-            // Input
-            ChatInput(
-              onSend: (text) => context.read<AIChatOrchestrator>().sendMessage(text),
-              onCancel: () => context.read<AIChatOrchestrator>().cancelCurrentRequest(),
-              isLoading: state.status != ChatStatus.idle,
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
+```mermaid
+mindmap
+  root((Lessons))
+    Separation
+      Keep executors simple
+      One job = one task
+      Compose for complexity
+    Communication
+      Use scoped bus for privacy
+      Global bus for cross-module
+      Always include correlationId
+    Resilience
+      Always handle failures
+      Implement retry for transient
+      Give user cancel option
+    Performance
+      Deduplicate requests
+      Cache where appropriate
+      Stream for long tasks
 ```
 
 ---
 
-## 6.6. Key Points
+## Summary
 
-| Principle | Implementation |
-|-----------|----------------|
-| **Parallel Fetching** | Dispatch multiple jobs in parallel, wait for all |
-| **Context Enrichment** | Collect data from multiple sources into LLM context |
-| **Streaming** | `JobProgressEvent` for each token |
-| **Background Processing** | Jobs run independently of UI lifecycle |
-| **Explicit Cancellation** | Only cancel when user sends new message |
+| Case Study | Key Patterns Used |
+|------------|-------------------|
+| **AI Chatbot** | Chaining, Progress, Streaming |
+| **File Upload** | Cancellation, Retry, Progress |
+| **Shopping Cart** | Observer Mode, Optimistic Update |
+| **Authentication** | Scoped Bus, Token Refresh |
 
----
-
-## 6.7. Security Analysis
-
-### Problem: Fake Events
-If an attacker injects fake events into Signal Bus, UI may display incorrect information.
-
-### Solutions
-
-| Mechanism | Description |
-|-----------|-------------|
-| **Encapsulation** | Only classes extending `BaseExecutor` can emit events |
-| **Server Authority** | Client state is just "optimistic UI", server validates all transactions |
-| **Event Signature** | (Optional) Server signs events sent via websocket |
-
-### Note
-This architecture focuses on **UX and decoupling**, not security layer. Real security must be at Server level.
-
----
-
-## 6.8. Summary
-
-This case study demonstrates:
-1. **Chaining Actions**: Context → LLM → Display
-2. **Parallel Execution**: Multiple workers running simultaneously
-3. **Streaming Response**: Real-time typing effect
-4. **State as Single Source of Truth**: UI only observes, no logic
-5. **Proper Cancellation Philosophy**: Only cancel when business logic requires
-
-The Event-Driven Orchestrator architecture enables building complex applications with clean, testable, and maintainable code.
+**Key Takeaway**: Real applications combine multiple patterns. The architecture's strength is how patterns compose together cleanly.
