@@ -5,92 +5,91 @@
 </p>
 
 <p align="center">
-  <a href="book/README.md">📖 Read Book (English)</a> •
-  <a href="book/vi/README.md">📖 Đọc Sách (Tiếng Việt)</a> •
+  <a href="docs/vi/README.md">📚 Tài liệu Kỹ thuật (Framework Docs)</a> •
+  <a href="book/vi/README.md">📖 Đọc Sách (Tư duy kiến trúc)</a> •
   <a href="packages/orchestrator_core">📦 Core Package</a>
 </p>
 
 ---
 
-## Introduction
+## Giới thiệu
 
-**Flutter Orchestrator** is an event-driven architecture designed to solve the "God Classes" problem in large Flutter applications. Instead of letting Controllers/BLoCs handle both UI state and business logic, this architecture clearly separates:
+**Flutter Orchestrator** là một kiến trúc hướng sự kiện (Event-driven) được thiết kế để giải quyết vấn đề "God Classes" trong các ứng dụng Flutter lớn. Thay vì để Controller/BLoC quản lý cả UI State nhận Business Logic, kiến trúc này tách biệt rõ ràng:
 
-- **Orchestrator**: Manages UI State
-- **Executor**: Executes Business Logic  
-- **Signal Bus**: Asynchronous Communication
+- **Orchestrator**: Quản lý UI State & Điều phối
+- **Executor**: Thực thi Business Logic (Thuần Dart)
+- **Dispatcher**: Trung tâm điều phối & Xử lý sự kiện (Offline, Logging...)
 
-## Project Structure
+![Architecture Diagram](https://mermaid.ink/img/pako:eNpVkMtqwzAQRX9FzKpF_AAfC6F0001hoNCNLHwYy4itREoykjaF_Hvt2E2h6GbmzvU49w6Y8gYyw8-G1x2sK9jO_ZzQW_RU79Cl610B-xN8vEL1AV6O8LKEzRz2E1xO4XwK13O4X8L9Ch8r2G_gYwcbDfvf0P8J_S_oT4b-D2hThjZlaFOGNmVoU4Y2ZWhThisV4UJFSCpCUhGSi_C1IqQVoakITUV4qyK0FWEqwlSEqQhTEaYiTEWYijAVYarCVIWpClMVpipMVZiqMFVhqsJUhRsVbanYf-X-lsr9V-5vqdyp2H_l_pbK_Vfub6n8i8r9V-7vF5d_5f6Wyr-o3H_l_pbKv2j5B_UEm9M)
+
+## Tại sao chọn Flutter Orchestrator?
+
+1.  **Tách biệt logic hoàn toàn**: Executor không biết gì về UI, Orchestrator không biết gì về logic gọi API/DB.
+2.  **Test dễ dàng**: Với logic được tách ra Executor thuần Dart, bạn có thể Unit Test 100% logic mà không cần Mock Context hay Widget.
+3.  **Hỗ trợ Offline tự động**: Chỉ cần đánh dấu `@NetworkJob`, mọi vấn đề lưu queue, retry, sync khi có mạng đều được handle tự động.
+4.  **Teamwork tốt hơn**: Dev A làm màn hình (Orchestrator), Dev B làm logic (Executor). Không còn conflict code trong một file Controller dài 2000 dòng.
+
+## Bắt đầu ngay
+
+Xem hướng dẫn chi tiết tại: [Tài liệu Framework (Tiếng Việt)](docs/vi/README.md)
+
+### Cài đặt nhanh
+
+```bash
+flutter pub add orchestrator_core orchestrator_bloc
+```
+
+### Ví dụ đơn giản
+
+**1. Định nghĩa Job:**
+```dart
+class LoginJob extends BaseJob {
+  final String username;
+  final String password;
+  LoginJob(this.username, this.password);
+}
+```
+
+**2. Viết Logic (Executor):**
+```dart
+class LoginExecutor extends BaseExecutor<LoginJob, User> {
+  @override
+  Future<User> process(LoginJob job) async {
+    return api.login(job.username, job.password);
+  }
+}
+```
+
+**3. Gọi từ UI (Orchestrator):**
+```dart
+class LoginCubit extends OrchestratorCubit<LoginState> {
+  void onLoginPressed() {
+    dispatch(LoginJob('user', '123456'));
+  }
+}
+```
+
+---
+
+## Cấu trúc dự án
 
 ```
 flutter_orchestrator/
-├── book/                    # Documentation
-│   ├── chapters/            # 7 chapters (English - Primary)
-│   ├── vi/                  # Vietnamese version (Tiếng Việt)
-│   │   └── chapters/
-│   └── GLOSSARY.md          # English-Vietnamese Glossary
+├── book/                    # Sách (Tư duy & Kiến trúc)
+│   └── vi/                  # Tiếng Việt
 │
-├── packages/                # Dart/Flutter packages
-│   ├── orchestrator_core/   # Core framework (Pure Dart)
+├── docs/                    # Tài liệu kỹ thuật (Cách sử dụng Framework)
+│   └── vi/                  # Tiếng Việt
+│       ├── guide/           # Hướng dẫn cơ bản
+│       └── advanced/        # Tính năng nâng cao
+│
+├── packages/                # Các gói thư viện (Packages)
+│   ├── orchestrator_core/   # Core framework
 │   ├── orchestrator_bloc/   # BLoC integration
-│   ├── orchestrator_provider/  # Provider integration
-│   ├── orchestrator_riverpod/  # Riverpod integration
-│   ├── orchestrator_flutter/   # Flutter utilities (file safety, connectivity)
-│   └── orchestrator_generator/ # Code generation for offline support
+│   └── ...
 │
-└── examples/                # Example applications
+└── examples/                # Ứng dụng mẫu
 ```
-
-## Quick Start
-
-### 1. Add dependency
-
-```yaml
-dependencies:
-  orchestrator_bloc: ^0.2.0  # or orchestrator_provider / orchestrator_riverpod
-```
-
-### 2. Create Executor
-
-```dart
-class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
-  @override
-  Future<dynamic> process(FetchUserJob job) async {
-    return await api.getUser(job.userId);
-  }
-}
-```
-
-### 3. Create Orchestrator
-
-```dart
-class UserCubit extends OrchestratorCubit<UserState> {
-  UserCubit() : super(const UserState());
-
-  void loadUser(String id) {
-    emit(state.copyWith(isLoading: true));
-    dispatch(FetchUserJob(id));
-  }
-
-  @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    emit(state.copyWith(user: event.data, isLoading: false));
-  }
-}
-```
-
-## Tests
-
-```bash
-# Run all tests
-cd packages/orchestrator_core && dart test
-cd packages/orchestrator_bloc && flutter test
-cd packages/orchestrator_provider && flutter test
-cd packages/orchestrator_riverpod && flutter test
-```
-
-**Total: 95+ tests passing ✅**
 
 ## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License.

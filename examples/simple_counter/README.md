@@ -1,16 +1,79 @@
-# simple_counter
+# Simple Counter Example
 
-A new Flutter project.
+Ứng dụng Counter đơn giản sử dụng **Flutter Orchestrator** - Ví dụ Hello World.
 
-## Getting Started
+## 📁 Cấu trúc
 
-This project is a starting point for a Flutter application.
+```
+lib/
+├── jobs/
+│   └── counter_jobs.dart      # IncrementJob, DecrementJob, ResetJob
+├── executors/
+│   └── counter_executor.dart  # Business logic (pure Dart)
+├── cubit/
+│   ├── counter_state.dart     # Immutable state
+│   └── counter_cubit.dart     # Orchestrator (connects UI & logic)
+└── main.dart                  # Entry point & UI
+```
 
-A few resources to get you started if this is your first Flutter project:
+## 🚀 Chạy ứng dụng
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+cd examples/simple_counter
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🎯 Luồng hoạt động
+
+```
+1. User nhấn nút (+) 
+   → CounterCubit.increment()
+   
+2. Cubit dispatch Job
+   → dispatch(IncrementJob())
+   
+3. Dispatcher tìm Executor
+   → IncrementWithServiceExecutor.process()
+   
+4. Executor xử lý & emit Event
+   → emit(JobSuccessEvent(newCount))
+   
+5. Cubit nhận Event qua hook
+   → onActiveSuccess(event)
+   
+6. Cubit cập nhật State
+   → emit(state.copyWith(count: newCount))
+   
+7. UI rebuild với count mới
+```
+
+## 📖 Tài liệu tham khảo
+
+- [Getting Started](../../docs/vi/guide/getting_started.md)
+- [Core Concepts](../../docs/vi/guide/core_concepts.md)
+- [Integration Guide](../../docs/vi/guide/integration.md)
+
+## 🔑 Key Takeaways
+
+1. **Job** = Data class mô tả action (không có logic)
+2. **Executor** = Pure Dart business logic (dễ test)
+3. **Cubit** = Orchestrator kết nối UI và logic
+4. **State** = Immutable với `copyWith`
+
+## 🧪 Test
+
+Executor thuần Dart → Test đơn giản:
+
+```dart
+test('increment should increase count', () async {
+  final service = CounterService();
+  final executor = IncrementWithServiceExecutor(service);
+  
+  await executor.process(IncrementJob());
+  expect(service.count, equals(1));
+  
+  await executor.process(IncrementJob());
+  expect(service.count, equals(2));
+});
+```
