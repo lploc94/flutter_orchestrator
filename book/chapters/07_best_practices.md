@@ -285,14 +285,22 @@ sequenceDiagram
     participant DI as 💉 DI Container
     participant Disp as 📮 Dispatcher
     
-    App->>DI: 1. Register SignalBus
-    App->>DI: 2. Register Executors
-    App->>DI: 3. Register Dispatcher
+    rect rgb(241, 245, 249)
+        Note over App,DI: Initial Core Setup
+        App->>DI: 1. Register SignalBus
+        App->>DI: 2. Register Executors
+        App->>DI: 3. Register Dispatcher
+    end
     
-    DI->>Disp: dispatcher.register<FetchUserJob>(UserExecutor())
-    DI->>Disp: dispatcher.register<LoginJob>(AuthExecutor())
+    rect rgb(224, 242, 241)
+        Note over DI,Disp: Executor Wiring
+        DI->>Disp: dispatcher.register<FetchUserJob>(UserExecutor())
+        DI->>Disp: dispatcher.register<LoginJob>(AuthExecutor())
+    end
     
-    Note over App: 4. Register Orchestrators<br/>(Factory/Provider)
+    rect rgb(254, 243, 199)
+        Note over App: 4. Register Orchestrators<br/>(Factory/Provider)
+    end
 ```
 
 ---

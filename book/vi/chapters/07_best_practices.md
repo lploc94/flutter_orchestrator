@@ -285,14 +285,22 @@ sequenceDiagram
     participant DI as 💉 DI Container
     participant Disp as 📮 Dispatcher
     
-    App->>DI: 1. Đăng ký SignalBus
-    App->>DI: 2. Đăng ký Executors
-    App->>DI: 3. Đăng ký Dispatcher
+    rect rgb(241, 245, 249)
+        Note over App,DI: Thiết lập Core ban đầu
+        App->>DI: 1. Đăng ký SignalBus
+        App->>DI: 2. Đăng ký Executors
+        App->>DI: 3. Đăng ký Dispatcher
+    end
     
-    DI->>Disp: dispatcher.register<FetchUserJob>(UserExecutor())
-    DI->>Disp: dispatcher.register<LoginJob>(AuthExecutor())
+    rect rgb(224, 242, 241)
+        Note over DI,Disp: Đăng ký Executor vào Registry
+        DI->>Disp: dispatcher.register<FetchUserJob>(UserExecutor())
+        DI->>Disp: dispatcher.register<LoginJob>(AuthExecutor())
+    end
     
-    Note over App: 4. Đăng ký Orchestrators<br/>(Factory/Provider)
+    rect rgb(254, 243, 199)
+        Note over App: 4. Đăng ký Orchestrators<br/>(Factory/Provider)
+    end
 ```
 
 ---

@@ -416,16 +416,22 @@ sequenceDiagram
     participant UI as 🖥️ UI
     participant Orch as 🎭 Orchestrator
     
-    UI->>Orch: fetchUser("123")
-    Note over Orch: inFlight["user:123"] = true
-    Orch->>Orch: dispatch(FetchUserJob)
+    rect rgb(241, 245, 249)
+        UI->>Orch: fetchUser("123")
+        Note over Orch: inFlight["user:123"] = true
+        Orch->>Orch: dispatch(FetchUserJob)
+    end
     
-    UI->>Orch: fetchUser("123")
-    Note over Orch: Already in flight!
-    Orch-->>UI: Ignored (or return existing job ID)
+    rect rgb(224, 242, 241)
+        UI->>Orch: fetchUser("123")
+        Note over Orch: inFlight["user:123"] = true (Already in flight!)
+        Orch-->>UI: Ignored (or return existing job ID)
+    end
     
-    Note over Orch: Job completes
-    Note over Orch: inFlight["user:123"] = false
+    rect rgb(254, 243, 199)
+        Note over Orch: Job completes
+        Note over Orch: inFlight["user:123"] = false
+    end
 ```
 
 ### Deduplication Key

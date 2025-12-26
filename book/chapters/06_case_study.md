@@ -98,6 +98,7 @@ sequenceDiagram
 Instead of a monolithic function, we handle the workflow as a state machine. This allows us to handle errors specifically for each phase (e.g., if Saving fails, we don't lose the AI response, we just show a "Retry Save" button, because the AI response is already in memory).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#fef3c7', 'tertiaryColor': '#fee2e2' }}}%%
 stateDiagram-v2
     [*] --> Idle
     
@@ -139,28 +140,34 @@ sequenceDiagram
     participant Exec as ⚙️ UploadExecutor
     participant S3 as ☁️ Cloud Storage
     
-    User->>UI: Select file
-    UI->>Orch: startUpload(file)
-    Orch->>Orch: token = new CancellationToken()
-    Orch->>Exec: dispatch(UploadJob, token)
+    rect rgb(241, 245, 249)
+        User->>UI: Select file
+        UI->>Orch: startUpload(file)
+        Orch->>Orch: token = new CancellationToken()
+        Orch->>Exec: dispatch(UploadJob, token)
+    end
     
-    loop Chunks
-        Exec->>S3: Upload chunk
-        Exec-->>Orch: Progress(30%)
-        Exec->>S3: Upload chunk
-        Exec-->>Orch: Progress(60%)
-        
-        alt User cancels
-            User->>Orch: cancel()
-            Orch->>Token: cancel()
-            Exec->>Exec: throw CancelledException
-            Exec-->>Orch: CancelledEvent
+    rect rgb(224, 242, 241)
+        loop Chunks
+            Exec->>S3: Upload chunk
+            Exec-->>Orch: Progress(30%)
+            Exec->>S3: Upload chunk
+            Exec-->>Orch: Progress(60%)
+            
+            alt User cancels
+                User->>Orch: cancel()
+                Orch->>Token: cancel()
+                Exec->>Exec: throw CancelledException
+                Exec-->>Orch: CancelledEvent
+            end
         end
     end
     
-    Exec->>S3: Complete multipart
-    Exec-->>Orch: SuccessEvent(url)
-    Orch-->>UI: Upload complete
+    rect rgb(254, 243, 199)
+        Exec->>S3: Complete multipart
+        Exec-->>Orch: SuccessEvent(url)
+        Orch-->>UI: Upload complete
+    end
 ```
 
 ### Chunked Upload State
@@ -269,15 +276,22 @@ sequenceDiagram
     participant Bus as 📡 Global Bus
     participant Exec as ⚙️ CartExecutor
     
-    Note over Cart: User adds item
-    Cart->>Exec: dispatch(AddToCartJob)
-    Exec->>Bus: CartUpdatedEvent
+    rect rgb(241, 245, 249)
+        Note over Cart: User adds item
+        Cart->>Exec: dispatch(AddToCartJob)
+    end
     
-    Bus->>Cart: event (Direct Mode)
-    Note over Cart: Update cart state
+    rect rgb(224, 242, 241)
+        Exec->>Bus: CartUpdatedEvent
+    end
     
-    Bus->>Product: event (Observer Mode)
-    Note over Product: Update product stock display
+    rect rgb(254, 243, 199)
+        Bus->>Cart: event (Direct Mode)
+        Note over Cart: Update cart state
+        
+        Bus->>Product: event (Observer Mode)
+        Note over Product: Update product stock display
+    end
 ```
 
 ### Optimistic Update Pattern
@@ -364,16 +378,22 @@ sequenceDiagram
     participant Auth as 🔐 AuthExecutor
     participant API as 🌐 API
     
-    Any->>API: Request with token
-    API-->>Any: 401 Unauthorized
+    rect rgb(254, 226, 226)
+        Any->>API: Request with token
+        API-->>Any: 401 Unauthorized
+    end
     
-    Any->>Auth: dispatch(RefreshTokenJob)
-    Auth->>API: POST /refresh
-    API-->>Auth: New token
-    Auth-->>Any: TokenRefreshedEvent
+    rect rgb(224, 242, 241)
+        Any->>Auth: dispatch(RefreshTokenJob)
+        Auth->>API: POST /refresh
+        API-->>Auth: New token
+        Auth-->>Any: TokenRefreshedEvent
+    end
     
-    Any->>API: Retry request with new token
-    API-->>Any: Success
+    rect rgb(254, 243, 199)
+        Any->>API: Retry request with new token
+        API-->>Any: Success
+    end
 ```
 
 ---

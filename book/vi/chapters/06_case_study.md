@@ -98,6 +98,7 @@ sequenceDiagram
 Thay vì viết một hàm khổng lồ, chúng ta xử lý quy trình làm việc như một máy trạng thái (state machine). Điều này cho phép chúng ta xử lý lỗi cụ thể cho từng giai đoạn (ví dụ: nếu Lưu thất bại, chúng ta không làm mất câu trả lời của AI, mà chỉ hiện nút "Thử lưu lại", vì câu trả lời AI đã có trong bộ nhớ).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#fef3c7', 'tertiaryColor': '#fee2e2' }}}%%
 stateDiagram-v2
     [*] --> Idle
     
@@ -139,28 +140,34 @@ sequenceDiagram
     participant Exec as ⚙️ UploadExecutor
     participant S3 as ☁️ Cloud Storage
     
-    User->>UI: Chọn file
-    UI->>Orch: startUpload(file)
-    Orch->>Orch: token = new CancellationToken()
-    Orch->>Exec: dispatch(UploadJob, token)
+    rect rgb(241, 245, 249)
+        User->>UI: Chọn file
+        UI->>Orch: startUpload(file)
+        Orch->>Orch: token = new CancellationToken()
+        Orch->>Exec: dispatch(UploadJob, token)
+    end
     
-    loop Chunks
-        Exec->>S3: Upload chunk
-        Exec-->>Orch: Progress(30%)
-        Exec->>S3: Upload chunk
-        Exec-->>Orch: Progress(60%)
-        
-        alt User hủy
-            User->>Orch: cancel()
-            Orch->>Token: cancel()
-            Exec->>Exec: throw CancelledException
-            Exec-->>Orch: CancelledEvent
+    rect rgb(224, 242, 241)
+        loop Chunks
+            Exec->>S3: Upload chunk
+            Exec-->>Orch: Progress(30%)
+            Exec->>S3: Upload chunk
+            Exec-->>Orch: Progress(60%)
+            
+            alt User hủy
+                User->>Orch: cancel()
+                Orch->>Token: cancel()
+                Exec->>Exec: throw CancelledException
+                Exec-->>Orch: CancelledEvent
+            end
         end
     end
     
-    Exec->>S3: Complete multipart
-    Exec-->>Orch: SuccessEvent(url)
-    Orch-->>UI: Upload hoàn tất
+    rect rgb(254, 243, 199)
+        Exec->>S3: Complete multipart
+        Exec-->>Orch: SuccessEvent(url)
+        Orch-->>UI: Upload hoàn tất
+    end
 ```
 
 ### Trạng thái Upload Chunk
@@ -269,15 +276,22 @@ sequenceDiagram
     participant Bus as 📡 Global Bus
     participant Exec as ⚙️ CartExecutor
     
-    Note over Cart: User thêm sản phẩm
-    Cart->>Exec: dispatch(AddToCartJob)
-    Exec->>Bus: CartUpdatedEvent
+    rect rgb(241, 245, 249)
+        Note over Cart: User thêm sản phẩm
+        Cart->>Exec: dispatch(AddToCartJob)
+    end
     
-    Bus->>Cart: event (Direct Mode)
-    Note over Cart: Cập nhật cart state
+    rect rgb(224, 242, 241)
+        Exec->>Bus: CartUpdatedEvent
+    end
     
-    Bus->>Product: event (Observer Mode)
-    Note over Product: Cập nhật hiển thị tồn kho
+    rect rgb(254, 243, 199)
+        Bus->>Cart: event (Direct Mode)
+        Note over Cart: Cập nhật cart state
+        
+        Bus->>Product: event (Observer Mode)
+        Note over Product: Cập nhật hiển thị tồn kho
+    end
 ```
 
 ### Mẫu Cập nhật Lạc quan (Optimistic Update)
@@ -364,16 +378,22 @@ sequenceDiagram
     participant Auth as 🔐 AuthExecutor
     participant API as 🌐 API
     
-    Any->>API: Request kèm token
-    API-->>Any: 401 Unauthorized
+    rect rgb(254, 226, 226)
+        Any->>API: Request kèm token
+        API-->>Any: 401 Unauthorized
+    end
     
-    Any->>Auth: dispatch(RefreshTokenJob)
-    Auth->>API: POST /refresh
-    API-->>Auth: Token mới
-    Auth-->>Any: TokenRefreshedEvent
+    rect rgb(224, 242, 241)
+        Any->>Auth: dispatch(RefreshTokenJob)
+        Auth->>API: POST /refresh
+        API-->>Auth: Token mới
+        Auth-->>Any: TokenRefreshedEvent
+    end
     
-    Any->>API: Retry request với token mới
-    API-->>Any: Success
+    rect rgb(254, 243, 199)
+        Any->>API: Retry request với token mới
+        API-->>Any: Success
+    end
 ```
 
 ---
