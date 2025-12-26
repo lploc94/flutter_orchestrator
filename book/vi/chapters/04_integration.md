@@ -28,6 +28,7 @@ graph LR
 ### Cấu trúc
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#fef3c7' }}}%%
 classDiagram
     class Job {
         <<interface>>
@@ -73,11 +74,15 @@ sequenceDiagram
     participant OrcB as Orchestrator B
     participant Bus as Signal Bus
     
-    Note over OrcA: activeJobs = [job-001]
-    Note over OrcB: activeJobs = [job-002]
+    rect rgb(241, 245, 249)
+        Note over OrcA: activeJobs = [job-001]
+        Note over OrcB: activeJobs = [job-002]
+    end
     
-    Bus->>OrcA: Event(id=job-001)
-    Bus->>OrcB: Event(id=job-001)
+    rect rgb(224, 242, 241)
+        Bus->>OrcA: Event(id=job-001)
+        Bus->>OrcB: Event(id=job-001)
+    end
     
     Note over OrcA: ✅ job-001 khớp activeJobs<br/>→ Direct Mode
     Note over OrcB: ❌ job-001 không phải của tôi<br/>→ Observer Mode
@@ -119,6 +124,7 @@ flowchart TD
 **Giải pháp**: Định nghĩa rõ ràng các trạng thái và chuyển đổi được kích hoạt bởi sự kiện.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#fef3c7', 'tertiaryColor': '#fee2e2' }}}%%
 stateDiagram-v2
     [*] --> Idle: Ban đầu
     
