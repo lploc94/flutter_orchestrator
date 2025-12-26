@@ -400,7 +400,7 @@ class FetchUserJob extends BaseJob {
 }
 ```
 
-> **Lưu ý**: Feature này đang trong giai đoạn phát triển. Hiện tại sinh mixin cơ bản.
+
 
 ---
 
@@ -419,7 +419,7 @@ class UserLoggedIn extends BaseEvent {
 }
 ```
 
-> **Lưu ý**: Feature này đang trong giai đoạn phát triển. Hiện tại sinh mixin cơ bản.
+
 
 ---
 
