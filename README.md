@@ -20,7 +20,27 @@
 - **Executor**: Thực thi Business Logic (Thuần Dart)
 - **Dispatcher**: Trung tâm điều phối & Xử lý sự kiện (Offline, Logging...)
 
-![Architecture Diagram](https://mermaid.ink/img/pako:eNpVkMtqwzAQRX9FzKpF_AAfC6F0001hoNCNLHwYy4itREoykjaF_Hvt2E2h6GbmzvU49w6Y8gYyw8-G1x2sK9jO_ZzQW_RU79Cl610B-xN8vEL1AV6O8LKEzRz2E1xO4XwK13O4X8L9Ch8r2G_gYwcbDfvf0P8J_S_oT4b-D2hThjZlaFOGNmVoU4Y2ZWhThisV4UJFSCpCUhGSi_C1IqQVoakITUV4qyK0FWEqwlSEqQhTEaYiTEWYijAVYarCVIWpClMVpipMVZiqMFVhqsJUhRsVbanYf-X-lsr9V-5vqdyp2H_l_pbK_Vfub6n8i8r9V-7vF5d_5f6Wyr-o3H_l_pbKv2j5B_UEm9M)
+```mermaid
+flowchart LR
+    subgraph UI["UI Layer"]
+        Widget["Widget"]
+        State["State"]
+    end
+    
+    subgraph Core["Orchestrator Core"]
+        Orchestrator["Orchestrator"]
+        Dispatcher["Dispatcher"]
+        Executor["Executor"]
+    end
+    
+    Widget -->|"gọi hàm"| Orchestrator
+    Orchestrator -->|"dispatch(Job)"| Dispatcher
+    Dispatcher -->|"execute()"| Executor
+    Executor -->|"emit(Event)"| Orchestrator
+    Orchestrator -->|"emit(State)"| State
+    State -->|"rebuild"| Widget
+```
+
 
 ## Tại sao chọn Flutter Orchestrator?
 
