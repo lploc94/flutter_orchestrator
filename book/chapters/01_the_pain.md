@@ -24,7 +24,15 @@ graph TB
         Controller --> Navigation["Navigation Logic"]
     end
     
-    style Controller fill:#ff6b6b,stroke:#c92a2a,color:#fff
+    style GodClass fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Controller fill:#fee2e2,stroke:#334155,stroke-width:2px,color:#1e293b
+    style UI fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style API fill:#fef3c7,stroke:#334155,color:#1e293b
+    style DB fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Cache fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Validation fill:#fef3c7,stroke:#334155,color:#1e293b
+    style State fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Navigation fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Symptoms
@@ -52,11 +60,21 @@ sequenceDiagram
     participant BLoC as 📦 BLoC
     participant API as 🌐 API
     
-    UI->>BLoC: login(user, pass)
-    Note over BLoC: ⏳ UI LOGIC BLOCKED
-    BLoC->>API: POST /auth
-    API-->>BLoC: response (2-5 seconds)
-    BLoC-->>UI: emit(Success)
+    rect rgb(241, 245, 249)
+        Note over UI,BLoC: Input Phase
+        UI->>BLoC: login(user, pass)
+    end
+    
+    rect rgb(254, 226, 226)
+        Note over BLoC: ⏳ UI LOGIC BLOCKED
+        BLoC->>API: POST /auth
+        API-->>BLoC: response (2-5 seconds)
+    end
+    
+    rect rgb(254, 243, 199)
+        Note over BLoC,UI: Result Phase
+        BLoC-->>UI: emit(Success)
+    end
     
     Note over UI,API: ❌ UI lifecycle is bound to API response time
 ```
@@ -106,9 +124,15 @@ graph LR
         BlocC["ProfileBloc"] --> AuthLogic3["Auth Logic<br/>(DUPLICATED AGAIN)"]
     end
     
-    style AuthLogic fill:#ffa94d,color:#000
-    style AuthLogic2 fill:#ff6b6b,color:#fff
-    style AuthLogic3 fill:#ff6b6b,color:#fff
+    style FeatureA fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style FeatureB fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style FeatureC fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style AuthLogic fill:#fef3c7,stroke:#334155,color:#1e293b
+    style AuthLogic2 fill:#fee2e2,stroke:#334155,color:#1e293b
+    style AuthLogic3 fill:#fee2e2,stroke:#334155,color:#1e293b
+    style BlocA fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style BlocB fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style BlocC fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### The Duplication Tax
@@ -140,6 +164,17 @@ graph TB
     end
     
     TestingProblem --> Result
+    
+    style TestingProblem fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Result fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Test fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style MockRepo fill:#fef3c7,stroke:#334155,color:#1e293b
+    style MockAPI fill:#fef3c7,stroke:#334155,color:#1e293b
+    style MockCache fill:#fef3c7,stroke:#334155,color:#1e293b
+    style MockDB fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Brittle fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Slow fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Complex fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 **The Reality of Testing:**
@@ -157,12 +192,12 @@ Why do we keep falling into these traps? It's not because we are bad developers.
 graph LR
     Root((Root Cause))
     
-    Root --> Confusion
+    Root --> Confusion["Confusion"]
     Confusion --> C1["UI State vs Business State"]
     Confusion --> C2["Orchestration vs Execution"]
     Confusion --> C3["Triggering vs Completing"]
     
-    Root --> Coupling
+    Root --> Coupling["Coupling"]
     Coupling --> Cp1["Temporal: await chains"]
     Coupling --> Cp2["Spatial: same class"]
     Coupling --> Cp3["Behavioral: shared lifecycle"]
@@ -172,22 +207,22 @@ graph LR
     Missing --> M2["No communication channel"]
     Missing --> M3["No event routing"]
     
-    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
-    style Confusion fill:#37b24d,color:#fff
-    style Coupling fill:#f03e3e,color:#fff
-    style Missing fill:#f59f00,color:#fff
+    style Root fill:#0d9488,stroke:#334155,stroke-width:2px,color:#ffffff
+    style Confusion fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Coupling fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Missing fill:#fef3c7,stroke:#334155,color:#1e293b
     
-    style C1 fill:#fff,stroke:#333,color:#000
-    style C2 fill:#fff,stroke:#333,color:#000
-    style C3 fill:#fff,stroke:#333,color:#000
+    style C1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style C2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style C3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Cp1 fill:#fff,stroke:#333,color:#000
-    style Cp2 fill:#fff,stroke:#333,color:#000
-    style Cp3 fill:#fff,stroke:#333,color:#000
+    style Cp1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Cp2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Cp3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style M1 fill:#fff,stroke:#333,color:#000
-    style M2 fill:#fff,stroke:#333,color:#000
-    style M3 fill:#fff,stroke:#333,color:#000
+    style M1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style M2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style M3 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### The Core Insight
@@ -214,6 +249,12 @@ graph LR
         R3["Event-Driven<br/>React to completion"]
         R4["Testable<br/>Isolated units"]
     end
+    
+    style Requirements fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style R1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style R2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style R3 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style R4 fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 1.  **Fire-and-Forget**: The UI should be able to say "Do this" and immediately return to handling user input, without waiting for the network.

@@ -22,8 +22,9 @@ graph TB
     
     Orchestration -.->|"Decoupled"| Execution
     
-    style Orchestration fill:#4c6ef5,color:#fff
-    style Execution fill:#37b24d,color:#fff
+    style Separation fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orchestration fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Execution fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 By enforcing this separation, we clarify the role of each component:
@@ -47,19 +48,24 @@ sequenceDiagram
     participant Orch as 🎭 Orchestrator
     participant Exec as ⚙️ Executor
     
-    UI->>Orch: login(user, pass)
-    Orch->>Orch: emit(Loading)
+    rect rgb(241, 245, 249)
+        Note over UI,Orch: Input Phase
+        UI->>Orch: login(user, pass)
+        Orch->>Orch: emit(Loading)
+    end
     
-    Note right of Orch: ⚡ The logic splits here
+    rect rgb(224, 242, 241)
+        Note right of Orch: ⚡ The logic splits here
+        Orch--)Exec: dispatch(LoginJob)
+        Note over Orch: ✅ Returns immediately
+    end
     
-    Orch--)Exec: dispatch(LoginJob)
-    Note over Orch: ✅ Returns immediately
-    
-    Note over Exec: ⚙️ Works in background
-    
-    Exec--)Orch: emit(LoginSuccessEvent)
-    Orch->>Orch: emit(Success)
-    Orch->>UI: State updated
+    rect rgb(254, 243, 199)
+        Note over Exec: ⚙️ Works in background
+        Exec--)Orch: emit(LoginSuccessEvent)
+        Orch->>Orch: emit(Success)
+        Orch->>UI: State updated
+    end
 ```
 
 **Key difference**: The Orchestrator does not `await` the result of `dispatch`. It dispatches the job and effectively says, *"I have started this process. I am now free to handle other things. Let me know when you are done."*
@@ -84,9 +90,10 @@ graph TB
         Bus -->|"③ Notification"| Orch
     end
     
-    style Orch fill:#4c6ef5,color:#fff
-    style Exec fill:#37b24d,color:#fff
-    style Bus fill:#f59f00,color:#fff
+    style Pattern fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orch fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Exec fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Bus fill:#0d9488,stroke:#334155,color:#ffffff
 ```
 
 1.  **Command (Job)**: The Orchestrator sends a **Job** (a command object) directly to the Executor via a Dispatcher. This is a one-way "fire" action.
@@ -135,9 +142,17 @@ graph TB
     Exec3 -->|"emit"| Bus
     Bus -->|"notify"| Orch
     
-    style Orch fill:#4c6ef5,color:#fff
-    style Dispatcher fill:#845ef7,color:#fff
-    style Bus fill:#f59f00,color:#fff
+    style UI fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orchestration fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Execution fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Infra fill:#0d9488,stroke:#334155,color:#ffffff
+    style Orch fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Dispatcher fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Bus fill:#0d9488,stroke:#334155,color:#ffffff
+    style Screen fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Exec1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Exec2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Exec3 fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 The data flow is unidirectional and cyclical:
@@ -162,6 +177,14 @@ graph LR
     Input["User Intent"] --> Orchestrator
     Orchestrator --> Output["State Changes"]
     Orchestrator --> Jobs["Job Dispatch"]
+    
+    style Orchestrator fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style State fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style ActiveJobs fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Handlers fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Input fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Output fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Jobs fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 **Responsibilities:**
@@ -183,6 +206,11 @@ graph LR
     
     Job["Job"] --> Dispatcher
     Dispatcher --> Exec["Matched Executor"]
+    
+    style Dispatcher fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Registry fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Job fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Exec fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 **Responsibilities:**
@@ -204,6 +232,13 @@ graph LR
     Executor --> Success["✅ Success Event"]
     Executor --> Failure["❌ Failure Event"]
     Executor --> Progress["📊 Progress Event"]
+    
+    style Executor fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Process fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Job fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Success fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Failure fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Progress fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 **Responsibilities:**
@@ -227,6 +262,14 @@ graph TB
     SignalBus --> Orch1["Orchestrator A"]
     SignalBus --> Orch2["Orchestrator B"]
     SignalBus --> Orch3["Orchestrator C"]
+    
+    style SignalBus fill:#0d9488,stroke:#334155,color:#ffffff
+    style Stream fill:#0d9488,stroke:#334155,color:#ffffff
+    style Exec1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Exec2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orch1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Orch2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Orch3 fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 **Responsibilities:**
@@ -252,8 +295,13 @@ graph TB
     Direct --> OnFailure["onActiveFailure()"]
     Observer --> OnPassive["onPassiveEvent()"]
     
-    style Direct fill:#4c6ef5,color:#fff
-    style Observer fill:#37b24d,color:#fff
+    style Event fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Check fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Direct fill:#0d9488,stroke:#334155,color:#ffffff
+    style Observer fill:#fef3c7,stroke:#334155,color:#1e293b
+    style OnSuccess fill:#fef3c7,stroke:#334155,color:#1e293b
+    style OnFailure fill:#fee2e2,stroke:#334155,color:#1e293b
+    style OnPassive fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### When to use each mode
@@ -278,13 +326,17 @@ sequenceDiagram
     participant Exec as Executor
     participant Bus as Signal Bus
     
-    Note over Orch: dispatch(Job, id=abc123)
-    Orch->>Exec: Job(id=abc123)
-    Note over Orch: Tracks: [abc123]
+    rect rgb(224, 242, 241)
+        Note over Orch: dispatch(Job, id=abc123)
+        Orch->>Exec: Job(id=abc123)
+        Note over Orch: Tracks: [abc123]
+    end
     
-    Exec->>Bus: Event(correlationId=abc123)
-    Bus->>Orch: Event received
-    Bus->>Orch2: Event received
+    rect rgb(254, 243, 199)
+        Exec->>Bus: Event(correlationId=abc123)
+        Bus->>Orch: Event received
+        Bus->>Orch2: Event received
+    end
     
     Note over Orch: abc123 matches!<br/>→ Direct Mode
     Note over Orch2: abc123 not mine<br/>→ Observer Mode
@@ -318,6 +370,19 @@ flowchart TB
     
     Principles --> Components
     Components --> Modes
+    
+    style Principles fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Components fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Modes fill:#0d9488,stroke:#334155,color:#ffffff
+    style P1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style P2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style P3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style C1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style C2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style C3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style C4 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style M1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style M2 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ---
