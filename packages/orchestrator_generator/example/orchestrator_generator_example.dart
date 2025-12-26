@@ -46,6 +46,9 @@ class SendMessageJob extends BaseJob implements NetworkAction<String> {
   @override
   String createOptimisticResult() => message;
 
+  @override
+  String? get deduplicationKey => null;
+
   // Required for deserialization from queue
   static SendMessageJob fromJson(Map<String, dynamic> json) {
     return SendMessageJob(json['message'] as String);
