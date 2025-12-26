@@ -17,6 +17,15 @@ export 'src/models/job.dart';
 export 'src/models/network_action.dart';
 export 'src/models/data_strategy.dart';
 
+// Annotations
+export 'src/annotations/network_job.dart';
+export 'src/annotations/executor_registry.dart';
+export 'src/annotations/json_annotations.dart';
+export 'src/annotations/network_registry.dart';
+export 'src/annotations/orchestrator.dart';
+export 'src/annotations/async_state.dart';
+export 'src/annotations/generate_job_event.dart';
+
 // Infrastructure
 export 'src/infra/signal_bus.dart';
 export 'src/infra/dispatcher.dart';

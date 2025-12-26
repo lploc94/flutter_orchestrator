@@ -4,9 +4,12 @@ Code generator for orchestrator_core's offline support. Automatically generates 
 
 ## Features
 
-- **NetworkRegistryGenerator**: Generates `registerNetworkJobs()` function from `@NetworkRegistry` annotation
-- Eliminates boilerplate for offline job registration
-- Type-safe job factory generation
+- **NetworkRegistryGenerator**: Generates `registerNetworkJobs` from `@NetworkRegistry`
+- **OrchestratorGenerator**: Generates declarative event routing mixin from `@Orchestrator` & `@OnEvent`
+- **AsyncStateGenerator**: Generates `copyWith`, `when`, `maybeWhen` from `@GenerateAsyncState`
+- **JobGenerator**: Generates `toJson`/`fromJson` and boilerplate from `@GenerateJob`
+- **EventGenerator**: Generates boilerplate for events from `@GenerateEvent`
+- **ExecutorRegistryGenerator**: Generates `registerExecutors` from `@ExecutorRegistry`
 
 ## Installation
 
@@ -88,6 +91,31 @@ class SendMessageJob extends BaseJob implements NetworkAction {
   
   @override
   Map<String, dynamic> toJson() => {'message': message};
+}
+```
+
+### 3. Declarative Orchestrator
+
+```dart
+@Orchestrator()
+class MyOrchestrator extends BaseOrchestrator<MyState> with _$MyOrchestratorEventRouting {
+  @OnEvent(UserLoggedIn)
+  void _handleLogin(UserLoggedIn event) {
+    emit(state.copyWith(user: event.user));
+  }
+}
+```
+
+### 4. Async State Generation
+
+```dart
+@GenerateAsyncState()
+class MyState {
+  final AsyncStatus status;
+  final String? data;
+  final Object? error;
+  
+  const MyState({this.status = AsyncStatus.initial, this.data, this.error});
 }
 ```
 

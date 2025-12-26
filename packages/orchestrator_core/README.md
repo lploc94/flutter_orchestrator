@@ -46,18 +46,50 @@ class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
 ### 3. Create an Orchestrator
 
 ```dart
-class UserOrchestrator extends BaseOrchestrator<UserState> {
+class UserOrchestrator extends BaseOrchestrator<UserState> with _$UserOrchestratorEventRouting {
   UserOrchestrator() : super(const UserState());
 
   void loadUser(String id) {
-    emit(state.copyWith(isLoading: true));
+    emit(state.toLoading());
     dispatch(FetchUserJob(id));
   }
 
   @override
+  @OnEvent(JobSuccessEvent)
   void onActiveSuccess(JobSuccessEvent event) {
-    emit(state.copyWith(user: event.data, isLoading: false));
+    emit(state.toSuccess(event.data as User));
   }
+}
+```
+
+> **Note**: The `@Orchestrator` annotation and `_$UserOrchestratorEventRouting` mixin enable declarative event routing without manual type checks.
+
+### 4. Code Generation Features (v0.3.0+)
+
+#### Declare Async State
+
+```dart
+@GenerateAsyncState()
+class UserState {
+  final AsyncStatus status;
+  final User? data;
+  final Object? error;
+
+  const UserState({
+    this.status = AsyncStatus.initial,
+    this.data,
+    this.error,
+  });
+}
+```
+
+#### Declare Job
+
+```dart
+@GenerateJob()
+class FetchUserJob extends BaseJob {
+  final String userId;
+  FetchUserJob(this.userId);
 }
 ```
 
@@ -94,24 +126,37 @@ result.when(
 ### AsyncState - Common State Patterns
 
 ```dart
-class UserState extends AsyncState<User> {
-  const UserState({super.status, super.data, super.error});
-
-  UserState copyWith({AsyncStatus? status, User? data, Object? error}) =>
-      UserState(
-        status: status ?? this.status,
-        data: data ?? this.data,
-        error: error,
-      );
+// Using @GenerateAsyncState
+@GenerateAsyncState()
+class UserState {
+  final AsyncStatus status;
+  final User? data;
+  final Object? error;
+  
+  const UserState({
+     this.status = AsyncStatus.initial,
+     this.data,
+     this.error,
+  });
 }
 
-// Usage in orchestrator
+// Generated methods usage
 void onActiveSuccess(JobSuccessEvent event) {
   emit(state.toSuccess(event.data as User));
 }
 
 void onActiveFailure(JobFailureEvent event) {
   emit(state.toFailure(event.error));
+}
+
+// View usage
+Widget build(BuildContext context) {
+  return state.when(
+    initial: () => SizedBox(),
+    loading: () => CircularProgressIndicator(),
+    success: (user) => UserProfile(user),
+    failure: (error) => ErrorView(error),
+  );
 }
 ```
 

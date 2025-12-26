@@ -237,7 +237,7 @@
     },
     {
       "name": "orchestrator_core",
-      "rootUri": "file:///home/lploc94/.pub-cache/hosted/pub.dev/orchestrator_core-0.2.0",
+      "rootUri": "../../orchestrator_core",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },

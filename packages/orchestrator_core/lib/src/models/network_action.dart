@@ -28,26 +28,3 @@ abstract class NetworkAction<T> {
   /// If null, a UUID will be generated automatically.
   String? get deduplicationKey => null;
 }
-
-/// Annotation to mark a job for network queue code generation.
-///
-/// This triggers the `orchestrator_generator` to create a registry entry
-/// allowing this job to be deserialized and executed from the persisted queue.
-class NetworkJob {
-  const NetworkJob();
-}
-
-/// Annotation to define the central registry of network jobs.
-///
-/// Usage:
-/// ```dart
-/// @NetworkRegistry([
-///   SendMessageJob,
-///   LikePostJob,
-/// ])
-/// void setupNetworkRegistry();
-/// ```
-class NetworkRegistry {
-  final List<Type> jobs;
-  const NetworkRegistry(this.jobs);
-}

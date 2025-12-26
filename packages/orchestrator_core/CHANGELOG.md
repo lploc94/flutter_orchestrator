@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-12-26
+
+### Features: Extended Code Generation
+- **New**: Added annotations for enhanced code generation:
+  - `@Orchestrator` & `@OnEvent`: For declarative event routing.
+  - `@GenerateAsyncState`: Automatically generates `copyWith`, `toLoading`, `toSuccess`, `when`, `maybeWhen`.
+  - `@GenerateJob`: Simplifies job creation with auto-generated ID, timeout, and retry policy.
+  - `@GenerateEvent`: Reduces boilerplate for event classes.
+  - `@NetworkJob`: Added `generateSerialization` flag.
+  - `@ExecutorRegistry`: For auto-registering executors.
 ## [0.2.0] - 2025-12-25
 
 ### Added

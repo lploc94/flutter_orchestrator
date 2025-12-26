@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "orchestrator_generator",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": [
         "analyzer",
         "build",
@@ -16,6 +16,13 @@
       ],
       "devDependencies": [
         "test"
+      ]
+    },
+    {
+      "name": "orchestrator_core",
+      "version": "0.3.0",
+      "dependencies": [
+        "meta"
       ]
     },
     {
@@ -48,13 +55,6 @@
         "web_socket_channel",
         "webkit_inspection_protocol",
         "yaml"
-      ]
-    },
-    {
-      "name": "orchestrator_core",
-      "version": "0.2.0",
-      "dependencies": [
-        "meta"
       ]
     },
     {
@@ -133,6 +133,11 @@
         "path",
         "pool"
       ]
+    },
+    {
+      "name": "meta",
+      "version": "1.17.0",
+      "dependencies": []
     },
     {
       "name": "yaml",
@@ -368,11 +373,6 @@
         "collection",
         "meta"
       ]
-    },
-    {
-      "name": "meta",
-      "version": "1.17.0",
-      "dependencies": []
     },
     {
       "name": "pub_semver",

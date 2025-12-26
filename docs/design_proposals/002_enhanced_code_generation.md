@@ -1,259 +1,234 @@
 # RFC 002: Enhanced Code Generation
 
-> **Status:** Draft  
+> **Status:** Approved (Phase 1 Implemented)  
 > **Author:** Flutter Orchestrator Team  
-> **Created:** 2024-12-26
+> **Created:** 2024-12-26  
+> **Updated:** 2024-12-26
 
-## 1. Tóm tắt
+## 1. Summary
 
-Đề xuất mở rộng hệ thống code generation hiện tại để giảm boilerplate khi làm việc với `NetworkAction` jobs và tự động đăng ký Executors.
+Extend the code generation system to reduce boilerplate across the entire Orchestrator ecosystem, including Jobs, Events, States, Orchestrators, and Executor registration.
 
-## 2. Vấn đề hiện tại
+## 2. Current Problems
 
-### 2.1. NetworkAction có quá nhiều boilerplate
+### 2.1. NetworkAction Boilerplate
+Creating a `NetworkAction` job requires ~50 lines of repetitive code for serialization.
 
-Hiện tại, để tạo một NetworkAction job, developer phải viết:
+### 2.2. Manual Executor Registration
+Each Job→Executor mapping must be registered manually, leading to forgotten registrations.
+
+### 2.3. Event Declaration Boilerplate
+Every custom Event requires extending `BaseEvent` and calling `super(correlationId)`.
+
+### 2.4. State Class Boilerplate
+State classes need manual `copyWith`, pattern matching methods (`when`, `maybeWhen`).
+
+### 2.5. Job Constructor Boilerplate
+`BaseJob` has many optional fields (timeout, retryPolicy, strategy) requiring verbose constructors.
+
+### 2.6. Duplicate Hook Logic
+`BaseOrchestrator` and `OrchestratorCubit` share ~70% identical event routing code.
+
+## 3. Proposed Annotations
+
+### 3.1. `@NetworkJob` - Auto-generate Serialization (✅ IMPLEMENTED)
 
 ```dart
-@NetworkJob()
+@NetworkJob(generateSerialization: true)
 class SendMessageJob extends BaseJob implements NetworkAction<Message> {
   final String content;
+  
+  @JsonKey(name: 'recipient_id')
   final String recipientId;
   
-  SendMessageJob({required this.content, required this.recipientId})
-    : super(id: generateJobId('msg'));
+  @JsonIgnore()
+  final File? cachedFile;
   
-  // 1. toJson() - BẮT BUỘC
   @override
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'content': content,
-    'recipientId': recipientId,
-  };
-  
-  // 2. fromJson() factory - BẮT BUỘC
-  factory SendMessageJob.fromJson(Map<String, dynamic> json) {
-    return SendMessageJob._withId(
-      id: json['id'] as String,
-      content: json['content'] as String,
-      recipientId: json['recipientId'] as String,
-    );
-  }
-  
-  // 3. Private constructor - CẦN THÊM
-  SendMessageJob._withId({required String id, required this.content, required this.recipientId})
-    : super(id: id);
-  
-  // 4. fromJsonToBase wrapper - DỄ QUÊN!
-  static BaseJob fromJsonToBase(Map<String, dynamic> json) {
-    return SendMessageJob.fromJson(json);
-  }
-  
-  // 5. createOptimisticResult() - Logic thực sự
-  @override
-  Message createOptimisticResult() => Message(...);
+  Message createOptimisticResult() => Message(content: content);
 }
 ```
 
-**Vấn đề:**
-- Quá nhiều code lặp lại
-- `fromJsonToBase` dễ quên
-- Dễ sai khi serialize/deserialize fields
+**Generated:** `toJson()`, `fromJson()`, `fromJsonToBase()`
 
-### 2.2. Không có auto-registration cho Executor
+---
 
-```dart
-// Developer phải đăng ký thủ công mỗi Job → Executor
-void main() {
-  Dispatcher().register<FetchUserJob>(FetchUserExecutor(api));
-  Dispatcher().register<LoginJob>(LoginExecutor(api));
-  Dispatcher().register<LogoutJob>(LogoutExecutor(api));
-  // ... 50+ jobs → Rất dễ quên
-}
-```
-
-## 3. Giải pháp đề xuất
-
-### 3.1. `@NetworkJob()` sinh toJson/fromJson tự động
-
-**Annotation mới:**
+### 3.2. `@ExecutorRegistry` - Auto-register Executors (✅ IMPLEMENTED)
 
 ```dart
-@NetworkJob(generateSerialization: true)  // Default: true
-class SendMessageJob extends BaseJob implements NetworkAction<Message> {
-  final String content;
-  final String recipientId;
-  
-  SendMessageJob({required this.content, required this.recipientId});
-  
-  // CHỈ CẦN VIẾT CÁI NÀY
-  @override
-  Message createOptimisticResult() => Message(
-    id: id,
-    content: content,
-    status: MessageStatus.sending,
-  );
-}
-
-// GENERATED: send_message_job.g.dart
-part of 'send_message_job.dart';
-
-extension _$SendMessageJobSerialization on SendMessageJob {
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'content': content,
-    'recipientId': recipientId,
-  };
-  
-  static SendMessageJob fromJson(Map<String, dynamic> json) => SendMessageJob._restore(
-    id: json['id'] as String,
-    content: json['content'] as String,
-    recipientId: json['recipientId'] as String,
-  );
-  
-  static BaseJob fromJsonToBase(Map<String, dynamic> json) => fromJson(json);
-}
-```
-
-### 3.2. `@ExecutorRegistry` cho auto-registration
-
-**Annotation mới:**
-
-```dart
-// lib/executor_config.dart
-part 'executor_config.g.dart';
-
 @ExecutorRegistry([
   (FetchUserJob, FetchUserExecutor),
   (LoginJob, LoginExecutor),
-  (LogoutJob, LogoutExecutor),
 ])
 void setupExecutors(ApiService api) {}
 ```
 
-**Generated code:**
+**Generated:** `registerExecutors(api)` function
 
+---
+
+### 3.3. `@OnEvent` - Declarative Event Routing (🔲 PROPOSED)
+
+**Problem:** Manual type checking in event handlers.
 ```dart
-// executor_config.g.dart
-void registerExecutors(ApiService api) {
-  final dispatcher = Dispatcher();
-  dispatcher.register<FetchUserJob>(FetchUserExecutor(api));
-  dispatcher.register<LoginJob>(LoginExecutor(api));
-  dispatcher.register<LogoutJob>(LogoutExecutor(api));
-}
-```
-
-### 3.3. Field-level annotations
-
-```dart
-@NetworkJob()
-class UploadPhotoJob extends BaseJob implements NetworkAction<Photo> {
-  @JsonKey(name: 'photo_path')
-  final String photoPath;
-  
-  @JsonIgnore()  // Không serialize field này
-  final File? cachedFile;
-  
-  @JsonKey(defaultValue: 'unknown')
-  final String source;
-}
-```
-
-## 4. API Design
-
-### 4.1. Annotations
-
-| Annotation | Vị trí | Mô tả |
-|------------|--------|-------|
-| `@NetworkJob()` | Class | Đánh dấu NetworkAction job |
-| `@NetworkJob(generateSerialization: true)` | Class | Tự sinh toJson/fromJson |
-| `@ExecutorRegistry([...])` | Function | Đăng ký Executor mappings |
-| `@JsonKey(name: 'x')` | Field | Tên khác trong JSON |
-| `@JsonIgnore()` | Field | Bỏ qua khi serialize |
-
-### 4.2. Generated code patterns
-
-```
-lib/
-├── jobs/
-│   ├── send_message_job.dart
-│   └── send_message_job.g.dart  ← GENERATED
-├── executor_config.dart
-└── executor_config.g.dart       ← GENERATED
-```
-
-## 5. Migration Path
-
-### Phase 1: Backward Compatible
-- `@NetworkJob()` mặc định KHÔNG sinh code (giữ behavior hiện tại)
-- Developer opt-in: `@NetworkJob(generateSerialization: true)`
-
-### Phase 2: Default On
-- Sau 1-2 minor versions, đổi default thành `true`
-- Deprecation warning cho manual toJson/fromJson
-
-## 6. Triển khai
-
-### 6.1. Package changes
-
-| Package | Thay đổi |
-|---------|----------|
-| `orchestrator_core` | Thêm annotations mới |
-| `orchestrator_generator` | Thêm generators mới |
-
-### 6.2. Generator implementation
-
-```dart
-class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
-  @override
-  String generateForAnnotatedElement(Element element, ...) {
-    final classElement = element as ClassElement;
-    
-    // 1. Extract fields
-    final fields = classElement.fields.where((f) => !f.isStatic);
-    
-    // 2. Generate toJson
-    final toJsonCode = _generateToJson(fields);
-    
-    // 3. Generate fromJson
-    final fromJsonCode = _generateFromJson(classElement, fields);
-    
-    // 4. Generate fromJsonToBase wrapper
-    final wrapperCode = _generateWrapper(classElement);
-    
-    return '''
-extension _\$${classElement.name}Serialization on ${classElement.name} {
-  $toJsonCode
-  $fromJsonCode
-  $wrapperCode
-}
-''';
+// BEFORE: Verbose
+@override
+void onPassiveEvent(BaseEvent event) {
+  if (event is UserLoggedInEvent) {
+    _handleLogin(event);
+  } else if (event is UserLoggedOutEvent) {
+    _handleLogout(event);
   }
 }
 ```
 
-## 7. Alternatives Considered
+**Solution:**
+```dart
+// AFTER: Declarative
+@Orchestrator()
+class AuthOrchestrator extends BaseOrchestrator<AuthState> {
+  @OnEvent(UserLoggedInEvent)
+  void _handleLogin(UserLoggedInEvent event) {
+    emit(state.copyWith(user: event.user));
+  }
+  
+  @OnEvent(UserLoggedOutEvent, passive: true)
+  void _handleLogout(UserLoggedOutEvent event) {
+    emit(state.copyWith(user: null));
+  }
+}
+```
 
-### 7.1. Dùng json_serializable
+**Generated:** Override `onPassiveEvent` with type-safe routing.
+
+---
+
+### 3.4. `@AsyncState` - Auto-generate State Patterns (🔲 PROPOSED)
+
+**Problem:** Manually writing `copyWith`, `when`, `maybeWhen` for every state.
+
+```dart
+@AsyncState()
+class UserState {
+  final User? user;
+  final List<Permission> permissions;
+  final String? errorMessage;
+}
+```
+
+**Generated:**
+```dart
+extension _$UserStateCopyWith on UserState {
+  UserState copyWith({User? user, List<Permission>? permissions, String? errorMessage}) => ...
+  
+  UserState toLoading() => ...
+  UserState toSuccess(User user) => ...
+  UserState toFailure(String error) => ...
+  
+  R when<R>({
+    required R Function() initial,
+    required R Function() loading,
+    required R Function(User user) success,
+    required R Function(String error) failure,
+  }) => ...
+}
+```
+
+---
+
+### 3.5. `@Job` - Simplified Job Declaration (🔲 PROPOSED)
+
+**Problem:** Verbose constructor with many optional `BaseJob` parameters.
+
+```dart
+@Job(timeout: Duration(seconds: 30), maxRetries: 3)
+class FetchUserJob {
+  final String userId;
+  FetchUserJob(this.userId);
+}
+```
+
+**Generated:**
+```dart
+class FetchUserJob extends BaseJob {
+  final String userId;
+  
+  FetchUserJob(this.userId, {String? id})
+    : super(
+        id: id ?? generateJobId('fetch_user'),
+        timeout: Duration(seconds: 30),
+        retryPolicy: RetryPolicy(maxRetries: 3),
+      );
+}
+```
+
+---
+
+### 3.6. `@Event` - Simplified Event Declaration (🔲 PROPOSED)
+
+**Problem:** Every event requires extending `BaseEvent` and constructor boilerplate.
+
+```dart
+@Event()
+class OrderPlaced {
+  final Order order;
+  final DateTime timestamp;
+}
+```
+
+**Generated:**
+```dart
+class OrderPlaced extends BaseEvent {
+  final Order order;
+  final DateTime timestamp;
+  
+  OrderPlaced(String correlationId, {required this.order, required this.timestamp})
+    : super(correlationId);
+}
+```
+
+---
+
+## 4. Implementation Roadmap
+
+| Phase | Annotation | Status | Priority |
+|-------|------------|--------|----------|
+| 1 | `@NetworkJob` | ✅ Done | Critical |
+| 1 | `@ExecutorRegistry` | ✅ Done | Critical |
+| 2 | `@OnEvent` | 🔲 Planned | High |
+| 2 | `@AsyncState` | 🔲 Planned | High |
+| 3 | `@Job` | 🔲 Planned | Medium |
+| 3 | `@Event` | 🔲 Planned | Medium |
+
+## 5. Package Changes
+
+| Package | Changes |
+|---------|---------|
+| `orchestrator_core` | Add annotations: `NetworkJob`, `ExecutorRegistry`, `JsonKey`, `JsonIgnore`, `OnEvent`, `AsyncState`, `Job`, `Event`, `Orchestrator` |
+| `orchestrator_generator` | Add generators for each annotation |
+
+## 6. Alternatives Considered
+
+### 6.1. Use `json_serializable`
 - **Pros:** Mature, well-tested
-- **Cons:** Không hiểu context của Orchestrator, thiếu `fromJsonToBase`
+- **Cons:** Doesn't understand Orchestrator context, lacks `fromJsonToBase`
 
-### 7.2. Macro (Dart 3.x)
-- **Pros:** Không cần build_runner, compile-time
-- **Cons:** Chưa stable, experimental
+### 6.2. Use `freezed`
+- **Pros:** Excellent for immutable data classes
+- **Cons:** Doesn't handle Orchestrator-specific patterns (events, jobs)
 
-## 8. Timeline
+### 6.3. Wait for Dart Macros
+- **Pros:** No build_runner needed, compile-time
+- **Cons:** Still experimental, not stable
 
-| Milestone | Target |
-|-----------|--------|
-| RFC Approval | Week 1 |
-| Implement `@NetworkJob` serialization | Week 2-3 |
-| Implement `@ExecutorRegistry` | Week 4 |
-| Documentation & Testing | Week 5 |
-| Release v1.1.0 | Week 6 |
+## 7. Open Questions
 
-## 9. Open Questions
+1. Should `@OnEvent` support priority ordering?
+2. Should `@AsyncState` generate equality (`==` and `hashCode`)?
+3. Should we support nested object serialization in `@NetworkJob`?
 
-1. Nên dùng extension hay inject trực tiếp vào class?
-2. Có cần hỗ trợ nested objects (List, Map của custom types)?
-3. Có cần compatibility với `json_serializable`?
+## 8. References
+
+- [RFC 001: Offline Support](./001_offline_support_design.md)
+- [json_serializable](https://pub.dev/packages/json_serializable)
+- [freezed](https://pub.dev/packages/freezed)
