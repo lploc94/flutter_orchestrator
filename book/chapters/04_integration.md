@@ -19,9 +19,10 @@ graph LR
         Executor --> Event["📨 Event<br/>(Result)"]
     end
     
-    style Job fill:#4c6ef5,color:#fff
-    style Executor fill:#37b24d,color:#fff
-    style Event fill:#f59f00,color:#fff
+    style Pattern fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Job fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Executor fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Event fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Structure
@@ -66,6 +67,7 @@ classDiagram
 **Solution**: Use Correlation ID to match events to their originators.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant OrcA as Orchestrator A
     participant OrcB as Orchestrator B
@@ -97,9 +99,15 @@ flowchart TD
     
     Direct --> Remove["Remove from activeJobIds"]
     
-    style Direct fill:#4c6ef5,color:#fff
-    style Observer fill:#37b24d,color:#fff
-    style Ignore fill:#868e96,color:#fff
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Extract fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Lookup fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Found fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Direct fill:#0d9488,stroke:#334155,color:#ffffff
+    style PassiveCheck fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Observer fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Ignore fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Remove fill:#e0f2f1,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -144,6 +152,16 @@ graph TB
     end
     
     Note["Control = UI behavior<br/>Data = Business content"]
+    
+    style ControlState fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style DataState fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Loading fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Error fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Submitted fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style User fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Items fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Count fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Note fill:#0d9488,stroke:#334155,color:#ffffff
 ```
 
 ### Rule
@@ -186,9 +204,16 @@ graph TB
     AuthModule -.->|"UserLoggedIn"| GlobalBus
     ChatModule -.->|"MessageSent"| GlobalBus
     
-    style AuthBus fill:#4c6ef5,color:#fff
-    style ChatBus fill:#37b24d,color:#fff
-    style GB fill:#f59f00,color:#fff
+    style AuthModule fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style ChatModule fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style GlobalBus fill:#0d9488,stroke:#334155,color:#ffffff
+    style AuthBus fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style ChatBus fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style GB fill:#0d9488,stroke:#334155,color:#ffffff
+    style AuthOrch fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style AuthExec fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style ChatOrch fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style ChatExec fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### When to Use Each
@@ -219,7 +244,14 @@ graph TB
     Job["Job (Type: FetchUserJob)"] --> Lookup["registry[job.type]"]
     Lookup --> Match["UserExecutor"]
     
-    style Map fill:#f3f0ff
+    style Registry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Map fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Job fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Lookup fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Match fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Registration Strategies
@@ -235,6 +267,14 @@ flowchart LR
     Startup --> Pro1["✅ Simple, predictable"]
     Lazy --> Pro2["✅ Smaller initial load"]
     DI --> Pro3["✅ Testable, mockable"]
+    
+    style Strategies fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Startup fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Lazy fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style DI fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Pro1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Pro2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Pro3 fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -264,8 +304,15 @@ flowchart TD
     
     Note["❌ Exceptions NEVER escape executor"]
     
-    style EmitSuccess fill:#37b24d,color:#fff
-    style EmitFail fill:#f03e3e,color:#fff
+    style Executor fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Try fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Process fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style TryCatch fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style End fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style EmitSuccess fill:#fef3c7,stroke:#334155,color:#1e293b
+    style EmitFail fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Note fill:#0d9488,stroke:#334155,color:#ffffff
 ```
 
 ### Guarantee
@@ -294,9 +341,13 @@ graph TB
     RG -->|"optimizes"| JE
     EB -->|"protects"| JE
     
-    style JE fill:#4c6ef5,color:#fff
-    style ER fill:#37b24d,color:#fff
-    style ST fill:#f59f00,color:#fff
+    style Patterns fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style JE fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style ER fill:#fef3c7,stroke:#334155,color:#1e293b
+    style ST fill:#0d9488,stroke:#334155,color:#ffffff
+    style SB fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style RG fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style EB fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ---

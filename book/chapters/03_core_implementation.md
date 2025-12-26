@@ -102,12 +102,19 @@ graph LR
     Job["Incoming Job"] --> Lookup{"Type Lookup<br/>O(1)"}
     Lookup --> Executor["Matched Executor"]
     
-    style Registry fill:#f3f0ff
+    style Registry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style R1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style R2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style R3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Job fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Lookup fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Executor fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Registration Flow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant App as 🚀 App Startup
     participant Disp as 📮 Dispatcher
@@ -142,8 +149,16 @@ flowchart TB
         CheckRetry -->|"NO"| EmitFailure["emit(FailureEvent)"]
     end
     
-    style EmitSuccess fill:#37b24d,color:#fff
-    style EmitFailure fill:#f03e3e,color:#fff
+    style Executor fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style CheckCancel fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Cancelled fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Process fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Success fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style EmitSuccess fill:#fef3c7,stroke:#334155,color:#1e293b
+    style CheckRetry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Wait fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style EmitFailure fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ### Error Boundary
@@ -160,6 +175,11 @@ graph TB
     Try -->|"Exception"| Catch
     
     Note["✅ Exceptions NEVER escape<br/>Always converted to Events"]
+    
+    style ErrorBoundary fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Try fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Catch fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Note fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -200,6 +220,15 @@ graph TB
         Handlers --> OnFailure["onActiveFailure()"]
         Handlers --> OnPassive["onPassiveEvent()"]
     end
+    
+    style Orchestrator fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style State fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style ActiveJobs fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Subscription fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Handlers fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style OnSuccess fill:#fef3c7,stroke:#334155,color:#1e293b
+    style OnFailure fill:#fee2e2,stroke:#334155,color:#1e293b
+    style OnPassive fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Event Routing Logic
@@ -218,6 +247,17 @@ flowchart TD
     TypeCheck -->|"Failure"| OnFailure["onActiveFailure()"]
     
     Observer --> OnPassive["onPassiveEvent()"]
+    
+    style Event fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Extract fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Check fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Direct fill:#0d9488,stroke:#334155,color:#ffffff
+    style Observer fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Remove fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style TypeCheck fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style OnSuccess fill:#fef3c7,stroke:#334155,color:#1e293b
+    style OnFailure fill:#fee2e2,stroke:#334155,color:#1e293b
+    style OnPassive fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -247,7 +287,16 @@ graph TB
     E1 & E2 & E3 --> Stream
     Stream --> O1 & O2 & O3
     
-    style Stream fill:#f59f00,color:#fff
+    style Publishers fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Bus fill:#0d9488,stroke:#334155,color:#ffffff
+    style Subscribers fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Stream fill:#0d9488,stroke:#334155,color:#ffffff
+    style E1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style O1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style O2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style O3 fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Global vs Scoped Bus
@@ -266,6 +315,15 @@ graph TB
     
     GlobalBus -.->|"Use for"| Public["Public Events<br/>(UserLoggedIn, ThemeChanged)"]
     ScopedBus -.->|"Use for"| Private["Private Events<br/>(Internal state changes)"]
+    
+    style GlobalBus fill:#0d9488,stroke:#334155,color:#ffffff
+    style ScopedBus fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style GB fill:#0d9488,stroke:#334155,color:#ffffff
+    style SB1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style SB2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style SB3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Public fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Private fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -273,6 +331,7 @@ graph TB
 ## 3.7. Complete System Flow
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant Orch as 🎭 Orchestrator
@@ -281,13 +340,13 @@ sequenceDiagram
     participant API as 🌐 API
     participant Bus as 📡 Bus
     
-    rect rgb(240, 247, 255)
+    rect rgb(241, 245, 249)
         Note over UI,Orch: 1. User Action
         UI->>+Orch: fetchUser()
         Orch->>Orch: emit(Loading)
     end
     
-    rect rgb(240, 255, 240)
+    rect rgb(224, 242, 241)
         Note over Orch,Exec: 2. Dispatch
         Orch->>+Disp: dispatch(FetchUserJob)
         Disp-->>Orch: correlationId
@@ -296,19 +355,19 @@ sequenceDiagram
         Disp-->>-Orch: 
     end
     
-    rect rgb(255, 250, 240)
+    rect rgb(254, 243, 199)
         Note over Exec,API: 3. Execution
         Exec->>+API: GET /users/123
         API-->>-Exec: User data
     end
     
-    rect rgb(255, 240, 240)
+    rect rgb(254, 243, 199)
         Note over Exec,Orch: 4. Event Broadcast
         Exec->>-Bus: emit(SuccessEvent)
         Bus->>Orch: Event(correlationId=id)
     end
     
-    rect rgb(240, 240, 255)
+    rect rgb(224, 242, 241)
         Note over Orch,UI: 5. State Update
         Orch->>Orch: onActiveSuccess()
         Orch->>Orch: emit(Success)
@@ -354,37 +413,37 @@ graph LR
     Bus --> B2["Global or Scoped"]
     Bus --> B3["Decoupled communication"]
     
-    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
-    style Job fill:#37b24d,color:#fff
-    style Event fill:#f59f00,color:#fff
-    style Disp fill:#845ef7,color:#fff
-    style Exec fill:#f03e3e,color:#fff
-    style Orch fill:#4c6ef5,color:#fff
-    style Bus fill:#fcc419,color:#000
+    style Root fill:#0d9488,stroke:#334155,stroke-width:2px,color:#ffffff
+    style Job fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Event fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Disp fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Exec fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Orch fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Bus fill:#0d9488,stroke:#334155,color:#ffffff
     
-    style J1 fill:#fff,stroke:#333,color:#000
-    style J2 fill:#fff,stroke:#333,color:#000
-    style J3 fill:#fff,stroke:#333,color:#000
+    style J1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style J2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style J3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style E1 fill:#fff,stroke:#333,color:#000
-    style E2 fill:#fff,stroke:#333,color:#000
-    style E3 fill:#fff,stroke:#333,color:#000
+    style E1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style D1 fill:#fff,stroke:#333,color:#000
-    style D2 fill:#fff,stroke:#333,color:#000
-    style D3 fill:#fff,stroke:#333,color:#000
+    style D1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Ex1 fill:#fff,stroke:#333,color:#000
-    style Ex2 fill:#fff,stroke:#333,color:#000
-    style Ex3 fill:#fff,stroke:#333,color:#000
+    style Ex1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Ex2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Ex3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style O1 fill:#fff,stroke:#333,color:#000
-    style O2 fill:#fff,stroke:#333,color:#000
-    style O3 fill:#fff,stroke:#333,color:#000
+    style O1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style O2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style O3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style B1 fill:#fff,stroke:#333,color:#000
-    style B2 fill:#fff,stroke:#333,color:#000
-    style B3 fill:#fff,stroke:#333,color:#000
+    style B1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style B2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style B3 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 **Key Takeaway**: Each component has a single responsibility, connected through well-defined interfaces. This makes the system testable, maintainable, and scalable.
