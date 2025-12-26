@@ -1,1 +1,24 @@
+# IDE
 .serena/
+.idea/
+*.iml
+.vscode/
+
+# Dart/Flutter
+.dart_tool/
+.packages
+build/
+pubspec.lock
+*.g.dart
+
+# Coverage
+coverage/
+.coverage/
+
+# Generated
+*.freezed.dart
+*.mocks.dart
+
+# OS
+.DS_Store
+Thumbs.db
