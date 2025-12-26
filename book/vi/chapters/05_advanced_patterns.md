@@ -1,534 +1,397 @@
-# Chương 5: Các Kỹ thuật Nâng cao
+# Chương 5: Các mẫu nâng cao (Advanced Patterns)
 
-Chương này bổ sung các tính năng cần thiết để framework đạt tiêu chuẩn Production-Ready. Những tính năng này giúp hệ thống xử lý các tình huống thực tế như timeout mạng, hủy yêu cầu, và tự động thử lại khi gặp lỗi.
+> *"Hãy làm nó chạy, làm nó đúng, rồi hãy làm nó nhanh."* — Kent Beck
 
----
-
-## 5.1. Hủy Tác vụ (Cancellation)
-
-**Triết lý:** Job chạy độc lập với UI lifecycle. Chỉ hủy khi:
-- User CHỦ ĐỘNG nhấn nút Cancel
-- Logic nghiệp vụ xác định không cần kết quả (ví dụ: user gửi request mới thay thế cũ)
-
-**Lưu ý:** KHÔNG tự động hủy khi user rời màn hình. Kết quả vẫn được cache và hiển thị khi user quay lại.
-
-### CancellationToken
-
-```dart
-// lib/src/utils/cancellation_token.dart
-class CancellationToken {
-  bool _isCancelled = false;
-  final List<void Function()> _listeners = [];
-
-  bool get isCancelled => _isCancelled;
-
-  void cancel() {
-    if (_isCancelled) return;
-    _isCancelled = true;
-    for (final listener in _listeners) {
-      listener();
-    }
-    _listeners.clear();
-  }
-
-  /// Đăng ký callback khi token bị hủy
-  void onCancel(void Function() callback) {
-    if (_isCancelled) {
-      callback();
-    } else {
-      _listeners.add(callback);
-    }
-  }
-
-  /// Kiểm tra và ném exception nếu đã bị hủy
-  void throwIfCancelled() {
-    if (_isCancelled) throw CancelledException();
-  }
-}
-
-class CancelledException implements Exception {
-  @override
-  String toString() => 'CancelledException: Tác vụ đã bị hủy.';
-}
-```
-
-### Tích hợp vào Job
-
-```dart
-abstract class BaseJob {
-  final String id;
-  final CancellationToken? cancellationToken;
-  
-  const BaseJob({required this.id, this.cancellationToken});
-}
-```
-
-### Ứng dụng thực tế
-
-```dart
-class _MyScreenState extends State<MyScreen> {
-  CancellationToken? _token;
-
-  void _loadData() {
-    _token = CancellationToken();
-    orchestrator.dispatch(FetchDataJob(cancellationToken: _token));
-  }
-
-  // User CHỦ ĐỘNG nhấn nút Cancel
-  void _onCancelPressed() {
-    _token?.cancel();
-  }
-  
-  // User gửi request mới thay thế cũ
-  void _loadNewData() {
-    _token?.cancel(); // Hủy request cũ vì không còn cần
-    _token = CancellationToken();
-    orchestrator.dispatch(FetchDataJob(cancellationToken: _token));
-  }
-
-  @override
-  void dispose() {
-    // KHÔNG cancel ở đây - kết quả vẫn được cache
-    super.dispose();
-  }
-}
-```
+Chương này bao gồm các pattern cho hệ thống quy mô production: xử lý lỗi, quản lý tác vụ chạy lâu và mở rộng.
 
 ---
 
-## 5.2. Giới hạn Thời gian (Timeout)
+## 5.1. Mẫu Hủy bỏ (The Cancellation Pattern)
 
-Các tác vụ chạy quá lâu cần được xử lý để tránh treo giao diện người dùng.
+**Vấn đề**: Làm sao dừng những công việc không còn cần thiết?
 
-### Sự kiện Timeout
+**Giải pháp**: Hủy bỏ hợp tác (Cooperative cancellation) thông qua token.
 
-```dart
-class JobTimeoutEvent extends BaseEvent {
-  final Duration timeout;
-  JobTimeoutEvent(super.correlationId, this.timeout);
-}
-```
-
-### Xử lý trong Executor
-
-```dart
-Future<void> execute(T job) async {
-  try {
-    Future<dynamic> executionFuture = process(job);
+```mermaid
+sequenceDiagram
+    participant UI as 🖥️ UI
+    participant Orch as 🎭 Orchestrator
+    participant Exec as ⚙️ Executor
+    participant Token as 🎫 Token
     
-    if (job.timeout != null) {
-      executionFuture = executionFuture.timeout(
-        job.timeout!,
-        onTimeout: () {
-          _bus.emit(JobTimeoutEvent(job.id, job.timeout!));
-          throw TimeoutException('Tác vụ vượt quá thời gian cho phép', job.timeout);
-        },
-      );
-    }
+    UI->>Orch: startSearch(query)
+    Orch->>Token: create()
+    Orch->>Orch: track token
+    Orch->>Exec: dispatch(SearchJob, token)
     
-    final result = await executionFuture;
-    emitResult(job.id, result);
-  } catch (e, stack) {
-    emitFailure(job.id, e, stack);
-  }
-}
+    Note over Exec: Đang xử lý...
+    
+    UI->>Orch: newSearch(newQuery)
+    Orch->>Token: cancel()
+    
+    Exec->>Token: isCancelled?
+    Token-->>Exec: true
+    Exec->>Exec: throw CancelledException
+```
+
+### Khi nào nên Hủy
+
+```mermaid
+graph TB
+    subgraph CancelTriggers["🛑 Khi nào nên Hủy"]
+        User["User nhấn nút Hủy"]
+        Replace["Request mới thay thế cũ"]
+        Timeout["Hết thời gian (Timeout)"]
+    end
+    
+    subgraph DontCancel["✅ Khi nào KHÔNG nên Hủy"]
+        Navigate["User chuyển màn hình"]
+        Background["App xuống background"]
+    end
+    
+    Note["💡 Kết quả được cache.<br/>Đừng hủy chỉ vì view bị ẩn."]
+```
+
+### Các điểm kiểm tra (Checkpoints)
+
+```mermaid
+flowchart TD
+    Start["Executor.process()"] --> Check1["token.throwIfCancelled()"]
+    Check1 --> Step1["Bước 1: API Call"]
+    Step1 --> Check2["token.throwIfCancelled()"]
+    Check2 --> Step2["Bước 2: Xử lý Data"]
+    Step2 --> Check3["token.throwIfCancelled()"]
+    Check3 --> Step3["Bước 3: Lưu vào DB"]
+    Step3 --> Done["Hoàn thành"]
+    
+    Check1 & Check2 & Check3 -->|"Đã hủy"| Throw["throw CancelledException"]
 ```
 
 ---
 
-## 5.3. Thử lại Tự động (Retry)
+## 5.2. Mẫu Timeout
 
-Cơ chế tự động thử lại với thuật toán Exponential Backoff giúp cải thiện độ tin cậy khi gặp lỗi tạm thời.
+**Vấn đề**: Làm sao ngăn chặn operation chạy mãi mãi?
+
+**Giải pháp**: Bọc quá trình thực thi với giới hạn thời gian.
+
+```mermaid
+sequenceDiagram
+    participant Exec as ⚙️ Executor
+    participant Timer as ⏱️ Timer
+    participant API as 🌐 API
+    
+    Exec->>Timer: start(30 giây)
+    Exec->>API: request()
+    
+    alt API phản hồi kịp
+        API-->>Exec: response
+        Exec->>Timer: cancel
+        Exec->>Exec: emit(Success)
+    else Hết giờ (Timeout)
+        Timer-->>Exec: TimeoutException
+        Exec->>Exec: emit(TimeoutEvent)
+        Exec->>Exec: emit(Failure)
+    end
+```
+
+### Chiến lược Timeout
+
+```mermaid
+graph LR
+    subgraph Strategy["⏱️ Chiến lược Timeout"]
+        Overall["Timeout Tổng<br/>Tổng thời gian cho phép"]
+        PerStep["Timeout Từng bước<br/>Giới hạn từng operation"]
+    end
+    
+    Overall --> Total["Ví dụ: 60 giây tổng"]
+    PerStep --> Each["Ví dụ: 10 giây mỗi API call"]
+```
+
+---
+
+## 5.3. Mẫu Retry (Thử lại)
+
+**Vấn đề**: Làm sao phục hồi từ các lỗi tạm thời (transient failures)?
+
+**Giải pháp**: Tự động thử lại với thời gian chờ tăng dần (exponential backoff).
+
+```mermaid
+flowchart TD
+    Start["Thực thi"] --> Try["Lần thử n"]
+    Try --> Success{"Thành công?"}
+    
+    Success -->|"YES"| Done["✅ emit(Success)"]
+    Success -->|"NO"| CanRetry{"n < maxRetries?"}
+    
+    CanRetry -->|"YES"| Wait["Chờ 2^n giây"]
+    Wait --> Notify["emit(RetryingEvent)"]
+    Notify --> Try
+    
+    CanRetry -->|"NO"| Fail["❌ emit(Failure)"]
+    
+    style Done fill:#37b24d,color:#fff
+    style Fail fill:#f03e3e,color:#fff
+```
+
+### Minh họa Backoff
+
+```mermaid
+gantt
+    title Exponential Backoff
+    dateFormat s
+    axisFormat %S
+    
+    section Lần 1
+    Execute :a1, 0, 1s
+    
+    section Chờ 1s
+    Backoff :crit, w1, after a1, 1s
+    
+    section Lần 2
+    Execute :a2, after w1, 1s
+    
+    section Chờ 2s
+    Backoff :crit, w2, after a2, 2s
+    
+    section Lần 3
+    Execute :a3, after w2, 1s
+    
+    section Chờ 4s
+    Backoff :crit, w3, after a3, 4s
+    
+    section Lần 4
+    Execute :a4, after w3, 1s
+```
+
+### Cấu hình chính sách Retry
+
+| Tham số | Mô tả | Mặc định |
+|---------|-------|----------|
+| `maxRetries` | Số lần thử tối đa | 3 |
+| `baseDelay` | Thời gian chờ ban đầu | 1 giây |
+| `maxDelay` | Thời gian chờ tối đa | 30 giây |
+| `shouldRetry` | Hàm điều kiện retry | Luôn true |
+
+---
+
+## 5.4. Mẫu Tiến trình (Progress Pattern)
+
+**Vấn đề**: Làm sao hiển thị tiến độ cho các tác vụ chạy lâu?
+
+**Giải pháp**: Emit các sự kiện progress trong quá trình thực thi.
+
+```mermaid
+sequenceDiagram
+    participant Orch as 🎭 Orchestrator
+    participant Exec as ⚙️ Executor
+    participant Bus as 📡 Bus
+    
+    Orch->>Exec: dispatch(UploadJob)
+    
+    loop Cho mỗi chunk
+        Exec->>Bus: emit(Progress 10%)
+        Bus->>Orch: progress update
+        Exec->>Bus: emit(Progress 50%)
+        Bus->>Orch: progress update
+        Exec->>Bus: emit(Progress 90%)
+        Bus->>Orch: progress update
+    end
+    
+    Exec->>Bus: emit(Success)
+    Bus->>Orch: hoàn thành
+```
+
+### Cấu trúc báo cáo tiến độ
+
+```mermaid
+graph LR
+    subgraph ProgressEvent["📊 Progress Event"]
+        Value["progress: 0.0 - 1.0"]
+        Message["message: 'Uploading...'"]
+        Current["currentStep: 3"]
+        Total["totalSteps: 10"]
+    end
+```
+
+### Gắn kết UI (UI Binding)
+
+```mermaid
+flowchart LR
+    Event["ProgressEvent"] --> Handler["onProgress()"]
+    Handler --> State["state.copyWith(progress: event.progress)"]
+    State --> UI["ProgressBar(value: state.progress)"]
+```
+
+---
+
+## 5.5. Mẫu Ngắt Mạch (Circuit Breaker)
+
+**Vấn đề**: Làm sao ngăn chặn lỗi dây chuyền (cascading failures)?
+
+**Giải pháp**: Ngừng gọi các service đang lỗi tạm thời.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed: Bình thường
+    
+    Closed --> Open: lỗi > ngưỡng
+    Open --> HalfOpen: sau thời gian chờ (cooldown)
+    HalfOpen --> Closed: thành công
+    HalfOpen --> Open: thất bại
+    
+    state Closed {
+        [*] --> Operational
+        Operational: Cho phép requests
+        Operational: Đếm lỗi
+    }
+    
+    state Open {
+        [*] --> Blocked
+        Blocked: Từ chối ngay lập tức
+        Blocked: Chờ cooldown
+    }
+    
+    state HalfOpen {
+        [*] --> Testing
+        Testing: Cho phép request thăm dò
+        Testing: Kiểm tra phục hồi
+    }
+```
+
+### Các trạng thái mạch
+
+| Trạng thái | Hành vi |
+|------------|---------|
+| **Closed** | Hoạt động bình thường, đếm lỗi |
+| **Open** | Request fail ngay lập tức, không thực thi |
+| **Half-Open** | Thử nghiệm xem service đã phục hồi chưa |
+
+---
+
+## 5.6. Mẫu Logging
+
+**Vấn đề**: Làm sao debug và giám sát hệ thống?
+
+**Giải pháp**: Logging có thể plug-in tại các điểm then chốt.
+
+```mermaid
+graph TB
+    subgraph LogPoints["📝 Các điểm Log"]
+        Dispatch["Job dispatched"]
+        Start["Executor started"]
+        Progress["Progress emitted"]
+        Success["Success emitted"]
+        Failure["Failure emitted"]
+        Retry["Retry attempted"]
+    end
+    
+    subgraph Levels["Cấp độ Log"]
+        Debug["🔍 Debug"]
+        Info["ℹ️ Info"]
+        Warn["⚠️ Warning"]
+        Error["❌ Error"]
+    end
+    
+    Dispatch --> Info
+    Start --> Debug
+    Progress --> Debug
+    Success --> Info
+    Failure --> Error
+    Retry --> Warn
+```
+
+### Cấu hình Logger
+
+```mermaid
+flowchart LR
+    subgraph Development["🛠️ Development"]
+        ConsoleLogger["Console Logger<br/>Level: Debug"]
+    end
+    
+    subgraph Production["🚀 Production"]
+        CloudLogger["Cloud Logger<br/>Level: Warning+"]
+        NoOpLogger["No-Op Logger<br/>Vô hiệu hóa"]
+    end
+```
+
+---
+
+## 5.7. Mẫu Chống trùng lặp (Deduplication)
+
+**Vấn đề**: Làm sao ngăn chặn các request trùng lặp đồng thời?
+
+**Giải pháp**: Theo dõi các job đang chạy (in-flight) và từ chối nếu trùng.
+
+```mermaid
+sequenceDiagram
+    participant UI as 🖥️ UI
+    participant Orch as 🎭 Orchestrator
+    
+    UI->>Orch: fetchUser("123")
+    Note over Orch: inFlight["user:123"] = true
+    Orch->>Orch: dispatch(FetchUserJob)
+    
+    UI->>Orch: fetchUser("123")
+    Note over Orch: Đang chạy rồi!
+    Orch-->>UI: Bỏ qua (hoặc trả về job ID hiện có)
+    
+    Note over Orch: Job hoàn thành
+    Note over Orch: inFlight["user:123"] = false
+```
+
+### Key chống trùng lặp (Deduplication Key)
+
+```mermaid
+graph LR
+    Job["Job"] --> Key["Deduplication Key"]
+    
+    subgraph Examples["Các ví dụ"]
+        E1["FetchUserJob(123) → 'user:123'"]
+        E2["SearchJob('flutter') → 'search:flutter'"]
+        E3["RefreshJob → 'refresh'"]
+    end
+```
+
+---
+
+## 5.8. Kết hợp các Pattern
 
 ```mermaid
 flowchart TB
-    Start[Thực thi Job] --> Exec[process job]
-    Exec --> Result{Thành công?}
-    Result --> |CÓ| Success[Emit Success Event]
-    Result --> |LỖI| CanRetry{Còn lần<br/>thử?}
-    CanRetry --> |KHÔNG| Fail[Emit Failure Event]
-    CanRetry --> |CÒN| Delay["Đợi 2^n giây<br/>(Exponential Backoff)"]
-    Delay --> Retry[Emit Retrying Event]
-    Retry --> Exec
-```
-
-### RetryPolicy
-
-```dart
-// lib/src/utils/retry_policy.dart
-class RetryPolicy {
-  final int maxRetries;
-  final Duration baseDelay;
-  final bool exponentialBackoff;
-  final Duration maxDelay;
-  final bool Function(Object error)? shouldRetry;
-
-  const RetryPolicy({
-    this.maxRetries = 3,
-    this.baseDelay = const Duration(seconds: 1),
-    this.exponentialBackoff = true,
-    this.maxDelay = const Duration(seconds: 30),
-    this.shouldRetry,
-  });
-  
-  /// Tính toán thời gian chờ cho lần thử thứ n
-  Duration getDelay(int attempt) {
-    if (!exponentialBackoff) return baseDelay;
-    
-    final delay = baseDelay * (1 << attempt); // 2^attempt
-    return delay > maxDelay ? maxDelay : delay;
-  }
-  
-  bool canRetry(Object error, int currentAttempt) {
-    if (currentAttempt >= maxRetries) return false;
-    if (shouldRetry != null) return shouldRetry!(error);
-    return true;
-  }
-}
-```
-
-### Sự kiện Retry
-
-```dart
-class JobRetryingEvent extends BaseEvent {
-  final int attempt;
-  final int maxRetries;
-  final Object lastError;
-  final Duration delayBeforeRetry;
-
-  JobRetryingEvent(super.correlationId, {
-    required this.attempt,
-    required this.maxRetries,
-    required this.lastError,
-    required this.delayBeforeRetry,
-  });
-}
-```
-
-### Logic Retry trong Executor
-
-```dart
-Future<dynamic> _executeWithRetry(T job) async {
-  final policy = job.retryPolicy!;
-  int attempt = 0;
-
-  while (true) {
-    try {
-      job.cancellationToken?.throwIfCancelled();
-      return await process(job);
-    } catch (e) {
-      if (!policy.canRetry(e, attempt)) rethrow;
-
-      final delay = policy.getDelay(attempt);
-      
-      _bus.emit(JobRetryingEvent(
-        job.id,
-        attempt: attempt + 1,
-        maxRetries: policy.maxRetries,
-        lastError: e,
-        delayBeforeRetry: delay,
-      ));
-
-      await Future.delayed(delay);
-      attempt++;
-    }
-  }
-}
-```
-
----
-
-## 5.4. Báo cáo Tiến độ (Progress Reporting)
-
-Với các tác vụ kéo dài (upload file, xử lý AI), việc báo cáo tiến độ giúp người dùng theo dõi trạng thái.
-
-### JobProgressEvent
-
-```dart
-class JobProgressEvent extends BaseEvent {
-  final double progress; // Giá trị từ 0.0 đến 1.0
-  final String? message;
-  final int? currentStep;
-  final int? totalSteps;
-
-  JobProgressEvent(super.correlationId, {
-    required this.progress,
-    this.message,
-    this.currentStep,
-    this.totalSteps,
-  });
-}
-```
-
-### Sử dụng trong Executor
-
-```dart
-class UploadExecutor extends BaseExecutor<UploadJob> {
-  @override
-  Future<dynamic> process(UploadJob job) async {
-    final totalChunks = 10;
-    
-    for (int i = 1; i <= totalChunks; i++) {
-      await uploadChunk(i);
-      
-      emitProgress(
-        job.id,
-        progress: i / totalChunks,
-        message: 'Đang tải lên phần $i/$totalChunks',
-        currentStep: i,
-        totalSteps: totalChunks,
-      );
-    }
-    
-    return 'Hoàn thành';
-  }
-}
-```
-
----
-
-## 5.5. Quản lý Cache Nâng cao (Unified Data Flow)
-
-Framework cung cấp một luồng dữ liệu thống nhất và 3 cơ chế quản lý cache để đáp ứng mọi tình huống thực tế.
-
-### Luồng dữ liệu (Unified Flow)
-
-1.  **Placeholder**: Hiển thị dữ liệu giả định ngay lập tức (Skeleton).
-2.  **Cache Read**: Đọc dữ liệu cũ (Stale) để hiển thị trong khi tải.
-3.  **Process (Worker)**: Tải dữ liệu mới từ Server.
-4.  **Cache Write**: Cập nhật cache với dữ liệu mới.
-
-### 3 Phương pháp Quản lý Cache (The 3 Ways)
-
-Để hệ thống linh hoạt tối đa, chúng ta hỗ trợ 3 cách tương tác với Cache:
-
-#### Cách 1: Side Effect (API Exposure)
-Dùng khi một Job nghiệp vụ cần xóa cache của các Job khác (ví dụ: `UpdateProfile` xóa cache của `GetProfile`).
-Executor cung cấp các hàm helper protected:
-- `invalidateKey(key)`
-- `invalidateMatching(predicate)`
-
-```dart
-// UpdateProfileExecutor
-await api.updateProfile(job.data);
-await invalidateKey('user_profile'); // Side effect
-```
-
-#### Cách 2: Built-in Utility Job
-Dùng khi cần xóa cache từ bên ngoài hoặc xóa hàng loạt (ví dụ: Logout, Settings).
-Framework cung cấp sẵn `InvalidateCacheJob`:
-
-```dart
-// Logout: Xóa toàn bộ cache user
-orchestrator.dispatch(InvalidateCacheJob(prefix: 'user_'));
-```
-
-#### Cách 3: Configuration (Force Refresh)
-Dùng khi người dùng chủ động muốn làm mới dữ liệu (Pull-to-Refresh).
-Cấu hình trực tiếp trên `CachePolicy`.
-
-```dart
-CachePolicy(
-  key: 'news_feed',
-  forceRefresh: true, // Bỏ qua Cache Read, ép tải mới
-)
-```
-
----
-
-## 5.6. Hệ thống Ghi nhật ký (Logging)
-
-Hệ thống log linh hoạt hỗ trợ debug trong quá trình phát triển và giám sát trong môi trường production.
-
-### Giao diện Logger
-
-```dart
-// lib/src/utils/logger.dart
-enum LogLevel { debug, info, warning, error }
-
-abstract class OrchestratorLogger {
-  void log(LogLevel level, String message, [Object? error, StackTrace? stack]);
-  
-  void debug(String message) => log(LogLevel.debug, message);
-  void info(String message) => log(LogLevel.info, message);
-  void warning(String message, [Object? error]) => log(LogLevel.warning, message, error);
-  void error(String message, Object error, [StackTrace? stack]) => 
-      log(LogLevel.error, message, error, stack);
-}
-
-/// Logger xuất ra console (dùng trong development)
-class ConsoleLogger extends OrchestratorLogger {
-  final LogLevel minLevel;
-  ConsoleLogger({this.minLevel = LogLevel.info});
-  
-  @override
-  void log(LogLevel level, String message, [Object? error, StackTrace? stack]) {
-    if (level.index < minLevel.index) return;
-    print('[${level.name.toUpperCase()}] $message');
-  }
-}
-
-/// Logger im lặng (dùng trong production)
-class NoOpLogger extends OrchestratorLogger {
-  @override
-  void log(LogLevel level, String message, [Object? error, StackTrace? stack]) {}
-}
-```
-
-### Cấu hình toàn cục
-
-```dart
-class OrchestratorConfig {
-  static OrchestratorLogger _logger = NoOpLogger();
-  
-  static OrchestratorLogger get logger => _logger;
-  
-  static void setLogger(OrchestratorLogger logger) => _logger = logger;
-  
-  static void enableDebugLogging() {
-    _logger = ConsoleLogger(minLevel: LogLevel.debug);
-  }
-}
-```
-
----
-
----
----
-
----
----
-
-## 5.7. Kiến trúc Mở rộng với Scoped Bus (Bus Cục bộ)
-
-Đối với các ứng dụng lớn bao gồm nhiều module độc lập (ví dụ: Auth, Chat, Cart), việc sử dụng một global signal bus duy nhất có thể dẫn đến:
-1.  **Nhiễu loạn**: Mọi module đều nhận được tất cả event của nhau.
-2.  **Rủi ro bảo mật**: Event nhạy cảm có thể bị nghe trộm bởi module không liên quan.
-3.  **Thắt cổ chai hiệu năng**: Quá nhiều traffic trên một stream duy nhất.
-
-Kiến trúc **Scoped Bus** giải quyết vấn đề này bằng cách tạo ra các kênh giao tiếp cô lập.
-
-### So sánh Kiến trúc
-
-**Global Bus (Mặc định)**: Mọi người đều nghe thấy mọi thứ.
-
-```mermaid
-graph TD
-    GBus[Global Bus]
-    Auth -->|Event| GBus
-    Chat -->|Event| GBus
-    Cart -->|Event| GBus
-    GBus --> Auth
-    GBus --> Chat
-    GBus --> Cart
-```
-
-**Scoped Bus (Cô lập)**: Event chỉ lưu thông trong nội bộ module.
-
-```mermaid
-graph TD
-    subgraph AuthMod [Auth Module]
-        ABus["Auth Bus (Scoped)"]
-        AuthOrc[Auth Orchestrator] <--> ABus
+    subgraph FullFlow["🔄 Luồng Production-Ready"]
+        Start["dispatch(Job)"] --> Dedup{"Trùng lặp?"}
+        Dedup -->|"YES"| Skip["Bỏ qua"]
+        Dedup -->|"NO"| Execute["Thực thi"]
+        
+        Execute --> Timeout{"Timeout?"}
+        Timeout -->|"YES"| Fail1["Thất bại"]
+        Timeout -->|"NO"| Success1{"Thành công?"}
+        
+        Success1 -->|"YES"| EmitSuccess["✅ Success"]
+        Success1 -->|"NO"| Retry{"Retry?"}
+        
+        Retry -->|"YES"| Wait["Chờ (backoff)"]
+        Wait --> Execute
+        Retry -->|"NO"| Circuit{"Circuit Open?"}
+        
+        Circuit -->|"YES"| OpenCircuit["Mở Mạch"]
+        Circuit -->|"NO"| Fail2["❌ Failure"]
     end
-
-    subgraph ChatMod [Chat Module]
-        CBus["Chat Bus (Scoped)"]
-        ChatOrc[Chat Orchestrator] <--> CBus
-    end
-
-    AuthOrc -.->|Important Events| GBus[Global Bus]
-```
-
-### Cách triển khai
-
-1. **Tạo Scoped Bus**:
-
-```dart
-// Tạo một bus riêng tư cho module này
-final authBus = SignalBus.scoped();
-```
-
-2. **Inject vào Orchestrator**:
-
-```dart
-// Orchestrator sẽ chỉ lắng nghe và phát event trên bus này
-final orchestrator = AuthOrchestrator(bus: authBus);
-```
-
-3. **Cơ chế hoạt động**:
-   - Khi gọi `orchestrator.dispatch(job)`, job sẽ được gắn thẻ với `authBus`.
-   - Executor sẽ tự động định tuyến các event (Thành công/Lỗi/Tiến độ) về lại `authBus`.
-   - Các listener trên Global Bus (`SignalBus.instance`) sẽ **KHÔNG** thấy các event này.
-
-### Best Practice
-
-- Sử dụng **Scoped Bus** cho logic nội bộ của module (loading state, chuyển bước wizard).
-- Sử dụng **Global Bus** (`SignalBus.instance`) chỉ cho các event công khai mà các module khác cần phản ứng (ví dụ: `UserLoggedInEvent`, `ThemeChangedEvent`).
-
----
-
-## 5.8. Cơ chế An toàn (Safety Mechanisms)
-
-Để ngăn chặn app bị crash hoặc rơi vào vòng lặp vô tận, framework tích hợp sẵn các cơ chế bảo vệ.
-
-### Circuit Breaker (Chống vòng lặp)
-
-Framework tự động phát hiện nếu một Orchestrator xử lý quá nhiều event trong thời gian ngắn (Infinite Loop).
-
-- **Giới hạn mặc định**: 50 events/giây.
-- **Hành vi**: Ngừng xử lý event và log lỗi vào `OrchestratorLogger`.
-- **Cấu hình**:
-
-```dart
-// 1. Giới hạn chung (áp dụng cho tất cả event)
-OrchestratorConfig.maxEventsPerSecond = 100;
-
-// 2. Giới hạn riêng cho từng loại (ví dụ: sự kiện di chuyển chuột liên tục)
-OrchestratorConfig.setTypeLimit<MouseMovementEvent>(500);
-```
-
-### Type Safety Isolation (Cô lập lỗi)
-
-Tất cả các hàm xử lý event đều được bọc trong khối `try-catch`.
-
-#### Safe Data Casting (Ép kiểu an toàn)
-Để tránh lỗi runtime khi ép kiểu dữ liệu event, hãy sử dụng `dataAs<T>()`:
-
-```dart
-@override
-void onActiveSuccess(JobSuccessEvent event) {
-  // Trả về 'User?' (null nếu sai kiểu), thay vì crash ứng dụng
-  final user = event.dataAs<User>(); 
-  if (user != null) {
-    emit(state.copyWith(user: user));
-  }
-}
-```
-
-### Ngăn chặn Race Condition ở UI
-
-Khi nhiều job chạy song song, việc chỉ check `isLoading` chung chung rất rủi ro. Hãy dùng `isJobTypeRunning<T>` để cập nhật UI chính xác:
-
-```dart
-// Kiểm tra trạng thái job cụ thể
-if (isJobTypeRunning<FetchUserJob>() && !isJobTypeRunning<LogoutJob>()) {
-  emit(state.copyWith(isLoading: false));
-}
 ```
 
 ---
 
-## 5.8. Tổng kết
+## Tổng kết
 
-Với các tính năng nâng cao trên, framework đã đáp ứng đầy đủ yêu cầu Production-Ready:
+| Pattern | Giải quyết | Cơ chế chính |
+|---------|------------|--------------|
+| **Cancellation** | Dừng việc không cần thiết | Token hợp tác |
+| **Timeout** | Ngăn chờ vô hạn | Giới hạn thời gian |
+| **Retry** | Phục hồi lỗi | Exponential backoff |
+| **Progress** | Hiển thị trạng thái | Sự kiện trung gian |
+| **Circuit Breaker** | Ngăn lỗi dây chuyền | Máy trạng thái |
+| **Logging** | Debug và giám sát | Pluggable loggers |
+| **Deduplication** | Chống request trùng | Theo dõi in-flight |
 
-| Tính năng | Lợi ích |
-|-----------|---------|
-| **Cancellation** | Hủy khi user chủ động hoặc theo logic nghiệp vụ |
-| **Timeout** | Đảm bảo hệ thống không bị treo vô thời hạn |
-| **Retry** | Tự động phục hồi khi gặp lỗi tạm thời |
-| **Progress** | Cải thiện trải nghiệm người dùng với tác vụ dài |
-| **Logging** | Hỗ trợ debug và giám sát hệ thống |
-
-Chương tiếp theo sẽ áp dụng tất cả kiến thức vào một nghiên cứu điển hình thực tế.
+**Bài học chính**: Hệ thống production đòi hỏi sự phòng thủ nhiều tầng. Các pattern này xếp chồng lên nhau tạo nên ứng dụng kiên cường (resilient).

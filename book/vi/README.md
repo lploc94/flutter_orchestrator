@@ -56,9 +56,6 @@ Cuốn sách này cung cấp một lộ trình từ tư duy đến triển khai 
 - Quy tắc Vàng (Nên & Không nên)
 - Cấu trúc thư mục chuẩn
 - **AI System Prompts** (Dành cho Agent)
-- Chaining Actions (Phase 1 → Phase 2)
-- Streaming Response
-- Security Analysis
 
 ---
 

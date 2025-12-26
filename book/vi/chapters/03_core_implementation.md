@@ -1,372 +1,352 @@
-# Chương 3: Xây dựng Core Framework
+# Chương 3: Chi tiết Thành phần (The Component Details)
 
-Chương này hướng dẫn xây dựng package `orchestrator_core` - nền tảng kỹ thuật của toàn bộ kiến trúc. Mục tiêu là tạo ra một framework nhẹ, hiệu năng cao và độc lập với Flutter (Pure Dart).
+> *"Đơn giản là đỉnh cao của sự tinh tế."* — Leonardo da Vinci
 
-> **Ghi chú**: Toàn bộ mã nguồn trong chương này đã được kiểm thử và xác nhận hoạt động chính xác.
-
----
-
-## 3.1. Mô hình Dữ liệu Cơ bản
-
-### BaseJob
-
-Lớp cơ sở cho tất cả các yêu cầu công việc trong hệ thống. Thuộc tính `id` đóng vai trò Correlation ID để định danh giao dịch.
-
-```dart
-// lib/src/models/job.dart
-import '../utils/cancellation_token.dart';
-import '../utils/retry_policy.dart';
-import '../infra/signal_bus.dart';
-
-abstract class BaseJob {
-  /// Định danh duy nhất cho giao dịch (Correlation ID)
-  final String id;
-
-  /// Metadata tùy chọn
-  final Map<String, dynamic>? metadata;
-
-  /// Chiến lược dữ liệu (Cache, Placeholder, SWR)
-  final DataStrategy? strategy;
-
-  /// Context: Bus mà job này thuộc về
-  SignalBus? bus;
-
-  BaseJob({required this.id, this.metadata, this.strategy});
-  
-  @override
-  String toString() => '$runtimeType(id: $id)';
-}
-
-/// Hàm tiện ích tạo ID duy nhất
-String generateJobId([String? prefix]) {
-  final timestamp = DateTime.now().millisecondsSinceEpoch;
-  final random = timestamp.hashCode.abs() % 10000;
-  return '${prefix ?? 'job'}-$timestamp-$random';
-}
-```
-
-### BaseEvent
-
-Lớp cơ sở cho tất cả các sự kiện phát ra từ Executor. Thuộc tính `correlationId` cho phép Orchestrator xác định nguồn gốc của sự kiện.
-
-```dart
-// lib/src/models/event.dart
-@immutable
-abstract class BaseEvent {
-  /// ID của Job sinh ra sự kiện này
-  final String correlationId;
-  final DateTime timestamp;
-
-  BaseEvent(this.correlationId) : timestamp = DateTime.now();
-}
-
-/// Sự kiện khi Job hoàn thành thành công
-class JobSuccessEvent<T> extends BaseEvent {
-  final T data;
-  JobSuccessEvent(super.correlationId, this.data);
-}
-
-/// Sự kiện khi Job gặp lỗi
-class JobFailureEvent extends BaseEvent {
-  final Object error;
-  final StackTrace? stackTrace;
-  JobFailureEvent(super.correlationId, this.error, [this.stackTrace]);
-}
-
-### DataStrategy & CachePolicy
-
-Cấu hình hành vi cache và dữ liệu tạm thời cho từng Job.
-
-```dart
-// lib/src/models/data_strategy.dart
-class DataStrategy {
-  final dynamic placeholder; // Dữ liệu hiển thị ngay lập tức (Skeleton/Optimistic)
-  final CachePolicy? cachePolicy; // Cấu hình Cache
-
-  const DataStrategy({this.placeholder, this.cachePolicy});
-}
-
-class CachePolicy {
-  final String key;
-  final Duration? ttl;
-  final bool revalidate; // True: SWR (trả cache rồi fetch mới), False: Cache-First
-  final bool forceRefresh; // True: Bỏ qua đọc cache (Pull-to-Refresh)
-
-  const CachePolicy({
-    required this.key, 
-    this.ttl, 
-    this.revalidate = true,
-    this.forceRefresh = false,
-  });
-}
-```
-```
+Chương này đi sâu vào cấu trúc bên trong và hành vi của từng thành phần, sử dụng biểu đồ để giải thích cơ chế hoạt động.
 
 ---
 
-## 3.2. Hạ tầng Giao tiếp & Lưu trữ
+## 3.1. Job
 
-### Cache Provider
-
-Giao diện trừu tượng cho việc lưu trữ cache, giúp tách biệt logic nghiệp vụ khỏi giải pháp lưu trữ cụ thể (In-Memory, Hive, SQLite).
-
-```dart
-// lib/src/infra/cache/cache_provider.dart
-abstract class CacheProvider {
-  Future<void> write(String key, dynamic value, {Duration? ttl});
-  Future<dynamic> read(String key);
-  Future<void> delete(String key);
-  Future<void> deleteMatching(bool Function(String key) predicate);
-  Future<void> clear();
-}
-```
-
-### Signal Bus
-
-Kênh truyền tín hiệu trung tâm sử dụng `StreamController.broadcast()` của Dart. Thiết kế Singleton đảm bảo toàn ứng dụng chỉ có một điểm phát sóng duy nhất.
-
-```dart
-// lib/src/infra/signal_bus.dart
-import 'dart:async';
-
-class SignalBus {
-  static final SignalBus _instance = SignalBus._internal();
-  
-  /// Factory mặc định trả về Global Singleton
-  factory SignalBus() => _instance;
-
-  /// Global singleton instance
-  static SignalBus get instance => _instance;
-
-  /// Tạo một bus cô lập mới
-  factory SignalBus.scoped() => SignalBus._internal();
-
-  SignalBus._internal();
-
-  final _controller = StreamController<BaseEvent>.broadcast();
-
-  /// Stream cho phép nhiều Orchestrator đồng thời lắng nghe
-  Stream<BaseEvent> get stream => _controller.stream;
-
-  /// Phát sự kiện lên Bus
-  void emit(BaseEvent event) {
-    if (!_controller.isClosed) {
-      _controller.add(event);
-    }
-  }
-
-  void dispose() => _controller.close();
-}
-```
-
-### Dispatcher
-
-Bộ định tuyến sử dụng Registry Pattern để ánh xạ loại Job với Executor tương ứng. Độ phức tạp tra cứu O(1).
-
-```dart
-// lib/src/infra/dispatcher.dart
-class ExecutorNotFoundException implements Exception {
-  final Type jobType;
-  ExecutorNotFoundException(this.jobType);
-  @override
-  String toString() => 'Không tìm thấy Executor cho loại $jobType';
-}
-
-class Dispatcher {
-  final Map<Type, BaseExecutor> _registry = {};
-  
-  static final Dispatcher _instance = Dispatcher._internal();
-  factory Dispatcher() => _instance;
-  Dispatcher._internal();
-
-  /// Đăng ký Executor cho một loại Job cụ thể
-  void register<J extends BaseJob>(BaseExecutor<J> executor) {
-    _registry[J] = executor;
-  }
-
-  /// Định tuyến Job đến Executor phù hợp
-  String dispatch(BaseJob job) {
-    final executor = _registry[job.runtimeType];
-    if (executor == null) {
-      throw ExecutorNotFoundException(job.runtimeType);
-    }
-    
-    executor.execute(job);
-    return job.id;
-  }
-  
-  void clear() => _registry.clear();
-}
-```
-
----
-
-## 3.3. Bộ Thực thi (BaseExecutor)
-
-Lớp trừu tượng định nghĩa giao diện cho tất cả các Worker. Tích hợp sẵn Error Boundary để đảm bảo mọi exception đều được xử lý và chuyển thành sự kiện lỗi.
-
-```dart
-// lib/src/base/base_executor.dart
-abstract class BaseExecutor<T extends BaseJob> {
-  // Theo dõi bus đang hoạt động cho từng job
-  final Map<String, SignalBus> _activeBus = {};
-
-  /// Phương thức trừu tượng - lớp con triển khai logic nghiệp vụ
-  Future<dynamic> process(T job);
-
-  /// Điểm vào được gọi bởi Dispatcher
-  Future<void> execute(T job) async {
-    final bus = job.bus ?? SignalBus.instance;
-    _activeBus[job.id] = bus;
-
-    try {
-      // 1. Unified Data Flow: Placeholder
-      if (job.strategy?.placeholder != null) {
-        bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder));
-      }
-
-      // 2. Unified Data Flow: Cache Read
-      final cachePolicy = job.strategy?.cachePolicy;
-      if (cachePolicy != null && !cachePolicy.forceRefresh) {
-        final cached = await OrchestratorConfig.cacheProvider.read(cachePolicy.key);
-        if (cached != null) {
-          bus.emit(JobCacheHitEvent(job.id, cached));
-          if (!cachePolicy.revalidate) return; // Cache-First: Dừng tại đây
-        }
-      }
-
-      // 3. Process (Thực thi logic chính)
-      final result = await process(job);
-      
-      // 4. Unified Data Flow: Cache Write
-      if (cachePolicy != null) {
-        await OrchestratorConfig.cacheProvider.write(
-          cachePolicy.key, 
-          result, 
-          ttl: cachePolicy.ttl
-        );
-      }
-
-      emitResult(job.id, result);
-    } catch (e, stack) {
-      emitFailure(job.id, e, stack);
-    } finally {
-      _activeBus.remove(job.id);
-    }
-  }
-
-  /// Phát sự kiện thành công
-  void emitResult<R>(String correlationId, R data) {
-    // Tìm bus đúng cho job này
-    final bus = _activeBus[correlationId] ?? SignalBus.instance;
-    bus.emit(JobSuccessEvent<R>(correlationId, data));
-  }
-
-  /// Phát sự kiện lỗi
-  void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
-    final bus = _activeBus[correlationId] ?? SignalBus.instance;
-    bus.emit(JobFailureEvent(correlationId, error, stack));
-  }
-}
-```
-
----
-
-## 3.4. Bộ Điều phối (BaseOrchestrator)
-
-Lớp trừu tượng triển khai cơ chế State Machine với khả năng phân loại sự kiện tự động.
+Job là một **yêu cầu thực hiện công việc** — một data object bất biến mô tả những gì cần làm.
 
 ```mermaid
-flowchart LR
-    subgraph SignalBus
-        Event[Event arrives]
-    end
+classDiagram
+    class BaseJob {
+        +String id
+        +Map~String, dynamic~? metadata
+        +CancellationToken? cancellationToken
+        +Duration? timeout
+        +RetryPolicy? retryPolicy
+    }
     
-    Event --> Check{correlationId<br/>trong activeJobIds?}
-    Check --> |CÓ| Active["Direct Mode<br/>onActiveSuccess/Failure"]
-    Check --> |KHÔNG| Passive["Observer Mode<br/>onPassiveEvent"]
+    class FetchUserJob {
+        +String userId
+    }
     
-    Active --> UpdateState[Update State]
-    Passive --> UpdateState
+    class UploadFileJob {
+        +File file
+        +String destination
+    }
+    
+    BaseJob <|-- FetchUserJob
+    BaseJob <|-- UploadFileJob
 ```
 
-```dart
-// lib/src/base/base_orchestrator.dart
-abstract class BaseOrchestrator<S> {
-  S _state;
-  final StreamController<S> _stateController = StreamController<S>.broadcast();
-  final SignalBus _bus;
-  final Dispatcher _dispatcher = Dispatcher();
-  
-  /// Tập hợp các Job đang được theo dõi
-  final Set<String> _activeJobIds = {};
-  
-  StreamSubscription? _busSubscription;
+### Các thuộc tính của Job
 
-  BaseOrchestrator(this._state, {SignalBus? bus}) 
-      : _bus = bus ?? SignalBus.instance {
-    _stateController.add(_state);
-    _subscribeToBus();
-  }
+| Thuộc tính | Mục đích |
+|------------|----------|
+| `id` | Correlation ID để theo dõi |
+| `metadata` | Dữ liệu ngữ cảnh tùy chọn |
+| `cancellationToken` | Hỗ trợ hủy chủ động |
+| `timeout` | Thời gian thực thi tối đa |
+| `retryPolicy` | Cấu hình tự động thử lại |
 
-  S get state => _state;
-  Stream<S> get stream => _stateController.stream;
-  bool get hasActiveJobs => _activeJobIds.isNotEmpty;
+---
 
-  @protected
-  void emit(S newState) {
-    if (_stateController.isClosed) return;
-    _state = newState;
-    _stateController.add(newState);
-  }
+## 3.2. Event
 
-  @protected
-  String dispatch(BaseJob job) {
-    // Gắn bus hiện tại vào job
-    job.bus = _bus;
+Event là **thông báo về những gì đã xảy ra** — kết quả của việc thực thi job.
 
-    final id = _dispatcher.dispatch(job);
-    _activeJobIds.add(id);
-    return id;
-  }
-
-  void _subscribeToBus() {
-    _busSubscription = _bus.stream.listen(_routeEvent);
-  }
-
-  void _routeEvent(BaseEvent event) {
-    final isActive = _activeJobIds.contains(event.correlationId);
-    
-    if (isActive) {
-      if (event is JobSuccessEvent) onActiveSuccess(event);
-      else if (event is JobFailureEvent) onActiveFailure(event);
-      _activeJobIds.remove(event.correlationId);
-    } else {
-      onPassiveEvent(event);
+```mermaid
+classDiagram
+    class BaseEvent {
+        +String correlationId
+        +DateTime timestamp
     }
-  }
+    
+    class JobSuccessEvent~T~ {
+        +T data
+    }
+    
+    class JobFailureEvent {
+        +Object error
+        +StackTrace? stackTrace
+    }
+    
+    class JobProgressEvent {
+        +double progress
+        +String? message
+    }
+    
+    BaseEvent <|-- JobSuccessEvent
+    BaseEvent <|-- JobFailureEvent
+    BaseEvent <|-- JobProgressEvent
+```
 
-  @protected void onActiveSuccess(JobSuccessEvent event) {}
-  @protected void onActiveFailure(JobFailureEvent event) {}
-  @protected void onPassiveEvent(BaseEvent event) {}
+### Các loại Event
 
-  @mustCallSuper
-  void dispose() {
-    _busSubscription?.cancel();
-    _stateController.close();
-    _activeJobIds.clear();
-  }
-}
+| Loại Event | Khi nào emit |
+|------------|--------------|
+| `JobSuccessEvent` | Job hoàn thành thành công |
+| `JobFailureEvent` | Job gặp lỗi |
+| `JobProgressEvent` | Job đang chạy và báo tiến độ |
+| `JobTimeoutEvent` | Job vượt quá thời gian giới hạn |
+| `JobRetryingEvent` | Job đang được thử lại |
+
+---
+
+## 3.3. Dispatcher (Routing)
+
+Dispatcher duy trì một sổ đăng ký (registry) ánh xạ các loại Job tới các Executor.
+
+```mermaid
+graph LR
+    subgraph Registry["📮 Dispatcher Registry"]
+        R1["FetchUserJob → UserExecutor"]
+        R2["LoginJob → AuthExecutor"]
+        R3["UploadJob → UploadExecutor"]
+    end
+    
+    Job["Incoming Job"] --> Lookup{"Type Lookup<br/>O(1)"}
+    Lookup --> Executor["Executor phù hợp"]
+    
+    style Registry fill:#f3f0ff
+```
+
+### Luồng đăng ký
+
+```mermaid
+sequenceDiagram
+    participant App as 🚀 App Startup
+    participant Disp as 📮 Dispatcher
+    participant Exec as ⚙️ Executor
+    
+    App->>Disp: register<FetchUserJob>(UserExecutor())
+    App->>Disp: register<LoginJob>(AuthExecutor())
+    
+    Note over Disp: Registry đã sẵn sàng
+    
+    App->>Disp: dispatch(FetchUserJob(...))
+    Disp->>Exec: execute(job)
 ```
 
 ---
 
-## 3.5. Tổng kết
+## 3.4. Executor (Processing)
 
-Với khoảng 200 dòng mã nguồn lõi, chúng ta đã xây dựng được một framework hoàn chỉnh:
+Executor là **công nhân không trạng thái (stateless worker)** được tích hợp sẵn xử lý lỗi.
 
-- **Tính tách biệt**: Executor và Orchestrator hoạt động độc lập.
-- **Tính phản ứng**: Orchestrator tự động xử lý sự kiện đến.
-- **Hiệu năng cao**: Sử dụng Broadcast Stream và tra cứu O(1).
+```mermaid
+flowchart TB
+    subgraph Executor["⚙️ Executor"]
+        Start["execute(job)"] --> CheckCancel{"Cancelled?"}
+        CheckCancel -->|"YES"| Cancelled["❌ CancelledException"]
+        CheckCancel -->|"NO"| Process["process(job)"]
+        Process --> Success{"Thành công?"}
+        Success -->|"YES"| EmitSuccess["emit(SuccessEvent)"]
+        Success -->|"ERROR"| CheckRetry{"Retry được không?"}
+        CheckRetry -->|"YES"| Wait["Chờ (backoff)"]
+        Wait --> Process
+        CheckRetry -->|"NO"| EmitFailure["emit(FailureEvent)"]
+    end
+    
+    style EmitSuccess fill:#37b24d,color:#fff
+    style EmitFailure fill:#f03e3e,color:#fff
+```
 
-Các tính năng nâng cao như Cancellation, Timeout, Retry sẽ được trình bày trong **Chương 5**.
+### Error Boundary (Rào chắn lỗi)
+
+Mọi Executor đều có cơ chế bắt lỗi tự động:
+
+```mermaid
+graph TB
+    subgraph ErrorBoundary["🛡️ Error Boundary"]
+        Try["try { process(job) }"]
+        Catch["catch (error) { emitFailure() }"]
+    end
+    
+    Try -->|"Exception"| Catch
+    
+    Note["✅ Exception KHÔNG BAO GIỜ lọt ra ngoài<br/>Luôn được chuyển thành Event"]
+```
+
+---
+
+## 3.5. Orchestrator (Máy trạng thái)
+
+Orchestrator là **người điều phối có trạng thái (stateful coordinator)** quản lý UI state và theo dõi job.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    
+    Idle --> Loading: dispatch(Job)
+    Loading --> Success: onActiveSuccess
+    Loading --> Error: onActiveFailure
+    
+    Error --> Loading: retry()
+    Success --> Loading: refresh()
+    
+    state Loading {
+        [*] --> Waiting
+        Waiting --> Progress: onProgress
+        Progress --> Progress: more progress
+    }
+```
+
+### Cấu trúc bên trong
+
+```mermaid
+graph TB
+    subgraph Orchestrator["🎭 Orchestrator"]
+        State["📊 Current State"]
+        ActiveJobs["🏃 Active Job IDs<br/>{abc123, xyz789}"]
+        Subscription["📡 Bus Subscription"]
+        
+        Handlers["Event Handlers"]
+        Handlers --> OnSuccess["onActiveSuccess()"]
+        Handlers --> OnFailure["onActiveFailure()"]
+        Handlers --> OnPassive["onPassiveEvent()"]
+    end
+```
+
+### Logic định tuyến Event
+
+```mermaid
+flowchart TD
+    Event["📨 Event Received"] --> Extract["Lấy correlationId"]
+    Extract --> Check{"correlationId ∈ activeJobIds?"}
+    
+    Check -->|"YES"| Direct["🎯 Direct Mode"]
+    Check -->|"NO"| Observer["👀 Observer Mode"]
+    
+    Direct --> Remove["Xóa khỏi activeJobIds"]
+    Remove --> TypeCheck{"Event Type?"}
+    TypeCheck -->|"Success"| OnSuccess["onActiveSuccess()"]
+    TypeCheck -->|"Failure"| OnFailure["onActiveFailure()"]
+    
+    Observer --> OnPassive["onPassiveEvent()"]
+```
+
+---
+
+## 3.6. Signal Bus (Broadcasting)
+
+Signal Bus là cơ chế **publish-subscribe** để phân phối sự kiện.
+
+```mermaid
+graph TB
+    subgraph Publishers["Publishers"]
+        E1["Executor 1"]
+        E2["Executor 2"]
+        E3["Executor 3"]
+    end
+    
+    subgraph Bus["📡 Signal Bus"]
+        Stream["Broadcast Stream"]
+    end
+    
+    subgraph Subscribers["Subscribers"]
+        O1["Orchestrator A"]
+        O2["Orchestrator B"]
+        O3["Orchestrator C"]
+    end
+    
+    E1 & E2 & E3 --> Stream
+    Stream --> O1 & O2 & O3
+    
+    style Stream fill:#f59f00,color:#fff
+```
+
+### Global vs Scoped Bus
+
+```mermaid
+graph TB
+    subgraph GlobalBus["🌍 Global Bus"]
+        GB["Mọi sự kiện đều thấy được<br/>bởi mọi orchestrator"]
+    end
+    
+    subgraph ScopedBus["🔒 Scoped Bus"]
+        SB1["Auth Module Bus"]
+        SB2["Chat Module Bus"]
+        SB3["Cart Module Bus"]
+    end
+    
+    GlobalBus -.->|"Dùng cho"| Public["Public Events<br/>(UserLoggedIn, ThemeChanged)"]
+    ScopedBus -.->|"Dùng cho"| Private["Private Events<br/>(Thay đổi state nội bộ)"]
+```
+
+---
+
+## 3.7. Luồng hệ thống hoàn chỉnh
+
+```mermaid
+sequenceDiagram
+    participant UI as 🖥️ UI
+    participant Orch as 🎭 Orchestrator
+    participant Disp as 📮 Dispatcher
+    participant Exec as ⚙️ Executor
+    participant API as 🌐 API
+    participant Bus as 📡 Bus
+    
+    rect rgb(240, 247, 255)
+        Note over UI,Orch: 1. Hành động người dùng
+        UI->>+Orch: fetchUser()
+        Orch->>Orch: emit(Loading)
+    end
+    
+    rect rgb(240, 255, 240)
+        Note over Orch,Exec: 2. Dispatch
+        Orch->>+Disp: dispatch(FetchUserJob)
+        Disp-->>Orch: correlationId
+        Orch->>Orch: activeJobs.add(id)
+        Disp->>+Exec: execute(job)
+        Disp-->>-Orch: 
+    end
+    
+    rect rgb(255, 250, 240)
+        Note over Exec,API: 3. Thực thi
+        Exec->>+API: GET /users/123
+        API-->>-Exec: User data
+    end
+    
+    rect rgb(255, 240, 240)
+        Note over Exec,Orch: 4. Broadcast Event
+        Exec->>-Bus: emit(SuccessEvent)
+        Bus->>Orch: Event(correlationId=id)
+    end
+    
+    rect rgb(240, 240, 255)
+        Note over Orch,UI: 5. Cập nhật State
+        Orch->>Orch: onActiveSuccess()
+        Orch->>Orch: emit(Success)
+        Orch-->>-UI: State mới
+    end
+```
+
+---
+
+## Tổng kết
+
+```mermaid
+mindmap
+  root((Kiến trúc))
+    Job
+      Yêu cầu công việc
+      Dữ liệu bất biến
+      Mang correlationId
+    Event
+      Thông báo kết quả
+      Success/Failure/Progress
+      Broadcast cho tất cả
+    Dispatcher
+      Định tuyến Job đến Executor
+      Registry pattern
+      Tra cứu O(1)
+    Executor
+      Công nhân không trạng thái
+      Error boundary
+      Emits events
+    Orchestrator
+      Điều phối viên trạng thái
+      Theo dõi active jobs
+      Direct + Observer modes
+    Signal Bus
+      Cơ chế Pub/Sub
+      Global hoặc Scoped
+      Giao tiếp lỏng lẻo
+```
+
+**Bài học chính**: Mỗi thành phần có một trách nhiệm duy nhất, được kết nối thông qua các giao diện rõ ràng. Điều này làm cho hệ thống dễ kiểm thử, dễ bảo trì và dễ mở rộng.

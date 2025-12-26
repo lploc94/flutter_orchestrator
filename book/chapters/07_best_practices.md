@@ -2,11 +2,13 @@
 
 > *"Rules are for the obedience of fools and the guidance of wise men."* — Douglas Bader
 
-This chapter provides practical guidelines for implementing the architecture successfully.
+This chapter provides practical guidelines, golden rules, and structured advice to help your team implement the Flutter Orchestrator architecture successfully.
 
 ---
 
 ## 7.1. The Golden Rules
+
+Every architecture has its non-negotiable rules. These are ours.
 
 ### ✅ DO
 
@@ -21,6 +23,11 @@ graph TB
         D6["Test Executors in isolation"]
     end
 ```
+
+1.  **Separate Orchestration from Execution**: This is the prime directive. Never mix them.
+2.  **Immutable State**: Always return a *new* state object. Never mutate fields on an existing state object.
+3.  **Correlation IDs**: Without them, you cannot safely distinguish between multiple concurrent requests.
+4.  **Cancellation Service**: Respect the user's time and battery. If they leave a screen, kill the background work.
 
 ### ❌ DON'T
 
@@ -38,11 +45,19 @@ graph TB
     style Dont fill:#fff5f5
 ```
 
+1.  **No Repositories in Orchestrator**: The Orchestrator should not even import your repository classes.
+2.  **No God Events**: Avoid `GenericSuccessEvent` or `DataLoadedEvent`. Be specific: `UserLoginSuccessEvent`, `ProductDetailsLoadedEvent`.
+3.  **Check Cancellation**: An executor that runs for 5 seconds but never checks `isCancelled` is a battery drainer.
+
 ---
 
 ## 7.2. Folder Structure
 
+A consistent folder structure helps onboard new developers and keeps the codebase scalable.
+
 ### Feature-First (Recommended)
+
+We strongly recommend organizing code by **Cluster/Feature**, not by layer.
 
 ```mermaid
 graph TB
@@ -67,17 +82,19 @@ graph TB
     end
 ```
 
+The typical file structure looks like this:
+
 ```
 lib/
 ├── core/
-│   ├── base/           # Base classes
-│   └── di/             # Dependency injection
+│   ├── base/           # Base classes (BaseJob, BaseExecutor)
+│   └── di/             # Dependency injection setup
 ├── features/
 │   ├── auth/
-│   │   ├── jobs/
-│   │   ├── executors/
-│   │   ├── orchestrator/
-│   │   └── ui/
+│   │   ├── jobs/       # LoginJob, LogoutJob
+│   │   ├── executors/  # AuthExecutor
+│   │   ├── orchestrator/ # AuthOrchestrator, AuthState
+│   │   └── ui/         # LoginScreen, ProfileWidget
 │   └── chat/
 │       ├── jobs/
 │       ├── executors/
@@ -90,14 +107,16 @@ lib/
 
 | Benefit | Description |
 |---------|-------------|
-| **Locality** | Related code stays together |
-| **Isolation** | Features can be developed independently |
-| **Scalability** | Easy to add new features |
-| **Deletion** | Remove a feature = delete a folder |
+| **Locality** | Everything related to "Auth" is in one place. You don't have to jump between 5 different top-level folders. |
+| **Isolation** | Features can be developed, tested, and even extracted into packages independently. |
+| **Scalability** | Adding a new feature doesn't clutter global folders. |
+| **Deletion** | "Deleting a feature" means deleting one folder. No leftover zombie files. |
 
 ---
 
 ## 7.3. Naming Conventions
+
+Consistency makes code readable.
 
 ```mermaid
 graph LR
@@ -111,14 +130,16 @@ graph LR
 
 | Component | Pattern | Example |
 |-----------|---------|---------|
-| Job | `{Action}{Resource}Job` | `FetchUserJob`, `UploadFileJob` |
-| Executor | `{Resource}Executor` | `UserExecutor`, `FileExecutor` |
-| Event | `{Resource}{Action}Event` | `UserLoadedEvent`, `FileSavedEvent` |
-| State | `{Feature}State` | `AuthState`, `ChatState` |
+| **Job** | `{Action}{Resource}Job` | `FetchUserJob`, `UploadFileJob` |
+| **Executor** | `{Resource}Executor` | `UserExecutor` (handles all user-related jobs), `FileExecutor` |
+| **Event** | `{Resource}{Action}{Result}Event` | `UserLoadedEvent`, `FileSavedEvent`, `LoginFailureEvent` |
+| **State** | `{Feature}State` | `AuthState`, `ChatState` |
 
 ---
 
 ## 7.4. Testing Strategy
+
+The architecture is designed to make testing easier. Use the Test Pyramid as your guide.
 
 ```mermaid
 graph TB
@@ -133,7 +154,9 @@ graph TB
     E2E --> Slow["Slow, Few"]
 ```
 
-### Testing an Executor
+### Testing an Executor (Unit Test)
+
+Executors are pure Dart classes. They take a Job input and emit Events. They are the easiest to test.
 
 ```mermaid
 flowchart LR
@@ -146,10 +169,12 @@ flowchart LR
     Input --> Exec
     Exec --> Output
     
-    Note["✅ No UI, No State<br/>Pure input → output"]
+    Note["✅ No UI, No State, No BuildContext<br/>Pure function: input → output"]
 ```
 
-### Testing an Orchestrator
+### Testing an Orchestrator (Integration Test)
+
+Orchestrators need a simulated environment (BlocTest) to verify state changes given specific events.
 
 ```mermaid
 flowchart LR
@@ -162,12 +187,14 @@ flowchart LR
     MockBus --> Orch
     Orch --> States
     
-    Note["✅ Inject mock events<br/>Verify state changes"]
+    Note["✅ Inject mock events via the Bus<br/>Verify correct state emission"]
 ```
 
 ---
 
 ## 7.5. Dependency Injection
+
+We rely on DI to wire everything up.
 
 ```mermaid
 graph TB
@@ -181,7 +208,7 @@ graph TB
         Exec["Executors (Singleton)"]
         Disp["Dispatcher (Singleton)"]
         Bus["SignalBus (Singleton/Scoped)"]
-        Orch["Orchestrators (Factory)"]
+        Orch["Orchestrators (Factory/Provider)"]
     end
     
     DI --> Registration
@@ -189,33 +216,37 @@ graph TB
 
 ### Registration Order
 
+Order matters. You can't register an Orchestrator before the Dispatcher it depends on.
+
 ```mermaid
 sequenceDiagram
     participant App as 🚀 App Start
     participant DI as 💉 DI Container
     participant Disp as 📮 Dispatcher
     
-    App->>DI: Register SignalBus
-    App->>DI: Register Executors
-    App->>DI: Register Dispatcher
+    App->>DI: 1. Register SignalBus
+    App->>DI: 2. Register Executors
+    App->>DI: 3. Register Dispatcher
     
     DI->>Disp: dispatcher.register<FetchUserJob>(UserExecutor())
     DI->>Disp: dispatcher.register<LoginJob>(AuthExecutor())
     
-    Note over App: Now register Orchestrators<br/>(they depend on Dispatcher)
+    Note over App: 4. Register Orchestrators<br/>(Factory/Provider)
 ```
 
 ---
 
 ## 7.6. Error Handling Strategy
 
+Errors happen. Your app should handle them gracefully.
+
 ```mermaid
 flowchart TD
     Error["Error Occurs"] --> Type{"Error Type?"}
     
-    Type -->|"Transient"| Retry["Retry with backoff"]
-    Type -->|"Business"| UserMessage["Show user message"]
-    Type -->|"System"| Log["Log & Report"]
+    Type -->|"Transient (Network)"| Retry["Retry with backoff"]
+    Type -->|"Business (Logic)"| UserMessage["Show user message"]
+    Type -->|"System (Crash)"| Log["Log & Report"]
     
     Retry --> Success{"Success?"}
     Success -->|"YES"| Continue["Continue"]
@@ -225,13 +256,11 @@ flowchart TD
     Log --> Monitor["Monitor alerts"]
 ```
 
-### Error Categories
-
-| Category | Examples | Handling |
-|----------|----------|----------|
-| **Transient** | Network timeout, 5xx | Auto-retry |
-| **Business** | Validation error, 4xx | Show to user |
-| **System** | Null pointer, assertion | Log & report |
+| Category | Examples | Handling Strategy |
+|----------|----------|-------------------|
+| **Transient** | Connection timeout, 503 Service Unavailable | **Auto-retry** silently. Do not bother the user yet. |
+| **Business** | Invalid email, 401 Unauthorized, Insufficient funds | **Show User**. Display a friendly error message or redirect (e.g., to login). |
+| **System** | NullPointerException, FormatException on parse | **Log & Report**. These are bugs. Send to Sentry/Firebase. |
 
 ---
 
@@ -249,18 +278,18 @@ graph LR
 
 ### Common Optimizations
 
-| Optimization | When to Use | Mechanism |
-|--------------|-------------|-----------|
-| **Deduplication** | Same request may fire multiple times | Check in-flight jobs |
-| **Caching** | Data doesn't change often | Check cache before dispatch |
-| **Streaming** | Large responses | Use ProgressEvent |
-| **Lazy Registration** | Many executors | Register on first use |
+| Optimization | Use Case | Mechanism |
+|--------------|----------|-----------|
+| **Deduplication** | User mashes the "Refresh" button. | Check `activeJobs` before dispatching. If running, ignore. |
+| **Caching** | Static data (e.g., Countries list). | Check local DB/Memory before dispatching network job. |
+| **Streaming** | Large lists or files. | Emit `ProgressEvent` or partial `DataEvent` instead of waiting for everything. |
+| **Lazy Registration** | startup time is slow. | Use `GetIt` lazy singletons for Executors so they instantiate only when used. |
 
 ---
 
 ## 7.8. AI Agent Integration
 
-When using AI coding assistants (Cursor, Copilot, ChatGPT), provide this context:
+This architecture is **AI-friendly**. Because rules are strict, AI agents (Cursor, Copilot) can generate very high-quality code if you give them the right prompt.
 
 ```mermaid
 graph TB
@@ -273,24 +302,28 @@ graph TB
 
 ### Sample System Prompt
 
+Copy this into your AI assistant:
+
 ```
-You are an expert Flutter Developer using Event-Driven Orchestrator Architecture.
+You are an expert Flutter Developer using the Event-Driven Orchestrator Architecture.
 
 CORE RULES:
-1. Orchestrator ONLY manages state, NEVER calls APIs directly
-2. Executor ONLY executes logic, emits events
-3. Jobs are immutable, always have correlationId
-4. Use copyWith for state updates
+1. Orchestrator ONLY manages state, NEVER calls APIs directly.
+2. Executor ONLY executes logic (API/DB), emits events to SignalBus.
+3. Jobs are immutable commands, ALWAYS have a correlationId.
+4. Use copyWith for all state updates. Do not mutate state.
 
 PATTERNS:
-- dispatch(Job) → never await
-- onActiveSuccess → handle my job results
-- onPassiveEvent → react to global events
+- dispatch(Job) → fire-and-forget, never await.
+- onActiveSuccess → handle results of jobs initiated by this orchestrator.
+- onPassiveEvent → react to global system events.
 ```
 
 ---
 
 ## 7.9. Troubleshooting
+
+Common issues and how to fix them.
 
 ```mermaid
 flowchart TD
@@ -301,18 +334,11 @@ flowchart TD
     Symptom -->|"Memory leak"| Check3["Check dispose() called"]
     Symptom -->|"Infinite loop"| Check4["Check dispatch in handler"]
     
-    Check1 --> Fix1["Ensure executor uses job.id"]
-    Check2 --> Fix2["Ensure copyWith returns new object"]
-    Check3 --> Fix3["Call orchestrator.dispose()"]
-    Check4 --> Fix4["Add condition before dispatch"]
+    Check1 --> Fix1["Ensure executor includes job.id in event"]
+    Check2 --> Fix2["Ensure copyWith creates NEW object"]
+    Check3 --> Fix3["Call orchestrator.dispose()/close()"]
+    Check4 --> Fix4["Add state check before dispatching"]
 ```
-
-| Symptom | Likely Cause | Solution |
-|---------|--------------|----------|
-| Event ignored | Wrong correlationId | Use `job.id` in event |
-| State unchanged | copyWith returns same | Fix equality check |
-| Memory leak | Undisposed subscription | Call `dispose()` |
-| Infinite loop | Unconditional dispatch | Add state check |
 
 ---
 
@@ -328,7 +354,7 @@ mindmap
     Testing
       Unit test executors
       Integration test orchestrators
-      Few E2E tests
+      Minimize E2E tests
     Operations
       Handle all errors
       Log appropriately
@@ -339,14 +365,4 @@ mindmap
       Stream
 ```
 
-**Final Takeaway**: The architecture provides guardrails, but success depends on consistent application of these practices across the team.
-
----
-
-## Further Reading
-
-- **Documentation**: `docs/` for implementation details
-- **Examples**: `examples/` for working code
-- **CLI**: `orchestrator` for scaffolding components
-
-Thank you for reading. Happy building! 🚀
+**Final Takeaway**: The Flutter Orchestrator architecture provides the guardrails (rules, patterns, structure). But the safety and speed of the car depend on the driver (you) following the road signs (best practices).

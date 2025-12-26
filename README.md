@@ -6,8 +6,8 @@
 
 <p align="center">
   <a href="README_vi.md">🇻🇳 Tiếng Việt</a> •
-  <a href="docs/vi/README.md">📚 Documentation</a> •
-  <a href="book/vi/README.md">📖 Book (Architecture)</a> •
+  <a href="docs/en/README.md">📚 Documentation</a> •
+  <a href="book/README.md">📖 Book (Architecture)</a> •
   <a href="packages/orchestrator_core">📦 Core Package</a>
 </p>
 
@@ -51,7 +51,7 @@ flowchart LR
 
 ## Getting Started
 
-See detailed documentation at: [Framework Docs (Vietnamese)](docs/vi/README.md)
+See detailed documentation at: [Framework Docs (English)](docs/en/README.md)
 
 ### Quick Installation
 

@@ -2,19 +2,17 @@
 
 > *"In theory, there is no difference between theory and practice. In practice, there is."* — Yogi Berra
 
-This chapter applies the architecture to real-world scenarios.
+This chapter moves away from abstract patterns and dives into detailed, real-world scenarios. We will explore how to combine multiple patterns to solve complex business requirements.
 
 ---
 
 ## 6.1. Case Study: AI Chatbot
 
-An AI chatbot demonstrates multiple patterns working together:
-- Long-running execution
-- Streaming responses
-- Multi-step processing
-- Cross-cutting concerns (analytics, logging)
+Building an AI Chatbot involves several complex challenges: the operations are long-running (LLM latency), the data comes in streams (token by token), and the process involves multiple distinct steps (retrieve context -> generate answer -> save history).
 
 ### System Overview
+
+We model the system using three distinct Executors, orchestrated by a single `ChatOrchestrator`.
 
 ```mermaid
 graph TB
@@ -45,6 +43,8 @@ graph TB
 
 ### The Flow
 
+The message flow is broken down into three phases. Notice how the Orchestrator remains the central coordinator, dispatching new jobs as previous ones complete.
+
 ```mermaid
 sequenceDiagram
     participant User as 👤 User
@@ -56,30 +56,33 @@ sequenceDiagram
     User->>Chat: sendMessage("What is...")
     
     rect rgb(240, 247, 255)
-        Note over Chat: Phase 1: Context
+        Note over Chat: Phase 1: Context Retrieval
         Chat->>RAG: dispatch(GetContextJob)
         RAG-->>Chat: ContextReadyEvent
     end
     
     rect rgb(240, 255, 240)
-        Note over Chat: Phase 2: AI Response
+        Note over Chat: Phase 2: AI Generation
         Chat->>LLM: dispatch(GenerateResponseJob)
         loop Streaming
             LLM-->>Chat: ProgressEvent(token)
+            Note right of Chat: Update UI immediately
         end
         LLM-->>Chat: AIResponseEvent
     end
     
     rect rgb(255, 250, 240)
-        Note over Chat: Phase 3: Persist
+        Note over Chat: Phase 3: Persistence
         Chat->>DB: dispatch(SaveMessageJob)
         DB-->>Chat: SavedEvent
     end
     
-    Chat-->>User: Updated State
+    Chat-->>User: Final State Updated
 ```
 
 ### Chained Jobs Pattern
+
+Instead of a monolithic function, we handle the workflow as a state machine. This allows us to handle errors specifically for each phase (e.g., if Saving fails, we don't lose the AI response, we just show a "Retry Save" button, because the AI response is already in memory).
 
 ```mermaid
 stateDiagram-v2
@@ -100,21 +103,19 @@ stateDiagram-v2
 
 | Decision | Rationale |
 |----------|-----------|
-| **Separate RAG executor** | Can be reused, tested independently |
-| **Streaming via Progress** | User sees tokens as they arrive |
-| **Save after AI complete** | Ensures complete response is persisted |
+| **Separate RAG Executor** | The context retrieval logic (vector DB lookup) is complex and might be used by other features (e.g., "Related Articles"). Separating it makes it reusable. |
+| **Streaming via Progress** | We re-purpose the `ProgressEvent` to carry partial string data (tokens). This gives instant feedback to the user. |
+| **Save after AI complete** | We only persist the message once the full response is available to ensure database consistency. |
 
 ---
 
 ## 6.2. Case Study: File Upload
 
-File upload demonstrates:
-- Progress reporting
-- Cancellation
-- Retry on failure
-- Large file handling
+File upload is a classic "long-running operation" that requires careful handling of network instability and user interaction (cancellation).
 
 ### The Flow
+
+Here, we use a `CancellationToken` to allow the user to interrupt the process. The Executor checks this token before every chunk upload.
 
 ```mermaid
 sequenceDiagram
@@ -150,6 +151,8 @@ sequenceDiagram
 
 ### Chunked Upload State
 
+The state object needs to track detailed progress, not just "loading".
+
 ```mermaid
 graph LR
     subgraph UploadState["📤 Upload State"]
@@ -162,6 +165,10 @@ graph LR
 ```
 
 ### Retry Strategy
+
+Not all errors are equal. We implement smart retry logic inside the Executor:
+- **Transient Errors** (Network timeout, 502 Bad Gateway): Retry with exponential backoff.
+- **Permanent Errors** (401 Unauthorized, 413 Payload Too Large): Fail immediately.
 
 ```mermaid
 flowchart TD
@@ -181,12 +188,11 @@ flowchart TD
 
 ## 6.3. Case Study: Shopping Cart
 
-Shopping cart demonstrates:
-- Observer mode for cross-module updates
-- Optimistic updates
-- Conflict resolution
+The Shopping Cart feature introduces cross-module communication. When a user adds an item to the cart, the "Product Detail" screen (which might be active in the background) needs to know about it to update its stock level display.
 
 ### System Architecture
+
+We use a **Global Bus** to broadcast events that interest multiple modules.
 
 ```mermaid
 graph TB
@@ -209,10 +215,12 @@ graph TB
     GlobalBus --> ProductOrch
     GlobalBus --> CartOrch
     
-    Note["💡 Both orchestrators observe<br/>each other's events"]
+    Note["💡 Cả hai orchestrator quan sát<br/>sự kiện của nhau"]
 ```
 
 ### Observer Mode Example
+
+This sequence shows how `ProductOrchestrator` passively updates itself based on an action triggered by `CartOrchestrator`.
 
 ```mermaid
 sequenceDiagram
@@ -234,6 +242,8 @@ sequenceDiagram
 
 ### Optimistic Update Pattern
 
+For a snappy feel, we assume success. We update the UI *before* the network request returns. If it fails, we rollback.
+
 ```mermaid
 flowchart TD
     Start["User clicks Add to Cart"]
@@ -254,12 +264,11 @@ flowchart TD
 
 ## 6.4. Case Study: Authentication
 
-Authentication demonstrates:
-- Scoped bus for security
-- Global events for cross-app notification
-- Token refresh handling
+Authentication is special because it affects the entire app (Global State) but requires high security.
 
 ### Architecture
+
+We use a **Scoped Bus** for internal auth logic (like token parsing) to prevent other modules from spying on sensitive events, but expose high-level `UserLoggedIn` events to the Global Bus.
 
 ```mermaid
 graph TB
@@ -285,10 +294,12 @@ graph TB
     AuthExec -->|"Public events"| GlobalBus
     GlobalBus --> OtherModules
     
-    Note["🔒 Internal auth state stays private<br/>Only login/logout events are public"]
+    Note["🔒 Internal auth state (tokens) stays private<br/>Only login/logout status is public"]
 ```
 
 ### Token Refresh Flow
+
+This is a background process that happens transparently to the user. When any request fails with 401, the `AuthExecutor` intercepts, refreshes the token, and retries the original request.
 
 ```mermaid
 sequenceDiagram
@@ -339,9 +350,9 @@ mindmap
 
 | Case Study | Key Patterns Used |
 |------------|-------------------|
-| **AI Chatbot** | Chaining, Progress, Streaming |
-| **File Upload** | Cancellation, Retry, Progress |
-| **Shopping Cart** | Observer Mode, Optimistic Update |
-| **Authentication** | Scoped Bus, Token Refresh |
+| **AI Chatbot** | **Chaining**: Linking tasks sequentially. **Streaming**: Real-time feedback. |
+| **File Upload** | **Cancellation**: Putting user in control. **Retry**: Handling network bumps. |
+| **Shopping Cart** | **Observer Mode**: Reacting to others. **Optimistic Update**: Instant feedback. |
+| **Authentication** | **Scoped Bus**: Encapsulation. **Interceptor**: Transparent recovery. |
 
-**Key Takeaway**: Real applications combine multiple patterns. The architecture's strength is how patterns compose together cleanly.
+**Key Takeaway**: Real production applications are rarely simple linear flows. They require robust error handling, cross-module communication, and user-centric features like cancellation and optimistic updates. This architecture provides standard patterns for all of these.
