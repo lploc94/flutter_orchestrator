@@ -321,32 +321,70 @@ sequenceDiagram
 ## Summary
 
 ```mermaid
-mindmap
-  root((Architecture))
-    Job
-      Request for work
-      Immutable data
-      Carries correlationId
-    Event
-      Notification of result
-      Success/Failure/Progress
-      Broadcast to all
-    Dispatcher
-      Routes Jobs to Executors
-      Registry pattern
-      O(1) lookup
-    Executor
-      Stateless worker
-      Error boundary
-      Emits events
-    Orchestrator
-      Stateful coordinator
-      Tracks active jobs
-      Direct + Observer modes
-    Signal Bus
-      Pub/Sub mechanism
-      Global or Scoped
-      Decoupled communication
+graph LR
+    Root((Architecture))
+    
+    Root --> Job["Job"]
+    Job --> J1["Request for work"]
+    Job --> J2["Immutable data"]
+    Job --> J3["Carries correlationId"]
+    
+    Root --> Event["Event"]
+    Event --> E1["Notification of result"]
+    Event --> E2["Success/Failure/Progress"]
+    Event --> E3["Broadcast to all"]
+    
+    Root --> Disp["Dispatcher"]
+    Disp --> D1["Routes Jobs to Executors"]
+    Disp --> D2["Registry pattern"]
+    Disp --> D3["O(1) lookup"]
+    
+    Root --> Exec["Executor"]
+    Exec --> Ex1["Stateless worker"]
+    Exec --> Ex2["Error boundary"]
+    Exec --> Ex3["Emits events"]
+    
+    Root --> Orch["Orchestrator"]
+    Orch --> O1["Stateful coordinator"]
+    Orch --> O2["Tracks active jobs"]
+    Orch --> O3["Direct + Observer modes"]
+    
+    Root --> Bus["Signal Bus"]
+    Bus --> B1["Pub/Sub mechanism"]
+    Bus --> B2["Global or Scoped"]
+    Bus --> B3["Decoupled communication"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Job fill:#37b24d,color:#fff
+    style Event fill:#f59f00,color:#fff
+    style Disp fill:#845ef7,color:#fff
+    style Exec fill:#f03e3e,color:#fff
+    style Orch fill:#4c6ef5,color:#fff
+    style Bus fill:#fcc419,color:#000
+    
+    style J1 fill:#fff,stroke:#333,color:#000
+    style J2 fill:#fff,stroke:#333,color:#000
+    style J3 fill:#fff,stroke:#333,color:#000
+    
+    style E1 fill:#fff,stroke:#333,color:#000
+    style E2 fill:#fff,stroke:#333,color:#000
+    style E3 fill:#fff,stroke:#333,color:#000
+    
+    style D1 fill:#fff,stroke:#333,color:#000
+    style D2 fill:#fff,stroke:#333,color:#000
+    style D3 fill:#fff,stroke:#333,color:#000
+    
+    style Ex1 fill:#fff,stroke:#333,color:#000
+    style Ex2 fill:#fff,stroke:#333,color:#000
+    style Ex3 fill:#fff,stroke:#333,color:#000
+    
+    style O1 fill:#fff,stroke:#333,color:#000
+    style O2 fill:#fff,stroke:#333,color:#000
+    style O3 fill:#fff,stroke:#333,color:#000
+    
+    style B1 fill:#fff,stroke:#333,color:#000
+    style B2 fill:#fff,stroke:#333,color:#000
+    style B3 fill:#fff,stroke:#333,color:#000
 ```
 
 **Key Takeaway**: Each component has a single responsibility, connected through well-defined interfaces. This makes the system testable, maintainable, and scalable.

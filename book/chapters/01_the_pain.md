@@ -154,20 +154,40 @@ graph TB
 Why do we keep falling into these traps? It's not because we are bad developers. It's because we have conflated two fundamentally different responsibilities.
 
 ```mermaid
-mindmap
-  root((Root Cause))
-    Confusion
-      UI State vs Business State
-      Orchestration vs Execution
-      Triggering vs Completing
-    Coupling
-      Temporal: await chains
-      Spatial: same class
-      Behavioral: shared lifecycle
-    Missing Abstraction
-      No separation layer
-      No communication channel
-      No event routing
+graph LR
+    Root((Root Cause))
+    
+    Root --> Confusion
+    Confusion --> C1["UI State vs Business State"]
+    Confusion --> C2["Orchestration vs Execution"]
+    Confusion --> C3["Triggering vs Completing"]
+    
+    Root --> Coupling
+    Coupling --> Cp1["Temporal: await chains"]
+    Coupling --> Cp2["Spatial: same class"]
+    Coupling --> Cp3["Behavioral: shared lifecycle"]
+    
+    Root --> Missing["Missing Abstraction"]
+    Missing --> M1["No separation layer"]
+    Missing --> M2["No communication channel"]
+    Missing --> M3["No event routing"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Confusion fill:#37b24d,color:#fff
+    style Coupling fill:#f03e3e,color:#fff
+    style Missing fill:#f59f00,color:#fff
+    
+    style C1 fill:#fff,stroke:#333,color:#000
+    style C2 fill:#fff,stroke:#333,color:#000
+    style C3 fill:#fff,stroke:#333,color:#000
+    
+    style Cp1 fill:#fff,stroke:#333,color:#000
+    style Cp2 fill:#fff,stroke:#333,color:#000
+    style Cp3 fill:#fff,stroke:#333,color:#000
+    
+    style M1 fill:#fff,stroke:#333,color:#000
+    style M2 fill:#fff,stroke:#333,color:#000
+    style M3 fill:#fff,stroke:#333,color:#000
 ```
 
 ### The Core Insight

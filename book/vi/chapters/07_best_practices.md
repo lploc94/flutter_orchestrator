@@ -345,24 +345,50 @@ flowchart TD
 ## Tổng kết
 
 ```mermaid
-mindmap
-  root((Hướng dẫn))
-    Cấu trúc
-      Thư mục feature-first
-      Đặt tên nhất quán
-      Phân tách rõ ràng
-    Testing
-      Unit test executors
-      Integration test orchestrators
-      Hạn chế E2E tests
-    Vận hành
-      Xử lý mọi lỗi
-      Log phù hợp
-      Monitor circuit breakers
-    Hiệu năng
-      Deduplicate
-      Cache
-      Stream
+graph LR
+    Root((Hướng dẫn))
+    
+    Root --> Str["Cấu trúc"]
+    Str --> Str1["Thư mục feature-first"]
+    Str --> Str2["Đặt tên nhất quán"]
+    Str --> Str3["Phân tách rõ ràng"]
+    
+    Root --> Test["Testing"]
+    Test --> Test1["Unit test executors"]
+    Test --> Test2["Integration test orchestrators"]
+    Test --> Test3["Ít E2E tests"]
+    
+    Root --> Ops["Vận hành"]
+    Ops --> Ops1["Xử lý mọi lỗi"]
+    Ops --> Ops2["Log phù hợp"]
+    Ops --> Ops3["Monitor circuit breakers"]
+    
+    Root --> Perf["Hiệu năng"]
+    Perf --> Perf1["Deduplicate"]
+    Perf --> Perf2["Cache"]
+    Perf --> Perf3["Stream"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Str fill:#37b24d,color:#fff
+    style Test fill:#f59f00,color:#fff
+    style Ops fill:#f03e3e,color:#fff
+    style Perf fill:#845ef7,color:#fff
+    
+    style Str1 fill:#fff,stroke:#333,color:#000
+    style Str2 fill:#fff,stroke:#333,color:#000
+    style Str3 fill:#fff,stroke:#333,color:#000
+    
+    style Test1 fill:#fff,stroke:#333,color:#000
+    style Test2 fill:#fff,stroke:#333,color:#000
+    style Test3 fill:#fff,stroke:#333,color:#000
+    
+    style Ops1 fill:#fff,stroke:#333,color:#000
+    style Ops2 fill:#fff,stroke:#333,color:#000
+    style Ops3 fill:#fff,stroke:#333,color:#000
+    
+    style Perf1 fill:#fff,stroke:#333,color:#000
+    style Perf2 fill:#fff,stroke:#333,color:#000
+    style Perf3 fill:#fff,stroke:#333,color:#000
 ```
 
 **Lời kết**: Kiến trúc Flutter Orchestrator cung cấp các rào chắn (quy tắc, mẫu, cấu trúc). Nhưng sự an toàn và tốc độ của chiếc xe phụ thuộc vào việc người lái (bạn) tuân thủ các biển báo (thực hành tốt nhất).

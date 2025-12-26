@@ -321,32 +321,70 @@ sequenceDiagram
 ## Tổng kết
 
 ```mermaid
-mindmap
-  root((Kiến trúc))
-    Job
-      Yêu cầu công việc
-      Dữ liệu bất biến
-      Mang correlationId
-    Event
-      Thông báo kết quả
-      Success/Failure/Progress
-      Broadcast cho tất cả
-    Dispatcher
-      Định tuyến Job đến Executor
-      Registry pattern
-      Tra cứu O(1)
-    Executor
-      Công nhân không trạng thái
-      Error boundary
-      Emits events
-    Orchestrator
-      Điều phối viên trạng thái
-      Theo dõi active jobs
-      Direct + Observer modes
-    Signal Bus
-      Cơ chế Pub/Sub
-      Global hoặc Scoped
-      Giao tiếp lỏng lẻo
+graph LR
+    Root((Kiến trúc))
+    
+    Root --> Job["Job"]
+    Job --> J1["Yêu cầu công việc"]
+    Job --> J2["Dữ liệu bất biến"]
+    Job --> J3["Mang correlationId"]
+    
+    Root --> Event["Event"]
+    Event --> E1["Thông báo kết quả"]
+    Event --> E2["Success/Failure/Progress"]
+    Event --> E3["Broadcast cho tất cả"]
+    
+    Root --> Disp["Dispatcher"]
+    Disp --> D1["Định tuyến Job đến Executor"]
+    Disp --> D2["Registry pattern"]
+    Disp --> D3["Tra cứu O(1)"]
+    
+    Root --> Exec["Executor"]
+    Exec --> Ex1["Công nhân không trạng thái"]
+    Exec --> Ex2["Error boundary"]
+    Exec --> Ex3["Emits events"]
+    
+    Root --> Orch["Orchestrator"]
+    Orch --> O1["Điều phối viên trạng thái"]
+    Orch --> O2["Theo dõi active jobs"]
+    Orch --> O3["Direct + Observer modes"]
+    
+    Root --> Bus["Signal Bus"]
+    Bus --> B1["Cơ chế Pub/Sub"]
+    Bus --> B2["Global hoặc Scoped"]
+    Bus --> B3["Giao tiếp lỏng lẻo"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Job fill:#37b24d,color:#fff
+    style Event fill:#f59f00,color:#fff
+    style Disp fill:#845ef7,color:#fff
+    style Exec fill:#f03e3e,color:#fff
+    style Orch fill:#4c6ef5,color:#fff
+    style Bus fill:#fcc419,color:#000
+    
+    style J1 fill:#fff,stroke:#333,color:#000
+    style J2 fill:#fff,stroke:#333,color:#000
+    style J3 fill:#fff,stroke:#333,color:#000
+    
+    style E1 fill:#fff,stroke:#333,color:#000
+    style E2 fill:#fff,stroke:#333,color:#000
+    style E3 fill:#fff,stroke:#333,color:#000
+    
+    style D1 fill:#fff,stroke:#333,color:#000
+    style D2 fill:#fff,stroke:#333,color:#000
+    style D3 fill:#fff,stroke:#333,color:#000
+    
+    style Ex1 fill:#fff,stroke:#333,color:#000
+    style Ex2 fill:#fff,stroke:#333,color:#000
+    style Ex3 fill:#fff,stroke:#333,color:#000
+    
+    style O1 fill:#fff,stroke:#333,color:#000
+    style O2 fill:#fff,stroke:#333,color:#000
+    style O3 fill:#fff,stroke:#333,color:#000
+    
+    style B1 fill:#fff,stroke:#333,color:#000
+    style B2 fill:#fff,stroke:#333,color:#000
+    style B3 fill:#fff,stroke:#333,color:#000
 ```
 
 **Bài học chính**: Mỗi thành phần có một trách nhiệm duy nhất, được kết nối thông qua các giao diện rõ ràng. Điều này làm cho hệ thống dễ kiểm thử, dễ bảo trì và dễ mở rộng.

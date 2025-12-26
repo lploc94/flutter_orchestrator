@@ -324,24 +324,50 @@ sequenceDiagram
 ## 6.5. Lessons Learned
 
 ```mermaid
-mindmap
-  root((Lessons))
-    Separation
-      Keep executors simple
-      One job = one task
-      Compose for complexity
-    Communication
-      Use scoped bus for privacy
-      Global bus for cross-module
-      Always include correlationId
-    Resilience
-      Always handle failures
-      Implement retry for transient
-      Give user cancel option
-    Performance
-      Deduplicate requests
-      Cache where appropriate
-      Stream for long tasks
+graph LR
+    Root((Lessons))
+    
+    Root --> Sep["Separation"]
+    Sep --> Sep1["Keep executors simple"]
+    Sep --> Sep2["One job = one task"]
+    Sep --> Sep3["Compose for complexity"]
+    
+    Root --> Com["Communication"]
+    Com --> Com1["Use scoped bus for privacy"]
+    Com --> Com2["Global bus for cross-module"]
+    Com --> Com3["Always include correlationId"]
+    
+    Root --> Res["Resilience"]
+    Res --> Res1["Always handle failures"]
+    Res --> Res2["Implement retry for transient"]
+    Res --> Res3["Give user cancel option"]
+    
+    Root --> Perf["Performance"]
+    Perf --> Perf1["Deduplicate requests"]
+    Perf --> Perf2["Cache where appropriate"]
+    Perf --> Perf3["Stream for long tasks"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Sep fill:#37b24d,color:#fff
+    style Com fill:#f03e3e,color:#fff
+    style Res fill:#f59f00,color:#fff
+    style Perf fill:#845ef7,color:#fff
+    
+    style Sep1 fill:#fff,stroke:#333,color:#000
+    style Sep2 fill:#fff,stroke:#333,color:#000
+    style Sep3 fill:#fff,stroke:#333,color:#000
+    
+    style Com1 fill:#fff,stroke:#333,color:#000
+    style Com2 fill:#fff,stroke:#333,color:#000
+    style Com3 fill:#fff,stroke:#333,color:#000
+    
+    style Res1 fill:#fff,stroke:#333,color:#000
+    style Res2 fill:#fff,stroke:#333,color:#000
+    style Res3 fill:#fff,stroke:#333,color:#000
+    
+    style Perf1 fill:#fff,stroke:#333,color:#000
+    style Perf2 fill:#fff,stroke:#333,color:#000
+    style Perf3 fill:#fff,stroke:#333,color:#000
 ```
 
 ---

@@ -154,20 +154,40 @@ graph TB
 Tại sao chúng ta cứ rơi vào những cái bẫy này? Không phải vì chúng ta là những lập trình viên tồi. Đó là vì chúng ta đã gộp chung hai trách nhiệm hoàn toàn khác nhau.
 
 ```mermaid
-mindmap
-  root((Nguyên nhân gốc))
-    Sự nhầm lẫn
-      UI State vs Business State
-      Orchestration vs Execution
-      Triggering vs Completing
-    Sự phụ thuộc (Coupling)
-      Temporal: chuỗi await
-      Spatial: cùng một class
-      Behavioral: chung vòng đời
-    Thiếu tính trừu tượng
-      Không có lớp phân tách
-      Không có kênh giao tiếp chung
-      Không có điều hướng sự kiện (event routing)
+graph LR
+    Root((Nguyên nhân gốc))
+    
+    Root --> Confusion["Sự nhầm lẫn"]
+    Confusion --> C1["UI State vs Business State"]
+    Confusion --> C2["Orchestration vs Execution"]
+    Confusion --> C3["Triggering vs Completing"]
+    
+    Root --> Coupling["Sự phụ thuộc (Coupling)"]
+    Coupling --> Cp1["Temporal: chuỗi await"]
+    Coupling --> Cp2["Spatial: cùng một class"]
+    Coupling --> Cp3["Behavioral: chung vòng đời"]
+    
+    Root --> Missing["Thiếu tính trừu tượng"]
+    Missing --> M1["Không có lớp phân tách"]
+    Missing --> M2["Không có kênh giao tiếp chung"]
+    Missing --> M3["Không có điều hướng sự kiện"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Confusion fill:#37b24d,color:#fff
+    style Coupling fill:#f03e3e,color:#fff
+    style Missing fill:#f59f00,color:#fff
+    
+    style C1 fill:#fff,stroke:#333,color:#000
+    style C2 fill:#fff,stroke:#333,color:#000
+    style C3 fill:#fff,stroke:#333,color:#000
+    
+    style Cp1 fill:#fff,stroke:#333,color:#000
+    style Cp2 fill:#fff,stroke:#333,color:#000
+    style Cp3 fill:#fff,stroke:#333,color:#000
+    
+    style M1 fill:#fff,stroke:#333,color:#000
+    style M2 fill:#fff,stroke:#333,color:#000
+    style M3 fill:#fff,stroke:#333,color:#000
 ```
 
 ### Insight cốt lõi

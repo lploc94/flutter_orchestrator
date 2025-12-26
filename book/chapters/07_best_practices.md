@@ -345,24 +345,50 @@ flowchart TD
 ## Summary
 
 ```mermaid
-mindmap
-  root((Guidelines))
-    Structure
-      Feature-first folders
-      Consistent naming
-      Clear separation
-    Testing
-      Unit test executors
-      Integration test orchestrators
-      Minimize E2E tests
-    Operations
-      Handle all errors
-      Log appropriately
-      Monitor circuit breakers
-    Performance
-      Deduplicate
-      Cache
-      Stream
+graph LR
+    Root((Guidelines))
+    
+    Root --> Str["Structure"]
+    Str --> Str1["Feature-first folders"]
+    Str --> Str2["Consistent naming"]
+    Str --> Str3["Clear separation"]
+    
+    Root --> Test["Testing"]
+    Test --> Test1["Unit test executors"]
+    Test --> Test2["Integration test orchestrators"]
+    Test --> Test3["Minimize E2E tests"]
+    
+    Root --> Ops["Operations"]
+    Ops --> Ops1["Handle all errors"]
+    Ops --> Ops2["Log appropriately"]
+    Ops --> Ops3["Monitor circuit breakers"]
+    
+    Root --> Perf["Performance"]
+    Perf --> Perf1["Deduplicate"]
+    Perf --> Perf2["Cache"]
+    Perf --> Perf3["Stream"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Str fill:#37b24d,color:#fff
+    style Test fill:#f59f00,color:#fff
+    style Ops fill:#f03e3e,color:#fff
+    style Perf fill:#845ef7,color:#fff
+    
+    style Str1 fill:#fff,stroke:#333,color:#000
+    style Str2 fill:#fff,stroke:#333,color:#000
+    style Str3 fill:#fff,stroke:#333,color:#000
+    
+    style Test1 fill:#fff,stroke:#333,color:#000
+    style Test2 fill:#fff,stroke:#333,color:#000
+    style Test3 fill:#fff,stroke:#333,color:#000
+    
+    style Ops1 fill:#fff,stroke:#333,color:#000
+    style Ops2 fill:#fff,stroke:#333,color:#000
+    style Ops3 fill:#fff,stroke:#333,color:#000
+    
+    style Perf1 fill:#fff,stroke:#333,color:#000
+    style Perf2 fill:#fff,stroke:#333,color:#000
+    style Perf3 fill:#fff,stroke:#333,color:#000
 ```
 
 **Final Takeaway**: The Flutter Orchestrator architecture provides the guardrails (rules, patterns, structure). But the safety and speed of the car depend on the driver (you) following the road signs (best practices).

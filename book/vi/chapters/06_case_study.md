@@ -324,24 +324,50 @@ sequenceDiagram
 ## 6.5. Bài học rút ra
 
 ```mermaid
-mindmap
-  root((Bài học))
-    Sự phân tách (Separation)
-      Giữ executor đơn giản
-      Một job = một việc
-      Kết hợp lại để xử lý phức tạp
-    Giao tiếp (Communication)
-      Dùng scoped bus cho riêng tư
-      Dùng global bus cho liên module
-      Luôn kèm correlationId
-    Sự kiên cường (Resilience)
-      Luôn xử lý failures
-      Retry cho lỗi tạm thời
-      Cho user quyền Hủy
-    Hiệu năng (Performance)
-      Deduplicate requests (chống trùng)
-      Cache khi phù hợp
-      Stream cho tác vụ dài
+graph LR
+    Root((Bài học))
+    
+    Root --> Sep["Sự phân tách (Separation)"]
+    Sep --> Sep1["Giữ executor đơn giản"]
+    Sep --> Sep2["Một job = một việc"]
+    Sep --> Sep3["Kết hợp lại để xử lý phức tạp"]
+    
+    Root --> Com["Giao tiếp (Communication)"]
+    Com --> Com1["Dùng scoped bus cho riêng tư"]
+    Com --> Com2["Dùng global bus cho liên module"]
+    Com --> Com3["Luôn kèm correlationId"]
+    
+    Root --> Res["Sự kiên cường (Resilience)"]
+    Res --> Res1["Luôn xử lý failures"]
+    Res --> Res2["Retry cho lỗi tạm thời"]
+    Res --> Res3["Cho user quyền Hủy"]
+    
+    Root --> Perf["Hiệu năng (Performance)"]
+    Perf --> Perf1["Deduplicate requests (chống trùng)"]
+    Perf --> Perf2["Cache khi phù hợp"]
+    Perf --> Perf3["Stream cho tác vụ dài"]
+    
+    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
+    style Sep fill:#37b24d,color:#fff
+    style Com fill:#f03e3e,color:#fff
+    style Res fill:#f59f00,color:#fff
+    style Perf fill:#845ef7,color:#fff
+    
+    style Sep1 fill:#fff,stroke:#333,color:#000
+    style Sep2 fill:#fff,stroke:#333,color:#000
+    style Sep3 fill:#fff,stroke:#333,color:#000
+    
+    style Com1 fill:#fff,stroke:#333,color:#000
+    style Com2 fill:#fff,stroke:#333,color:#000
+    style Com3 fill:#fff,stroke:#333,color:#000
+    
+    style Res1 fill:#fff,stroke:#333,color:#000
+    style Res2 fill:#fff,stroke:#333,color:#000
+    style Res3 fill:#fff,stroke:#333,color:#000
+    
+    style Perf1 fill:#fff,stroke:#333,color:#000
+    style Perf2 fill:#fff,stroke:#333,color:#000
+    style Perf3 fill:#fff,stroke:#333,color:#000
 ```
 
 ---
