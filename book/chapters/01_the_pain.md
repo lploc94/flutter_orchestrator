@@ -106,9 +106,9 @@ graph LR
         BlocC["ProfileBloc"] --> AuthLogic3["Auth Logic<br/>(DUPLICATED AGAIN)"]
     end
     
-    style AuthLogic fill:#ffa94d
-    style AuthLogic2 fill:#ff6b6b
-    style AuthLogic3 fill:#ff6b6b
+    style AuthLogic fill:#ffa94d,color:#000
+    style AuthLogic2 fill:#ff6b6b,color:#fff
+    style AuthLogic3 fill:#ff6b6b,color:#fff
 ```
 
 ### The Duplication Tax

@@ -42,7 +42,7 @@ graph TB
         X6["Phớt lờ xử lý lỗi"]
     end
     
-    style Dont fill:#fff5f5
+    style Dont fill:#fff5f5,stroke:#f03e3e,color:#000
 ```
 
 1.  **Không gọi Repository trong Orchestrator**: Orchestrator thậm chí không nên import các class repository của bạn.

@@ -42,7 +42,7 @@ graph TB
         X6["Ignore error handling"]
     end
     
-    style Dont fill:#fff5f5
+    style Dont fill:#fff5f5,stroke:#f03e3e,color:#000
 ```
 
 1.  **No Repositories in Orchestrator**: The Orchestrator should not even import your repository classes.
