@@ -39,6 +39,18 @@ graph TB
     AI -->|"AI Response"| Save
     Save -->|"Saved"| Orchestrator
     Orchestrator --> UI
+    
+    style UI fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orchestrator fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Executors fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Input fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Messages fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Typing fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style State fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style ActiveJobs fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Context fill:#fef3c7,stroke:#334155,color:#1e293b
+    style AI fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Save fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ### Luồng xử lý (The Flow)
@@ -46,6 +58,7 @@ graph TB
 Luồng tin nhắn được chia thành ba giai đoạn. Hãy chú ý cách Orchestrator giữ vai trò điều phối trung tâm, gửi đi (dispatch) các job mới khi job trước đó hoàn thành.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant User as 👤 User
     participant Chat as 🎭 ChatOrchestrator
@@ -55,13 +68,13 @@ sequenceDiagram
     
     User->>Chat: sendMessage("Cái gì là...")
     
-    rect rgb(240, 247, 255)
+    rect rgb(241, 245, 249)
         Note over Chat: Giai đoạn 1: Lấy ngữ cảnh (Context)
         Chat->>RAG: dispatch(GetContextJob)
         RAG-->>Chat: ContextReadyEvent
     end
     
-    rect rgb(240, 255, 240)
+    rect rgb(224, 242, 241)
         Note over Chat: Giai đoạn 2: Sinh câu trả lời (AI)
         Chat->>LLM: dispatch(GenerateResponseJob)
         loop Streaming
@@ -71,7 +84,7 @@ sequenceDiagram
         LLM-->>Chat: AIResponseEvent
     end
     
-    rect rgb(255, 250, 240)
+    rect rgb(254, 243, 199)
         Note over Chat: Giai đoạn 3: Lưu trữ (Persistence)
         Chat->>DB: dispatch(SaveMessageJob)
         DB-->>Chat: SavedEvent
@@ -118,6 +131,7 @@ File upload là một tác vụ "chạy lâu" (long-running) điển hình, đò
 Ở đây, chúng ta sử dụng `CancellationToken` để cho phép người dùng ngắt quy trình. Executor kiểm tra token này trước khi upload mỗi chunk (phần nhỏ của file).
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant User as 👤 User
     participant UI as 🖥️ Upload UI
@@ -162,6 +176,13 @@ graph LR
         URL["url: null"]
         ChunksDone["chunksComplete: 6/10"]
     end
+    
+    style UploadState fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style File fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Progress fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Status fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style URL fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style ChunksDone fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Chiến lược Retry (Thử lại)
@@ -182,6 +203,14 @@ flowchart TD
     Retry --> Attempts{"Số lần < 3?"}
     Attempts -->|"YES"| Upload
     Attempts -->|"NO"| Fail
+    
+    style Upload fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Success fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Next fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Transient fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Retry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Attempts fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Fail fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -216,6 +245,16 @@ graph TB
     GlobalBus --> CartOrch
     
     Note["💡 Cả hai orchestrator quan sát<br/>sự kiện của nhau"]
+    
+    style ProductModule fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style CartModule fill:#fef3c7,stroke:#334155,color:#1e293b
+    style GlobalBus fill:#0d9488,stroke:#334155,color:#ffffff
+    style ProductOrch fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style ProductExec fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style CartOrch fill:#fef3c7,stroke:#334155,color:#1e293b
+    style CartExec fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Events fill:#0d9488,stroke:#334155,color:#ffffff
+    style Note fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Ví dụ Observer Mode
@@ -223,6 +262,7 @@ graph TB
 Sequence này cho thấy cách `ProductOrchestrator` cập nhật thụ động dựa trên một hành động được kích hoạt bởi `CartOrchestrator`.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant Cart as 🛒 CartOrchestrator
     participant Product as 📦 ProductOrchestrator
@@ -256,8 +296,12 @@ flowchart TD
     Result -->|"Thành công"| Confirm["Giữ nguyên state lạc quan"]
     Result -->|"Thất bại"| Rollback["Hoàn tác về state cũ<br/>Hiển thị lỗi"]
     
-    style Optimistic fill:#37b24d,color:#fff
-    style Rollback fill:#f03e3e,color:#fff
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Optimistic fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Dispatch fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Result fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Confirm fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Rollback fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -295,6 +339,18 @@ graph TB
     GlobalBus --> OtherModules
     
     Note["🔒 Auth state nội bộ (tokens) được giữ kín<br/>Chỉ public events login/logout"]
+    
+    style AuthModule fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style OtherModules fill:#fef3c7,stroke:#334155,color:#1e293b
+    style GlobalBus fill:#0d9488,stroke:#334155,color:#ffffff
+    style AuthBus fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style AuthOrch fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style AuthExec fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Home fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Profile fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Settings fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Public fill:#0d9488,stroke:#334155,color:#ffffff
+    style Note fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Luồng Token Refresh
@@ -302,6 +358,7 @@ graph TB
 Đây là một quy trình chạy ngầm trong suốt với người dùng. Khi bất kỳ request nào thất bại với lỗi 401, `AuthExecutor` sẽ chặn lại (intercept), làm mới token, và thử lại request gốc.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant Any as 📱 Any Executor
     participant Auth as 🔐 AuthExecutor
@@ -347,27 +404,27 @@ graph LR
     Perf --> Perf2["Cache khi phù hợp"]
     Perf --> Perf3["Stream cho tác vụ dài"]
     
-    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
-    style Sep fill:#37b24d,color:#fff
-    style Com fill:#f03e3e,color:#fff
-    style Res fill:#f59f00,color:#fff
-    style Perf fill:#845ef7,color:#fff
+    style Root fill:#0d9488,stroke:#334155,stroke-width:2px,color:#ffffff
+    style Sep fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Com fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Res fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Perf fill:#e0f2f1,stroke:#334155,color:#1e293b
     
-    style Sep1 fill:#fff,stroke:#333,color:#000
-    style Sep2 fill:#fff,stroke:#333,color:#000
-    style Sep3 fill:#fff,stroke:#333,color:#000
+    style Sep1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Sep2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Sep3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Com1 fill:#fff,stroke:#333,color:#000
-    style Com2 fill:#fff,stroke:#333,color:#000
-    style Com3 fill:#fff,stroke:#333,color:#000
+    style Com1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Com2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Com3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Res1 fill:#fff,stroke:#333,color:#000
-    style Res2 fill:#fff,stroke:#333,color:#000
-    style Res3 fill:#fff,stroke:#333,color:#000
+    style Res1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Res2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Res3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Perf1 fill:#fff,stroke:#333,color:#000
-    style Perf2 fill:#fff,stroke:#333,color:#000
-    style Perf3 fill:#fff,stroke:#333,color:#000
+    style Perf1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Perf2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Perf3 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ---

@@ -13,6 +13,7 @@ Chương này bao gồm các pattern cho hệ thống quy mô production: xử l
 **Giải pháp**: Hủy bỏ hợp tác (Cooperative cancellation) thông qua token.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant Orch as 🎭 Orchestrator
@@ -50,6 +51,15 @@ graph TB
     end
     
     Note["💡 Kết quả được cache.<br/>Đừng hủy chỉ vì view bị ẩn."]
+    
+    style CancelTriggers fill:#fee2e2,stroke:#334155,color:#1e293b
+    style DontCancel fill:#fef3c7,stroke:#334155,color:#1e293b
+    style User fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Replace fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Timeout fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Navigate fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Background fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Note fill:#0d9488,stroke:#334155,color:#ffffff
 ```
 
 ### Các điểm kiểm tra (Checkpoints)
@@ -65,6 +75,16 @@ flowchart TD
     Step3 --> Done["Hoàn thành"]
     
     Check1 & Check2 & Check3 -->|"Đã hủy"| Throw["throw CancelledException"]
+    
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Check1 fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Check2 fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Check3 fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Step1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Step2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Step3 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Done fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Throw fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -76,6 +96,7 @@ flowchart TD
 **Giải pháp**: Bọc quá trình thực thi với giới hạn thời gian.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant Exec as ⚙️ Executor
     participant Timer as ⏱️ Timer
@@ -106,6 +127,12 @@ graph LR
     
     Overall --> Total["Ví dụ: 60 giây tổng"]
     PerStep --> Each["Ví dụ: 10 giây mỗi API call"]
+    
+    style Strategy fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Overall fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style PerStep fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Total fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Each fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -130,8 +157,14 @@ flowchart TD
     
     CanRetry -->|"NO"| Fail["❌ emit(Failure)"]
     
-    style Done fill:#37b24d,color:#fff
-    style Fail fill:#f03e3e,color:#fff
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Try fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Success fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Done fill:#fef3c7,stroke:#334155,color:#1e293b
+    style CanRetry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Wait fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Notify fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Fail fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ### Minh họa Backoff
@@ -182,6 +215,7 @@ gantt
 **Giải pháp**: Emit các sự kiện progress trong quá trình thực thi.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant Orch as 🎭 Orchestrator
     participant Exec as ⚙️ Executor
@@ -212,6 +246,12 @@ graph LR
         Current["currentStep: 3"]
         Total["totalSteps: 10"]
     end
+    
+    style ProgressEvent fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Value fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Message fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Current fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Total fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Gắn kết UI (UI Binding)
@@ -221,6 +261,11 @@ flowchart LR
     Event["ProgressEvent"] --> Handler["onProgress()"]
     Handler --> State["state.copyWith(progress: event.progress)"]
     State --> UI["ProgressBar(value: state.progress)"]
+    
+    style Event fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Handler fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style State fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style UI fill:#fef3c7,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -299,6 +344,19 @@ graph TB
     Success --> Info
     Failure --> Error
     Retry --> Warn
+    
+    style LogPoints fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Levels fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Dispatch fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Progress fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Success fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Failure fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Retry fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Debug fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Info fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Warn fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Error fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ### Cấu hình Logger
@@ -313,6 +371,12 @@ flowchart LR
         CloudLogger["Cloud Logger<br/>Level: Warning+"]
         NoOpLogger["No-Op Logger<br/>Vô hiệu hóa"]
     end
+    
+    style Development fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Production fill:#fef3c7,stroke:#334155,color:#1e293b
+    style ConsoleLogger fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style CloudLogger fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style NoOpLogger fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -324,6 +388,7 @@ flowchart LR
 **Giải pháp**: Theo dõi các job đang chạy (in-flight) và từ chối nếu trùng.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant Orch as 🎭 Orchestrator
@@ -351,6 +416,13 @@ graph LR
         E2["SearchJob('flutter') → 'search:flutter'"]
         E3["RefreshJob → 'refresh'"]
     end
+    
+    style Job fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Key fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Examples fill:#fef3c7,stroke:#334155,color:#1e293b
+    style E1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style E3 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -378,6 +450,21 @@ flowchart TB
         Circuit -->|"YES"| OpenCircuit["Mở Mạch"]
         Circuit -->|"NO"| Fail2["❌ Failure"]
     end
+    
+    style FullFlow fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Start fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Dedup fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Skip fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Execute fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Timeout fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Success1 fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style EmitSuccess fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Retry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Wait fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Circuit fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style OpenCircuit fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Fail1 fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Fail2 fill:#fee2e2,stroke:#334155,color:#1e293b
 ```
 
 ---

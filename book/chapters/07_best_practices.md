@@ -22,6 +22,14 @@ graph TB
         D5["Use Scoped Bus for module privacy"]
         D6["Test Executors in isolation"]
     end
+    
+    style Do fill:#fef3c7,stroke:#334155,color:#1e293b
+    style D1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D4 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D5 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style D6 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 1.  **Separate Orchestration from Execution**: This is the prime directive. Never mix them.
@@ -42,7 +50,13 @@ graph TB
         X6["Ignore error handling"]
     end
     
-    style Dont fill:#fff5f5,stroke:#f03e3e,color:#000
+    style Dont fill:#fee2e2,stroke:#334155,color:#1e293b
+    style X1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style X2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style X3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style X4 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style X5 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style X6 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 1.  **No Repositories in Orchestrator**: The Orchestrator should not even import your repository classes.
@@ -80,6 +94,16 @@ graph TB
         Auth --> AuthOrch
         Auth --> AuthUI
     end
+    
+    style FeatureFirst fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Root fill:#0d9488,stroke:#334155,color:#ffffff
+    style Core fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Features fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Auth fill:#fef3c7,stroke:#334155,color:#1e293b
+    style AuthJobs fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style AuthExec fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style AuthOrch fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style AuthUI fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 The typical file structure looks like this:
@@ -126,6 +150,12 @@ graph LR
         Events["*Event<br/>UserLoadedEvent, LoginSuccessEvent"]
         Orchestrators["*Orchestrator / *Cubit<br/>AuthOrchestrator, ChatCubit"]
     end
+    
+    style Naming fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Jobs fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Executors fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Events fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orchestrators fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 | Component | Pattern | Example |
@@ -152,6 +182,14 @@ graph TB
     Unit --> Fast["Fast, Many"]
     Integration --> Medium["Medium, Moderate"]
     E2E --> Slow["Slow, Few"]
+    
+    style TestPyramid fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Unit fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Integration fill:#fef3c7,stroke:#334155,color:#1e293b
+    style E2E fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Fast fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Medium fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Slow fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Testing an Executor (Unit Test)
@@ -170,6 +208,12 @@ flowchart LR
     Exec --> Output
     
     Note["✅ No UI, No State, No BuildContext<br/>Pure function: input → output"]
+    
+    style ExecutorTest fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Input fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Exec fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Output fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Note fill:#0d9488,stroke:#334155,color:#ffffff
 ```
 
 ### Testing an Orchestrator (Integration Test)
@@ -188,6 +232,12 @@ flowchart LR
     Orch --> States
     
     Note["✅ Inject mock events via the Bus<br/>Verify correct state emission"]
+    
+    style OrchestratorTest fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style MockBus fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orch fill:#fef3c7,stroke:#334155,color:#1e293b
+    style States fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Note fill:#0d9488,stroke:#334155,color:#ffffff
 ```
 
 ---
@@ -212,6 +262,16 @@ graph TB
     end
     
     DI --> Registration
+    
+    style DI fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Registration fill:#fef3c7,stroke:#334155,color:#1e293b
+    style GetIt fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Riverpod fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Manual fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Exec fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Disp fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Bus fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Orch fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Registration Order
@@ -219,6 +279,7 @@ graph TB
 Order matters. You can't register an Orchestrator before the Dispatcher it depends on.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant App as 🚀 App Start
     participant DI as 💉 DI Container
@@ -254,6 +315,17 @@ flowchart TD
     
     UserMessage --> Dismiss["User dismisses"]
     Log --> Monitor["Monitor alerts"]
+    
+    style Error fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Type fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Retry fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style UserMessage fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Log fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Success fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Continue fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Escalate fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Dismiss fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Monitor fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 | Category | Examples | Handling Strategy |
@@ -274,6 +346,12 @@ graph LR
         Stream["Stream large data"]
         Lazy["Lazy load executors"]
     end
+    
+    style Performance fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Dedup fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Cache fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Stream fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Lazy fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Common Optimizations
@@ -298,6 +376,11 @@ graph TB
         Rules["List Coding Rules"]
         Examples["Provide Examples"]
     end
+    
+    style AIPrompt fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Context fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Rules fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Examples fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ### Sample System Prompt
@@ -338,6 +421,17 @@ flowchart TD
     Check2 --> Fix2["Ensure copyWith creates NEW object"]
     Check3 --> Fix3["Call orchestrator.dispose()/close()"]
     Check4 --> Fix4["Add state check before dispatching"]
+    
+    style Problem fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Symptom fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Check1 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Check2 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Check3 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Check4 fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Fix1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Fix2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Fix3 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Fix4 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 ---
@@ -368,27 +462,27 @@ graph LR
     Perf --> Perf2["Cache"]
     Perf --> Perf3["Stream"]
     
-    style Root fill:#4c6ef5,stroke:#333,stroke-width:2px,color:#fff
-    style Str fill:#37b24d,color:#fff
-    style Test fill:#f59f00,color:#fff
-    style Ops fill:#f03e3e,color:#fff
-    style Perf fill:#845ef7,color:#fff
+    style Root fill:#0d9488,stroke:#334155,stroke-width:2px,color:#ffffff
+    style Str fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Test fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Ops fill:#fee2e2,stroke:#334155,color:#1e293b
+    style Perf fill:#e0f2f1,stroke:#334155,color:#1e293b
     
-    style Str1 fill:#fff,stroke:#333,color:#000
-    style Str2 fill:#fff,stroke:#333,color:#000
-    style Str3 fill:#fff,stroke:#333,color:#000
+    style Str1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Str2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Str3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Test1 fill:#fff,stroke:#333,color:#000
-    style Test2 fill:#fff,stroke:#333,color:#000
-    style Test3 fill:#fff,stroke:#333,color:#000
+    style Test1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Test2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Test3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Ops1 fill:#fff,stroke:#333,color:#000
-    style Ops2 fill:#fff,stroke:#333,color:#000
-    style Ops3 fill:#fff,stroke:#333,color:#000
+    style Ops1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Ops2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Ops3 fill:#f1f5f9,stroke:#334155,color:#1e293b
     
-    style Perf1 fill:#fff,stroke:#333,color:#000
-    style Perf2 fill:#fff,stroke:#333,color:#000
-    style Perf3 fill:#fff,stroke:#333,color:#000
+    style Perf1 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Perf2 fill:#f1f5f9,stroke:#334155,color:#1e293b
+    style Perf3 fill:#f1f5f9,stroke:#334155,color:#1e293b
 ```
 
 **Final Takeaway**: The Flutter Orchestrator architecture provides the guardrails (rules, patterns, structure). But the safety and speed of the car depend on the driver (you) following the road signs (best practices).
