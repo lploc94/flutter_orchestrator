@@ -25,6 +25,9 @@ class AlwaysOnlineProvider implements ConnectivityProvider {
   final StreamController<bool> _controller = StreamController<bool>.broadcast();
   bool _isDisposed = false;
 
+  /// Creates an [AlwaysOnlineProvider] that always reports online status.
+  ///
+  /// Immediately emits `true` to the connectivity stream upon creation.
   AlwaysOnlineProvider() {
     // Emit initial value
     _controller.add(true);
