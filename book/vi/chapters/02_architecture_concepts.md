@@ -43,6 +43,7 @@ Bằng cách cưỡng chế sự chia tách này, chúng ta làm rõ vai trò c�
 Các kiến trúc truyền thống chặn (block) luồng logic của UI trong khi chờ kết quả. Chúng ta đảo ngược mô hình này. Thay vì chờ đợi (`await`), chúng ta **dispatch (gửi đi) và tiếp tục**.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant Orch as 🎭 Orchestrator
@@ -320,6 +321,7 @@ Làm sao Orchestrator biết "Đây là job CỦA TÔI"? **Correlation IDs**.
 Mọi `Job` được gán một ID duy nhất (UUID) khi khởi tạo. Khi Executor xử lý Job đó, nó đóng dấu `Event` kết quả với *cùng* ID đó.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant Orch as Orchestrator A
     participant Orch2 as Orchestrator B

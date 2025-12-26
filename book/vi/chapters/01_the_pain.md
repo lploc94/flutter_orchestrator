@@ -55,6 +55,7 @@ Các kiến trúc truyền thống (như MVVM hoặc BLoC chuẩn) thường t�
 Khi bạn sử dụng `await` bên trong một phương thức quản lý state, bạn đang ngầm gắn vòng đời của UI với thời gian của network request. Nếu mạng chậm, "UI logic" của bạn thực tế bị tạm dừng, chờ "Business logic" trả về.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant BLoC as 📦 BLoC

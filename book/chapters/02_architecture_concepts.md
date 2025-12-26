@@ -43,6 +43,7 @@ By enforcing this separation, we clarify the role of each component:
 Traditional architectures block the UI thread's logical flow while waiting for results. We flip this model. Instead of waiting (`await`), we **dispatch and move on**.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant Orch as 🎭 Orchestrator
@@ -320,6 +321,7 @@ How does the Orchestrator know "This is MY job"? **Correlation IDs**.
 Every `Job` is assigned a unique ID (UUID) upon creation. When an Executor processes that Job, it stamps the resulting `Event` with the *same* ID.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant Orch as Orchestrator A
     participant Orch2 as Orchestrator B

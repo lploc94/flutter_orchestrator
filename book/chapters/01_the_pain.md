@@ -55,6 +55,7 @@ Traditional architectures (like standard MVVM or BLoC usage) often create **temp
 When you use `await` inside a state management method, you are implicitly binding the lifecycle of the UI to the duration of the network request. If the network is slow, your "UI logic" is effectively paused, waiting for the "Business logic" to return.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryTextColor': '#1e293b', 'noteTextColor': '#1e293b', 'actorTextColor': '#1e293b' }}}%%
 sequenceDiagram
     participant UI as 🖥️ UI
     participant BLoC as 📦 BLoC
