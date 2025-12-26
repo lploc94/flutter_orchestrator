@@ -20,19 +20,29 @@ sequenceDiagram
     participant Exec as ⚙️ Executor
     participant Token as 🎫 Token
     
-    UI->>Orch: startSearch(query)
-    Orch->>Token: create()
-    Orch->>Orch: track token
-    Orch->>Exec: dispatch(SearchJob, token)
+    rect rgb(241, 245, 249)
+        Note over UI,Token: Initialization
+        UI->>Orch: startSearch(query)
+        Orch->>Token: create()
+        Orch->>Orch: track token
+        Orch->>Exec: dispatch(SearchJob, token)
+    end
     
-    Note over Exec: Processing...
+    rect rgb(224, 242, 241)
+        Note over Exec: Processing...
+    end
     
-    UI->>Orch: newSearch(newQuery)
-    Orch->>Token: cancel()
+    rect rgb(254, 243, 199)
+        Note over UI,Token: Cancellation Trigger
+        UI->>Orch: newSearch(newQuery)
+        Orch->>Token: cancel()
+    end
     
-    Exec->>Token: isCancelled?
-    Token-->>Exec: true
-    Exec->>Exec: throw CancelledException
+    rect rgb(254, 226, 226)
+        Exec->>Token: isCancelled?
+        Token-->>Exec: true
+        Exec->>Exec: throw CancelledException
+    end
 ```
 
 ### When to Cancel
@@ -102,17 +112,23 @@ sequenceDiagram
     participant Timer as ⏱️ Timer
     participant API as 🌐 API
     
-    Exec->>Timer: start(30 seconds)
-    Exec->>API: request()
+    rect rgb(241, 245, 249)
+        Exec->>Timer: start(30 seconds)
+        Exec->>API: request()
+    end
     
     alt API responds in time
-        API-->>Exec: response
-        Exec->>Timer: cancel
-        Exec->>Exec: emit(Success)
+        rect rgb(224, 242, 241)
+            API-->>Exec: response
+            Exec->>Timer: cancel
+            Exec->>Exec: emit(Success)
+        end
     else Timeout expires
-        Timer-->>Exec: TimeoutException
-        Exec->>Exec: emit(TimeoutEvent)
-        Exec->>Exec: emit(Failure)
+        rect rgb(254, 226, 226)
+            Timer-->>Exec: TimeoutException
+            Exec->>Exec: emit(TimeoutEvent)
+            Exec->>Exec: emit(Failure)
+        end
     end
 ```
 
@@ -221,19 +237,25 @@ sequenceDiagram
     participant Exec as ⚙️ Executor
     participant Bus as 📡 Bus
     
-    Orch->>Exec: dispatch(UploadJob)
-    
-    loop For each chunk
-        Exec->>Bus: emit(Progress 10%)
-        Bus->>Orch: progress update
-        Exec->>Bus: emit(Progress 50%)
-        Bus->>Orch: progress update
-        Exec->>Bus: emit(Progress 90%)
-        Bus->>Orch: progress update
+    rect rgb(241, 245, 249)
+        Orch->>Exec: dispatch(UploadJob)
     end
     
-    Exec->>Bus: emit(Success)
-    Bus->>Orch: complete
+    rect rgb(224, 242, 241)
+        loop For each chunk
+            Exec->>Bus: emit(Progress 10%)
+            Bus->>Orch: progress update
+            Exec->>Bus: emit(Progress 50%)
+            Bus->>Orch: progress update
+            Exec->>Bus: emit(Progress 90%)
+            Bus->>Orch: progress update
+        end
+    end
+    
+    rect rgb(254, 243, 199)
+        Exec->>Bus: emit(Success)
+        Bus->>Orch: complete
+    end
 ```
 
 ### Progress Reporting Structure
@@ -277,6 +299,7 @@ flowchart LR
 **Solution**: Stop calling failing services temporarily.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#fef3c7', 'tertiaryColor': '#fee2e2' }}}%%
 stateDiagram-v2
     [*] --> Closed: Normal
     
