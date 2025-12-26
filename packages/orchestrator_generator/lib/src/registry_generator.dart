@@ -29,14 +29,16 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
       );
       // Return a no-op function with a warning comment
       buffer.writeln('// WARNING: No jobs registered in @NetworkRegistry');
-      buffer.writeln('// Add job types to the annotation: @NetworkRegistry([MyJob, OtherJob])');
+      buffer.writeln(
+          '// Add job types to the annotation: @NetworkRegistry([MyJob, OtherJob])');
       buffer.writeln('void registerNetworkJobs() {}');
       return buffer.toString();
     }
 
     // Generate documentation
     buffer.writeln('/// Auto-generated function to register all network jobs.');
-    buffer.writeln('/// Call this during app initialization before processing offline queue.');
+    buffer.writeln(
+        '/// Call this during app initialization before processing offline queue.');
     buffer.writeln('///');
     buffer.writeln('/// Registered jobs:');
 
@@ -51,6 +53,7 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
 
       // Get the class name without generic parameters for cleaner output
       final typeElement = jobType.element;
+      // ignore: deprecated_member_use
       final className = typeElement?.name ?? jobType.getDisplayString();
 
       if (className.isNotEmpty) {
