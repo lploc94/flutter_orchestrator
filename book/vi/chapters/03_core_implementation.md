@@ -11,6 +11,7 @@ Chương này đi sâu vào cấu trúc bên trong và hành vi của từng th�
 Job là một **yêu cầu thực hiện công việc** — một data object bất biến mô tả những gì cần làm.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#fef3c7' }}}%%
 classDiagram
     class BaseJob {
         +String id
@@ -50,6 +51,7 @@ classDiagram
 Event là **thông báo về những gì đã xảy ra** — kết quả của việc thực thi job.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#fef3c7', 'tertiaryColor': '#fee2e2' }}}%%
 classDiagram
     class BaseEvent {
         +String correlationId
@@ -120,13 +122,19 @@ sequenceDiagram
     participant Disp as 📮 Dispatcher
     participant Exec as ⚙️ Executor
     
-    App->>Disp: register<FetchUserJob>(UserExecutor())
-    App->>Disp: register<LoginJob>(AuthExecutor())
+    rect rgb(241, 245, 249)
+        Note over App,Disp: Giai đoạn Đăng ký
+        App->>Disp: register<FetchUserJob>(UserExecutor())
+        App->>Disp: register<LoginJob>(AuthExecutor())
+    end
     
     Note over Disp: Registry đã sẵn sàng
     
-    App->>Disp: dispatch(FetchUserJob(...))
-    Disp->>Exec: execute(job)
+    rect rgb(224, 242, 241)
+        Note over App,Exec: Giai đoạn Dispatch
+        App->>Disp: dispatch(FetchUserJob(...))
+        Disp->>Exec: execute(job)
+    end
 ```
 
 ---
@@ -189,6 +197,7 @@ graph TB
 Orchestrator là **người điều phối có trạng thái (stateful coordinator)** quản lý UI state và theo dõi job.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e0f2f1', 'primaryTextColor': '#1e293b', 'primaryBorderColor': '#334155', 'lineColor': '#334155', 'secondaryColor': '#fef3c7', 'tertiaryColor': '#fee2e2' }}}%%
 stateDiagram-v2
     [*] --> Idle
     
