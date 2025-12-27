@@ -24,6 +24,13 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
 
     final classElement = element;
     final className = classElement.name;
+    // ignore: unnecessary_null_comparison
+    if (className == null) {
+      throw InvalidGenerationSourceError(
+        'Generator cannot target unnamed class.',
+        element: element,
+      );
+    }
     final generateEquality = annotation.read('generateEquality').boolValue;
 
     // Get all instance fields

@@ -1,3 +1,9 @@
+## 0.3.2 - 2025-12-27
+
+### Fixed
+- Fixed static analysis errors regarding nullable `element.name` in strict environments.
+- Added missing API documentation to builders.
+
 ## 0.3.1 - 2025-12-27
 
 ### Fixed

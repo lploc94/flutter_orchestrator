@@ -24,6 +24,13 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
 
     final classElement = element;
     final className = classElement.name;
+    // ignore: unnecessary_null_comparison
+    if (className == null) {
+      throw InvalidGenerationSourceError(
+        'Generator cannot target unnamed class.',
+        element: element,
+      );
+    }
 
     // Find all methods with @OnEvent annotation
     final eventHandlers = _findEventHandlers(classElement);

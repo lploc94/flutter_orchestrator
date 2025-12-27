@@ -22,6 +22,14 @@ class JobGenerator extends GeneratorForAnnotation<GenerateJob> {
 
     final classElement = element;
     final className = classElement.name;
+    // ignore: unnecessary_null_comparison
+    // ignore: unnecessary_null_comparison
+    if (className == null || className.isEmpty) {
+      throw InvalidGenerationSourceError(
+        'Generator cannot target unnamed class.',
+        element: element,
+      );
+    }
 
     // Read annotation values
     final timeoutReader = annotation.read('timeout');
@@ -110,6 +118,13 @@ class EventGenerator extends GeneratorForAnnotation<GenerateEvent> {
 
     final classElement = element;
     final className = classElement.name;
+    // ignore: unnecessary_null_comparison
+    if (className == null || className.isEmpty) {
+      throw InvalidGenerationSourceError(
+        'Generator cannot target unnamed class.',
+        element: element,
+      );
+    }
 
     // Fields reserved for future use
     // final fields = classElement.fields

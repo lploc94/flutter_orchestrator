@@ -26,6 +26,13 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
     }
 
     final className = element.name;
+    // ignore: unnecessary_null_comparison
+    if (className == null) {
+      throw InvalidGenerationSourceError(
+        'Generator cannot target unnamed class.',
+        element: element,
+      );
+    }
     final buffer = StringBuffer();
 
     buffer.writeln('// ignore_for_file: unused_element');
