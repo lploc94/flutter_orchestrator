@@ -101,7 +101,7 @@ class ConfigLoader {
   static Future<OrchestratorConfig> _loadFromFile(File file) async {
     final content = await file.readAsString();
     final yaml = loadYaml(content) as Map<dynamic, dynamic>?;
-    
+
     if (yaml == null) {
       return const OrchestratorConfig();
     }

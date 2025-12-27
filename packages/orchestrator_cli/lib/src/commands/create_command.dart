@@ -14,7 +14,8 @@ class CreateCommand extends Command<int> {
   final String name = 'create';
 
   @override
-  final String description = 'Create Orchestrator components (job, executor, cubit, feature, etc.)';
+  final String description =
+      'Create Orchestrator components (job, executor, cubit, feature, etc.)';
 
   CreateCommand() {
     addSubcommand(JobCommand());

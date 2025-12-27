@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
@@ -48,7 +50,7 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
       if (typeName == 'BaseOrchestrator') {
         final typeArgs = supertype.typeArguments;
         if (typeArgs.isNotEmpty) {
-          stateType = typeArgs.first.getDisplayString();
+          stateType = typeArgs.first.getDisplayString(withNullability: true);
         }
         break;
       }
@@ -115,11 +117,13 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
       String eventTypeName;
 
       if (eventTypeValue.isType) {
-        eventTypeName = eventTypeValue.typeValue.getDisplayString();
+        eventTypeName =
+            eventTypeValue.typeValue.getDisplayString(withNullability: true);
       } else {
         // Fallback: try to get from method parameter
         if (method.parameters.isNotEmpty) {
-          eventTypeName = method.parameters.first.type.getDisplayString();
+          eventTypeName = method.parameters.first.type
+              .getDisplayString(withNullability: true);
         } else {
           continue; // Skip invalid handler
         }

@@ -82,16 +82,13 @@ extension JobFailureEventExtension on JobFailureEvent {
 /// Extension methods for working with lists of events.
 extension EventListExtension on List<BaseEvent> {
   /// Get all success events.
-  Iterable<JobSuccessEvent> get successes =>
-      whereType<JobSuccessEvent>();
+  Iterable<JobSuccessEvent> get successes => whereType<JobSuccessEvent>();
 
   /// Get all failure events.
-  Iterable<JobFailureEvent> get failures =>
-      whereType<JobFailureEvent>();
+  Iterable<JobFailureEvent> get failures => whereType<JobFailureEvent>();
 
   /// Get all progress events.
-  Iterable<JobProgressEvent> get progress =>
-      whereType<JobProgressEvent>();
+  Iterable<JobProgressEvent> get progress => whereType<JobProgressEvent>();
 
   /// Get events for a specific job ID.
   Iterable<BaseEvent> forJob(String jobId) =>
@@ -101,8 +98,6 @@ extension EventListExtension on List<BaseEvent> {
   BaseEvent? latestForJob(String jobId) {
     final events = forJob(jobId).toList();
     if (events.isEmpty) return null;
-    return events.reduce((a, b) =>
-        a.timestamp.isAfter(b.timestamp) ? a : b);
+    return events.reduce((a, b) => a.timestamp.isAfter(b.timestamp) ? a : b);
   }
 }
-

@@ -6,6 +6,7 @@ version: 0.3.1
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
+documentation: https://github.com/lploc94/flutter_orchestrator/blob/main/docs/en/README.md
 
 topics:
   - offline
@@ -25,7 +26,7 @@ dependencies:
   
   # Offline Support Default Impl
   path_provider: ^2.0.0
-  connectivity_plus: ^5.0.0
+  connectivity_plus: ">=5.0.0 <8.0.0"
   path: ^1.8.0
   
 dev_dependencies:

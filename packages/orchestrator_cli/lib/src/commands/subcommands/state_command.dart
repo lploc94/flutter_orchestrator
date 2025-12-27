@@ -31,7 +31,7 @@ class StateCommand extends Command<int> {
   @override
   Future<int> run() async {
     final args = argResults!.rest;
-    
+
     if (args.isEmpty) {
       _logger.error('Please provide a name for the state.');
       _logger.info('Usage: orchestrator create state <name>');
@@ -40,8 +40,8 @@ class StateCommand extends Command<int> {
 
     final name = args.first;
     final outputDir = argResults!['output'] as String;
-    final absoluteOutputDir = path.isAbsolute(outputDir) 
-        ? outputDir 
+    final absoluteOutputDir = path.isAbsolute(outputDir)
+        ? outputDir
         : path.join(Directory.current.path, outputDir);
 
     final progress = _logger.progress('Creating $name state');

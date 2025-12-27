@@ -120,10 +120,11 @@ extension DispatcherExtension on Dispatcher {
   ///   register<SendMessageJob>(SendMessageExecutor());
   /// });
   /// ```
-  void setup(void Function(void Function<J extends BaseJob>(BaseExecutor<J>) register) setup) {
+  void setup(
+      void Function(void Function<J extends BaseJob>(BaseExecutor<J>) register)
+          setup) {
     setup(<J extends BaseJob>(BaseExecutor<J> executor) {
       register<J>(executor);
     });
   }
 }
-

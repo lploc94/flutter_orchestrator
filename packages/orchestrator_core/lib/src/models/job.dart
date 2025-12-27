@@ -52,6 +52,7 @@ abstract class BaseJob {
 String generateJobId([String? prefix]) {
   final timestamp = DateTime.now().microsecondsSinceEpoch;
   // Generate a random 24-bit number (0-16777215) and convert to hex
-  final randomPart = _jobIdRandom.nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
+  final randomPart =
+      _jobIdRandom.nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
   return '${prefix ?? 'job'}-$timestamp-$randomPart';
 }

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2025-12-26
+## 0.3.0 - 2025-12-26
 
 ### Features: Extended Code Generation
 - **New**: `OrchestratorGenerator` for `@Orchestrator` & `@OnEvent`.
@@ -11,7 +11,8 @@ All notable changes to this project will be documented in this file.
 - **New**: `EventGenerator` for `@GenerateEvent`.
 - **New**: `NetworkJobGenerator` supports `generateSerialization: true`.
 - **New**: `ExecutorRegistryGenerator` generates `registerExecutors` function.
-## [0.2.0] - 2025-12-25
+
+## 0.2.0 - 2025-12-25
 
 ### Added
 - Initial public release

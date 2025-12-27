@@ -31,7 +31,7 @@ class ExecutorCommand extends Command<int> {
   @override
   Future<int> run() async {
     final args = argResults!.rest;
-    
+
     if (args.isEmpty) {
       _logger.error('Please provide a name for the executor.');
       _logger.info('Usage: orchestrator create executor <name>');
@@ -40,8 +40,8 @@ class ExecutorCommand extends Command<int> {
 
     final name = args.first;
     final outputDir = argResults!['output'] as String;
-    final absoluteOutputDir = path.isAbsolute(outputDir) 
-        ? outputDir 
+    final absoluteOutputDir = path.isAbsolute(outputDir)
+        ? outputDir
         : path.join(Directory.current.path, outputDir);
 
     final progress = _logger.progress('Creating $name executor');
@@ -64,7 +64,8 @@ class ExecutorCommand extends Command<int> {
       _logger.detail('  1. Import the corresponding job');
       _logger.detail('  2. Add dependencies via constructor injection');
       _logger.detail('  3. Implement the process() method');
-      _logger.detail('  4. Register with Dispatcher: dispatcher.register<${name}Job>(${name}Executor());');
+      _logger.detail(
+          '  4. Register with Dispatcher: dispatcher.register<${name}Job>(${name}Executor());');
 
       return 0;
     } catch (e) {

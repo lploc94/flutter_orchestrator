@@ -79,7 +79,7 @@ class _AsyncLock {
 class NetworkQueueManager {
   final NetworkQueueStorage storage;
   final FileSafetyDelegate? fileDelegate;
-  
+
   /// FIX WARNING #13: Lock for preventing concurrent job claim
   final _AsyncLock _processingLock = _AsyncLock();
 
@@ -138,18 +138,19 @@ class NetworkQueueManager {
     try {
       final job = await getNextPendingJob();
       if (job == null) return null;
-      
+
       final id = job['id'] as String;
-      
+
       // Double-check the job is still pending (might have changed)
       final freshJob = await storage.getJob(id);
-      if (freshJob == null || freshJob['status'] != NetworkJobStatus.pending.name) {
+      if (freshJob == null ||
+          freshJob['status'] != NetworkJobStatus.pending.name) {
         return null;
       }
-      
+
       // Mark as processing atomically within the lock
       await storage.updateJob(id, {'status': NetworkJobStatus.processing.name});
-      
+
       // Return fresh data with updated status
       return {...freshJob, 'status': NetworkJobStatus.processing.name};
     } finally {

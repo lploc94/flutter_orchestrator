@@ -14,7 +14,8 @@ class NotifierCommand extends Command<int> {
   final String name = 'notifier';
 
   @override
-  final String description = 'Create an OrchestratorNotifier with State (Provider integration)';
+  final String description =
+      'Create an OrchestratorNotifier with State (Provider integration)';
 
   @override
   final String invocation = 'orchestrator create notifier <name>';
@@ -31,7 +32,7 @@ class NotifierCommand extends Command<int> {
   @override
   Future<int> run() async {
     final args = argResults!.rest;
-    
+
     if (args.isEmpty) {
       _logger.error('Please provide a name for the notifier.');
       _logger.info('Usage: orchestrator create notifier <name>');
@@ -40,8 +41,8 @@ class NotifierCommand extends Command<int> {
 
     final name = args.first;
     final outputDir = argResults!['output'] as String;
-    final absoluteOutputDir = path.isAbsolute(outputDir) 
-        ? outputDir 
+    final absoluteOutputDir = path.isAbsolute(outputDir)
+        ? outputDir
         : path.join(Directory.current.path, outputDir);
 
     final progress = _logger.progress('Creating $name notifier');
@@ -63,7 +64,8 @@ class NotifierCommand extends Command<int> {
       _logger.info('Next steps:');
       _logger.detail('  1. Add data fields to the state class');
       _logger.detail('  2. Add methods to trigger jobs');
-      _logger.detail('  3. Handle success/failure events in onActiveSuccess/onActiveFailure');
+      _logger.detail(
+          '  3. Handle success/failure events in onActiveSuccess/onActiveFailure');
       _logger.detail('  4. Provide the notifier with ChangeNotifierProvider');
 
       return 0;

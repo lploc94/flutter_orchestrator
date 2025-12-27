@@ -6,7 +6,7 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// Uses [connectivity_plus] to detect network state.
 class FlutterConnectivityProvider implements ConnectivityProvider {
   final Connectivity _connectivity = Connectivity();
-  
+
   /// FIX WARNING #9: Cache broadcast stream for multiple listeners
   StreamController<bool>? _broadcastController;
   StreamSubscription? _connectivitySubscription;
@@ -28,7 +28,7 @@ class FlutterConnectivityProvider implements ConnectivityProvider {
     }
     return _broadcastController!.stream;
   }
-  
+
   void _startListening() {
     _connectivitySubscription ??= _connectivity.onConnectivityChanged.listen(
       (result) {
@@ -43,7 +43,7 @@ class FlutterConnectivityProvider implements ConnectivityProvider {
       },
     );
   }
-  
+
   void _checkAndStopListening() {
     // Only stop if no listeners remain
     if (_broadcastController != null && !_broadcastController!.hasListener) {

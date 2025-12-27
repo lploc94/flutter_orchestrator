@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
@@ -53,8 +55,8 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
 
       // Get the class name without generic parameters for cleaner output
       final typeElement = jobType.element;
-      // ignore: deprecated_member_use
-      final className = typeElement?.name ?? jobType.getDisplayString();
+      final className =
+          typeElement?.name ?? jobType.getDisplayString(withNullability: true);
 
       if (className.isNotEmpty) {
         jobClassNames.add(className);

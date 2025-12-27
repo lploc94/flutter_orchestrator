@@ -80,14 +80,16 @@ class ListCommand extends Command<int> {
         _TemplateInfo(
           name: 'notifier',
           type: BrickType.notifier,
-          description: 'Creates OrchestratorNotifier + State (Provider integration)',
+          description:
+              'Creates OrchestratorNotifier + State (Provider integration)',
           usage: 'orchestrator create notifier <name>',
           generates: ['<name>_notifier.dart', '<name>_state.dart'],
         ),
         _TemplateInfo(
           name: 'riverpod',
           type: BrickType.riverpod,
-          description: 'Creates OrchestratorNotifier + State (Riverpod integration)',
+          description:
+              'Creates OrchestratorNotifier + State (Riverpod integration)',
           usage: 'orchestrator create riverpod <name>',
           generates: ['<name>_notifier.dart', '<name>_state.dart'],
         ),
@@ -114,13 +116,14 @@ class ListCommand extends Command<int> {
       final customTemplates = customTemplatesDir.listSync();
       if (customTemplates.isEmpty) {
         logger.muted('  No custom templates found');
-        logger.muted('  Run `orchestrator template init` to create custom templates');
+        logger.muted(
+            '  Run `orchestrator template init` to create custom templates');
       } else {
         for (final entity in customTemplates) {
           if (entity is Directory) {
             final templateName = path.basename(entity.path);
             final brickYaml = File(path.join(entity.path, 'brick.yaml'));
-            
+
             if (brickYaml.existsSync()) {
               logger.success('  $templateName (custom)');
               if (verbose) {
@@ -133,7 +136,8 @@ class ListCommand extends Command<int> {
       logger.info('');
     } else if (customOnly) {
       logger.warn('No custom templates directory found.');
-      logger.muted('Run `orchestrator template init` to create custom templates.');
+      logger.muted(
+          'Run `orchestrator template init` to create custom templates.');
       return 1;
     }
 
@@ -145,7 +149,7 @@ class ListCommand extends Command<int> {
       logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
       final stats = await _scanProjectComponents(libDir);
-      
+
       logger.muted('  Jobs:       ${stats['jobs']}');
       logger.muted('  Executors:  ${stats['executors']}');
       logger.muted('  Cubits:     ${stats['cubits']}');
@@ -154,14 +158,16 @@ class ListCommand extends Command<int> {
       logger.info('');
 
       if (stats['unregistered']! > 0) {
-        logger.warn('  ⚠ ${stats['unregistered']} executor(s) may not be registered');
+        logger.warn(
+            '  ⚠ ${stats['unregistered']} executor(s) may not be registered');
         logger.muted('    Run `orchestrator doctor` for details');
       }
     }
 
     logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.info('💡 Tips:');
-    logger.muted('  • Use `orchestrator create <template> <name>` to generate code');
+    logger.muted(
+        '  • Use `orchestrator create <template> <name>` to generate code');
     logger.muted('  • Use `orchestrator doctor` to check for issues');
     logger.muted('  • Use `orchestrator init` to set up project structure');
     logger.info('');
@@ -191,8 +197,8 @@ class ListCommand extends Command<int> {
         final content = await entity.readAsString();
 
         // Count Jobs
-        final jobMatches = RegExp(r'class\s+\w+Job\s+extends\s+BaseJob')
-            .allMatches(content);
+        final jobMatches =
+            RegExp(r'class\s+\w+Job\s+extends\s+BaseJob').allMatches(content);
         jobs += jobMatches.length;
 
         // Count Executors

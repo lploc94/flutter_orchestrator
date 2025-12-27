@@ -3,6 +3,8 @@ description: CLI tool for scaffolding Flutter Orchestrator components (Job, Exec
 version: 0.1.0
 repository: https://github.com/lploc94/flutter_orchestrator
 homepage: https://github.com/lploc94/flutter_orchestrator
+issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
+documentation: https://github.com/lploc94/flutter_orchestrator/blob/main/docs/en/README.md
 topics:
   - flutter
   - cli

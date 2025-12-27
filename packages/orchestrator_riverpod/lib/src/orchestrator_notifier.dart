@@ -64,7 +64,8 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   ///
   /// This is called automatically by [build], so you typically don't need
   /// to call this directly.
-  @Deprecated('Bus subscription is now automatic in build(). This method is no longer needed.')
+  @Deprecated(
+      'Bus subscription is now automatic in build(). This method is no longer needed.')
   void initialize() {
     _subscribeToBus();
   }

@@ -129,7 +129,8 @@ final class JobSuccess<T> extends JobResult<T> {
     required R Function(Object error, StackTrace? stackTrace) failure,
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
-  }) => success(data);
+  }) =>
+      success(data);
 
   @override
   R maybeWhen<R>({
@@ -138,7 +139,8 @@ final class JobSuccess<T> extends JobResult<T> {
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
     required R Function() orElse,
-  }) => success?.call(data) ?? orElse();
+  }) =>
+      success?.call(data) ?? orElse();
 
   @override
   T? get dataOrNull => data;
@@ -159,7 +161,8 @@ final class JobFailure<T> extends JobResult<T> {
     required R Function(Object error, StackTrace? stackTrace) failure,
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
-  }) => failure(error, stackTrace);
+  }) =>
+      failure(error, stackTrace);
 
   @override
   R maybeWhen<R>({
@@ -168,7 +171,8 @@ final class JobFailure<T> extends JobResult<T> {
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
     required R Function() orElse,
-  }) => failure?.call(error, stackTrace) ?? orElse();
+  }) =>
+      failure?.call(error, stackTrace) ?? orElse();
 
   @override
   T? get dataOrNull => null;
@@ -188,10 +192,12 @@ final class JobCancelled<T> extends JobResult<T> {
     required R Function(Object error, StackTrace? stackTrace) failure,
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
-  }) => cancelled?.call(reason) ?? failure(
-    StateError('Job was cancelled${reason != null ? ': $reason' : ''}'),
-    null,
-  );
+  }) =>
+      cancelled?.call(reason) ??
+      failure(
+        StateError('Job was cancelled${reason != null ? ': $reason' : ''}'),
+        null,
+      );
 
   @override
   R maybeWhen<R>({
@@ -200,7 +206,8 @@ final class JobCancelled<T> extends JobResult<T> {
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
     required R Function() orElse,
-  }) => cancelled?.call(reason) ?? orElse();
+  }) =>
+      cancelled?.call(reason) ?? orElse();
 
   @override
   T? get dataOrNull => null;
@@ -220,10 +227,12 @@ final class JobTimeout<T> extends JobResult<T> {
     required R Function(Object error, StackTrace? stackTrace) failure,
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
-  }) => timeout?.call(duration) ?? failure(
-    TimeoutException('Job timed out after ${duration.inSeconds}s'),
-    null,
-  );
+  }) =>
+      timeout?.call(duration) ??
+      failure(
+        TimeoutException('Job timed out after ${duration.inSeconds}s'),
+        null,
+      );
 
   @override
   R maybeWhen<R>({
@@ -232,7 +241,8 @@ final class JobTimeout<T> extends JobResult<T> {
     R Function(String? reason)? cancelled,
     R Function(Duration timeout)? timeout,
     required R Function() orElse,
-  }) => timeout?.call(duration) ?? orElse();
+  }) =>
+      timeout?.call(duration) ?? orElse();
 
   @override
   T? get dataOrNull => null;
@@ -240,4 +250,3 @@ final class JobTimeout<T> extends JobResult<T> {
   @override
   Object? get errorOrNull => null;
 }
-

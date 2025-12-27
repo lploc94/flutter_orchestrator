@@ -6,6 +6,7 @@ version: 0.3.0
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
+documentation: https://github.com/lploc94/flutter_orchestrator/blob/main/docs/en/README.md
 
 topics:
   - state-management
@@ -21,8 +22,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.0.0
-  orchestrator_core: ^0.2.0
+  flutter_riverpod: ">=2.0.0 <4.0.0"
+  orchestrator_core: ^0.3.0
 
 dev_dependencies:
   flutter_test:

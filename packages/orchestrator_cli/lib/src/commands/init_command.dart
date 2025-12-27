@@ -42,7 +42,7 @@ class InitCommand extends Command<int> {
     final force = argResults!['force'] as bool;
 
     final currentDir = Directory.current.path;
-    
+
     _logger.info('Initializing Orchestrator project structure...');
     _logger.info('');
 
@@ -68,8 +68,10 @@ class InitCommand extends Command<int> {
       _logger.info('');
       _logger.info('Next steps:');
       _logger.detail('  1. Add orchestrator packages to pubspec.yaml');
-      _logger.detail('  2. Create your first feature: orchestrator create feature <name>');
-      _logger.detail('  3. Set up Dispatcher and register executors in lib/core/di/');
+      _logger.detail(
+          '  2. Create your first feature: orchestrator create feature <name>');
+      _logger.detail(
+          '  3. Set up Dispatcher and register executors in lib/core/di/');
 
       return 0;
     } catch (e) {
@@ -114,7 +116,8 @@ class InitCommand extends Command<int> {
     final configFile = File(path.join(baseDir, 'orchestrator.yaml'));
 
     if (await configFile.exists() && !force) {
-      _logger.warn('  orchestrator.yaml already exists (use --force to overwrite)');
+      _logger.warn(
+          '  orchestrator.yaml already exists (use --force to overwrite)');
       return;
     }
 

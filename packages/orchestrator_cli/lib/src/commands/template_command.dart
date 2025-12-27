@@ -31,8 +31,17 @@ class TemplateInitCommand extends Command<int> {
     argParser.addOption(
       'template',
       abbr: 't',
-      help: 'Specific template to initialize (job, executor, state, cubit, notifier, riverpod)',
-      allowed: ['job', 'executor', 'state', 'cubit', 'notifier', 'riverpod', 'all'],
+      help:
+          'Specific template to initialize (job, executor, state, cubit, notifier, riverpod)',
+      allowed: [
+        'job',
+        'executor',
+        'state',
+        'cubit',
+        'notifier',
+        'riverpod',
+        'all'
+      ],
       defaultsTo: 'all',
     );
   }
@@ -52,7 +61,7 @@ class TemplateInitCommand extends Command<int> {
     logger.info('🎨 Initializing custom templates...\n');
 
     final customDir = Directory('.orchestrator/templates');
-    
+
     // Check if custom templates already exist
     if (customDir.existsSync() && !force) {
       final existing = customDir.listSync().whereType<Directory>().toList();
@@ -115,16 +124,20 @@ class TemplateInitCommand extends Command<int> {
       logger.info('📁 Location: .orchestrator/templates/');
       logger.info('');
       logger.info('💡 Next steps:');
-      logger.detail('  1. Edit templates in .orchestrator/templates/<name>/__brick__/');
-      logger.detail('  2. Templates use Mustache syntax ({{name.pascalCase()}})');
-      logger.detail('  3. Run `orchestrator create <type> <name>` to use your custom templates');
+      logger.detail(
+          '  1. Edit templates in .orchestrator/templates/<name>/__brick__/');
+      logger
+          .detail('  2. Templates use Mustache syntax ({{name.pascalCase()}})');
+      logger.detail(
+          '  3. Run `orchestrator create <type> <name>` to use your custom templates');
       logger.info('');
       logger.info('📚 Template variables available:');
       logger.detail('  • {{name}} - Raw name as provided');
       logger.detail('  • {{name.pascalCase()}} - PascalCase (e.g., FetchUser)');
       logger.detail('  • {{name.camelCase()}} - camelCase (e.g., fetchUser)');
       logger.detail('  • {{name.snakeCase()}} - snake_case (e.g., fetch_user)');
-      logger.detail('  • {{name.constantCase()}} - CONSTANT_CASE (e.g., FETCH_USER)');
+      logger.detail(
+          '  • {{name.constantCase()}} - CONSTANT_CASE (e.g., FETCH_USER)');
     } else {
       logger.info('No templates were copied.');
     }
@@ -140,7 +153,8 @@ class TemplateInitCommand extends Command<int> {
       Directory.current.path,
       // Check parent directories (monorepo structure)
       path.dirname(Directory.current.path),
-      path.join(path.dirname(Directory.current.path), 'packages', 'orchestrator_cli'),
+      path.join(
+          path.dirname(Directory.current.path), 'packages', 'orchestrator_cli'),
     ];
 
     for (final p in possiblePaths) {
@@ -157,8 +171,9 @@ class TemplateInitCommand extends Command<int> {
     final packageConfig = File('.dart_tool/package_config.json');
     if (packageConfig.existsSync()) {
       final content = await packageConfig.readAsString();
-      final match = RegExp(r'"rootUri":\s*"file://([^"]+orchestrator_cli[^"]*)"')
-          .firstMatch(content);
+      final match =
+          RegExp(r'"rootUri":\s*"file://([^"]+orchestrator_cli[^"]*)"')
+              .firstMatch(content);
       if (match != null) {
         return match.group(1);
       }
@@ -198,7 +213,8 @@ class TemplateListCommand extends Command<int> {
 
     if (!customDir.existsSync()) {
       logger.info('No custom templates found.');
-      logger.detail('Run `orchestrator template init` to create custom templates.');
+      logger.detail(
+          'Run `orchestrator template init` to create custom templates.');
       return 0;
     }
 
@@ -213,11 +229,11 @@ class TemplateListCommand extends Command<int> {
     for (final template in templates) {
       final templateName = path.basename(template.path);
       final brickYaml = File(path.join(template.path, 'brick.yaml'));
-      
+
       if (brickYaml.existsSync()) {
         logger.success('  $templateName');
         logger.detail('    Path: ${template.path}');
-        
+
         // List files in __brick__
         final brickDir = Directory(path.join(template.path, '__brick__'));
         if (brickDir.existsSync()) {

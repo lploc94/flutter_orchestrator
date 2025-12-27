@@ -134,4 +134,3 @@ class ConfiguredJob<T extends BaseJob> extends BaseJob {
   @override
   String toString() => 'ConfiguredJob<${T.runtimeType}>(id: $id)';
 }
-

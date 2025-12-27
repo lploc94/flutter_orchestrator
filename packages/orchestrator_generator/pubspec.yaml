@@ -6,6 +6,7 @@ version: 0.3.0
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
+documentation: https://github.com/lploc94/flutter_orchestrator/blob/main/docs/en/README.md
 
 topics:
   - code-generator
@@ -17,11 +18,11 @@ environment:
   sdk: ^3.0.0
 
 dependencies:
-  build: ^2.4.0
-  source_gen: ^1.4.0
-  analyzer: ^6.0.0
+  build: ">=2.4.0 <5.0.0"
+  source_gen: ">=1.4.0 <5.0.0"
+  analyzer: ">=6.0.0 <10.0.0"
   code_builder: ^4.5.0
-  dart_style: ^2.3.0
+  dart_style: ">=2.3.0 <4.0.0"
   orchestrator_core: ^0.3.0
 
 dev_dependencies:

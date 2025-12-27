@@ -22,7 +22,8 @@ class FeatureCommand extends Command<int> {
   final String name = 'feature';
 
   @override
-  final String description = 'Create a full feature scaffold (job, executor, state management)';
+  final String description =
+      'Create a full feature scaffold (job, executor, state management)';
 
   @override
   final String invocation = 'orchestrator create feature <name>';
@@ -79,7 +80,7 @@ class FeatureCommand extends Command<int> {
       // Interactive mode
       final result = await _runInteractive(config);
       if (result == null) return 1;
-      
+
       name = result.name;
       outputBase = result.outputBase;
       stateManagement = result.stateManagement;
@@ -89,7 +90,8 @@ class FeatureCommand extends Command<int> {
       // Non-interactive mode
       name = args.first;
       outputBase = argResults!['output'] as String? ?? config.output.features;
-      final stateManagementStr = argResults!['state-management'] as String? ?? config.stateManagement;
+      final stateManagementStr =
+          argResults!['state-management'] as String? ?? config.stateManagement;
       stateManagement = StateManagement.values.firstWhere(
         (e) => e.name == stateManagementStr,
         orElse: () => StateManagement.cubit,
@@ -173,7 +175,8 @@ class FeatureCommand extends Command<int> {
       _logger.info('Next steps:');
       _logger.detail('  1. Add parameters to the job class');
       _logger.detail('  2. Implement business logic in the executor');
-      _logger.detail('  3. Add state fields and handle events in the ${stateManagement.name}');
+      _logger.detail(
+          '  3. Add state fields and handle events in the ${stateManagement.name}');
       _logger.detail('  4. Register the executor with Dispatcher');
 
       return 0;
@@ -220,9 +223,8 @@ class FeatureCommand extends Command<int> {
     // 5. Output directory
     stdout.write('Output directory [${config.output.features}]: ');
     final outputInput = stdin.readLineSync()?.trim();
-    final outputBase = outputInput?.isNotEmpty == true 
-        ? outputInput! 
-        : config.output.features;
+    final outputBase =
+        outputInput?.isNotEmpty == true ? outputInput! : config.output.features;
 
     return _InteractiveResult(
       name: name,

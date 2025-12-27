@@ -17,7 +17,8 @@ enum BrickType {
 class BrickLoader {
   /// Get the path to custom templates directory
   static String? getCustomTemplatesPath() {
-    final customPath = path.join(Directory.current.path, '.orchestrator', 'templates');
+    final customPath =
+        path.join(Directory.current.path, '.orchestrator', 'templates');
     if (Directory(customPath).existsSync()) {
       return customPath;
     }
@@ -28,7 +29,7 @@ class BrickLoader {
   static bool hasCustomTemplate(BrickType type) {
     final customPath = getCustomTemplatesPath();
     if (customPath == null) return false;
-    
+
     final templatePath = path.join(customPath, type.name);
     final brickYaml = File(path.join(templatePath, 'brick.yaml'));
     return brickYaml.existsSync();
@@ -38,32 +39,33 @@ class BrickLoader {
   static String getBricksPath() {
     // Try to find the bricks directory relative to the script or package
     final scriptPath = Platform.script.toFilePath();
-    
+
     // When running from source: bin/orchestrator.dart
     // Package root is parent of bin
     var packageRoot = path.dirname(path.dirname(scriptPath));
     var bricksPath = path.join(packageRoot, 'lib', 'src', 'bricks');
-    
+
     if (Directory(bricksPath).existsSync()) {
       return bricksPath;
     }
-    
+
     // When running from pub global activate or dart run
     // Look for bricks relative to current directory
     final currentDir = Directory.current.path;
-    
+
     // Check if we're in the package directory
     bricksPath = path.join(currentDir, 'lib', 'src', 'bricks');
     if (Directory(bricksPath).existsSync()) {
       return bricksPath;
     }
-    
+
     // Fallback: Look in packages/orchestrator_cli
-    bricksPath = path.join(currentDir, 'packages', 'orchestrator_cli', 'lib', 'src', 'bricks');
+    bricksPath = path.join(
+        currentDir, 'packages', 'orchestrator_cli', 'lib', 'src', 'bricks');
     if (Directory(bricksPath).existsSync()) {
       return bricksPath;
     }
-    
+
     throw StateError('Could not find bricks directory. '
         'Make sure you are running from the correct directory.');
   }
@@ -86,12 +88,12 @@ class BrickLoader {
       final bricksPath = getBricksPath();
       brickPath = path.join(bricksPath, brickName);
     }
-    
+
     final brick = Brick.path(brickPath);
     final generator = await MasonGenerator.fromBrick(brick);
-    
+
     final target = DirectoryGeneratorTarget(Directory(outputDir));
-    
+
     return await generator.generate(
       target,
       vars: vars,

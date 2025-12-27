@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
@@ -72,7 +74,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     buffer.writeln('    return $className(');
     for (final field in fields) {
       final fieldName = field.name;
-      final fieldType = field.type.getDisplayString();
+      final fieldType = field.type.getDisplayString(withNullability: true);
       // If type is explicitly Object? or dynamic, cast is unnecessary because param is Object?
       // Note: we check for specific strings. Might need more robust check for alias but this covers 99%
       final cast = (fieldType == 'Object?' || fieldType == 'dynamic')
@@ -96,7 +98,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     // Check if class has 'status' field of type AsyncStatus
     final hasStatusField = fields.any((f) =>
         f.name == 'status' &&
-        f.type.getDisplayString().contains('AsyncStatus'));
+        f.type.getDisplayString(withNullability: true).contains('AsyncStatus'));
 
     // Check for common data/error field patterns
     final hasDataField = fields.any((f) => f.name == 'data');
@@ -119,7 +121,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
       // toSuccess (with optional data param if data field exists)
       if (hasDataField) {
         final dataField = fields.firstWhere((f) => f.name == 'data');
-        final dataType = dataField.type.getDisplayString();
+        final dataType = dataField.type.getDisplayString(withNullability: true);
         buffer.writeln('  $className toSuccess($dataType data) => copyWith(');
         buffer.writeln('    status: AsyncStatus.success,');
         buffer.writeln('    data: data,');
@@ -151,7 +153,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
   ) {
     final hasStatusField = fields.any((f) =>
         f.name == 'status' &&
-        f.type.getDisplayString().contains('AsyncStatus'));
+        f.type.getDisplayString(withNullability: true).contains('AsyncStatus'));
 
     if (!hasStatusField) return;
 
@@ -167,7 +169,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     buffer.writeln('    required R Function() loading,');
     if (hasDataField) {
       final dataField = fields.firstWhere((f) => f.name == 'data');
-      final dataType = dataField.type.getDisplayString();
+      final dataType = dataField.type.getDisplayString(withNullability: true);
       buffer.writeln('    required R Function($dataType data) success,');
     } else {
       buffer.writeln('    required R Function() success,');
@@ -179,7 +181,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     }
     if (hasDataField) {
       final dataField = fields.firstWhere((f) => f.name == 'data');
-      final dataType = dataField.type.getDisplayString();
+      final dataType = dataField.type.getDisplayString(withNullability: true);
       buffer.writeln('    R Function($dataType data)? refreshing,');
     } else {
       buffer.writeln('    R Function()? refreshing,');
@@ -215,7 +217,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     buffer.writeln('    R Function()? loading,');
     if (hasDataField) {
       final dataField = fields.firstWhere((f) => f.name == 'data');
-      final dataType = dataField.type.getDisplayString();
+      final dataType = dataField.type.getDisplayString(withNullability: true);
       buffer.writeln('    R Function($dataType data)? success,');
     } else {
       buffer.writeln('    R Function()? success,');

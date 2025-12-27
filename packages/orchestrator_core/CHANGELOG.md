@@ -2,14 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.1] - 2025-12-27
+## 0.3.1 - 2025-12-27
 
 ### Added
 - **Resource Cleanup**: Introduced `CleanupPolicy` and `CleanupService` interface.
 - **Cache**: Added LRU eviction and proactive expiration to `InMemoryCacheProvider`.
 - **Config**: Added `cleanupPolicy` configuration to `OrchestratorConfig`.
 
-## [0.3.0] - 2025-12-26
+## 0.3.0 - 2025-12-26
 
 ### Features: Extended Code Generation
 - **New**: Added annotations for enhanced code generation:
@@ -19,7 +19,8 @@ All notable changes to this project will be documented in this file.
   - `@GenerateEvent`: Reduces boilerplate for event classes.
   - `@NetworkJob`: Added `generateSerialization` flag.
   - `@ExecutorRegistry`: For auto-registering executors.
-## [0.2.0] - 2025-12-25
+
+## 0.2.0 - 2025-12-25
 
 ### Added
 - **New**: `JobBuilder` - Fluent API for configuring jobs with timeout, retry, cache, placeholder.
@@ -42,7 +43,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - All adapters now use `SignalBus.instance` for consistency.
 
-## [0.1.0] - 2025-12-25
+## 0.1.0 - 2025-12-25
 
 ### Features: Unified Data Flow & Caching
 - **New**: **Unified Data Flow** architecture supporting Placeholder -> Cache (SWR) -> Process -> Cache Write.
@@ -56,7 +57,7 @@ All notable changes to this project will be documented in this file.
 - **New**: `CacheProvider` interface with default `InMemoryCacheProvider`.
 - **New**: Events `JobPlaceholderEvent` and `JobCacheHitEvent`.
 
-## [0.0.3] - 2024-12-24
+## 0.0.3 - 2024-12-24
 
 ### Architecture (Scoped Bus)
 - **New**: Support **Scoped Bus** for isolated module communication.
@@ -68,7 +69,7 @@ All notable changes to this project will be documented in this file.
   - This allows Executors to automatically route events to the correct bus without hidden magic.
 - **Improved**: `BaseExecutor` now dynamically resolves the target bus based on the Job's context.
 
-## [0.0.2] - 2024-12-24
+## 0.0.2 - 2024-12-24
 
 ### Added
 - **Safety**: Smart Circuit Breaker (Loop Protection by Event Type)
@@ -81,7 +82,7 @@ All notable changes to this project will be documented in this file.
 - **UI Helper**: `BaseOrchestrator.isJobTypeRunning<T>()` to prevent UI race conditions
 - **Config**: Added `OrchestratorConfig.maxEventsPerSecond`
 
-## [0.0.1] - 2024-12-24
+## 0.0.1 - 2024-12-24
 
 ### Added
 - Initial release

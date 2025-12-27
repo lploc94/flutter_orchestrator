@@ -2,13 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2025-12-27
+## 0.3.0 - 2025-12-27
 
 ### Changed
 - Updated dependency to `orchestrator_core: ^0.3.0`.
 - Compatible with new Unified Data Flow and DevTools extension.
 
-## [0.2.0] - 2025-12-25
+## 0.2.0 - 2025-12-25
 
 ### Fixed
 - Use `SignalBus.instance` instead of `SignalBus()` for consistent singleton access.
@@ -17,12 +17,12 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Updated dependency to `orchestrator_core: ^0.2.0`.
 
-## [0.1.0] - 2025-12-25
+## 0.1.0 - 2025-12-25
 
 ### Changed
 - Updated dependency to `orchestrator_core: ^0.1.0` to support Unified Data Flow and Advanced Caching features.
 
-## [0.0.1] - 2024-12-24
+## 0.0.1 - 2024-12-24
 
 ### Added
 - Initial release

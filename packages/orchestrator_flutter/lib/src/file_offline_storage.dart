@@ -95,7 +95,7 @@ class FileNetworkQueueStorage implements NetworkQueueStorage {
   Future<void> updateJob(String id, Map<String, dynamic> updates) async {
     final file = await _getFile(id);
     final tempPath = '${file.path}.tmp.${Random().nextInt(99999)}';
-    
+
     // Retry logic for transient file system errors
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
@@ -104,11 +104,11 @@ class FileNetworkQueueStorage implements NetworkQueueStorage {
           // the job might have been removed by another process
           return;
         }
-        
+
         final content = await file.readAsString();
         final existing = jsonDecode(content) as Map<String, dynamic>;
         final updated = {...existing, ...updates};
-        
+
         // Atomic write: write to temp file then rename
         final tempFile = File(tempPath);
         await tempFile.writeAsString(jsonEncode(updated));
@@ -119,7 +119,7 @@ class FileNetworkQueueStorage implements NetworkQueueStorage {
         try {
           await File(tempPath).delete();
         } catch (_) {}
-        
+
         if (attempt == 2) rethrow; // Last attempt, propagate error
         await Future.delayed(Duration(milliseconds: 50 * (attempt + 1)));
       }

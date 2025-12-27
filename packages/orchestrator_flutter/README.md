@@ -77,7 +77,7 @@ provider.onConnectivityChanged.listen((connected) {
 
 ## Documentation
 
-See the full [documentation](https://github.com/lploc94/flutter_orchestrator/tree/main/book).
+See the full [documentation](https://github.com/lploc94/flutter_orchestrator/blob/main/docs/en/README.md).
 
 ## License
 
