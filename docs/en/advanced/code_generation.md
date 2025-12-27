@@ -309,6 +309,23 @@ class UserState {
 }
 ```
 
+### Custom Status Field Name
+
+If your status field has a different name, use the `statusField` parameter:
+
+```dart
+@GenerateAsyncState(statusField: 'loadingStatus')
+class CustomState {
+  final AsyncStatus loadingStatus;  // Custom name
+  final Data? data;
+  
+  const CustomState({this.loadingStatus = AsyncStatus.initial, this.data});
+}
+```
+
+Generated methods will use `loadingStatus` instead of `status`:
+```
+
 ### Generated Methods
 
 ```dart
@@ -383,38 +400,103 @@ emit(state.copyWith(username: null));  // ✅ Works correctly
 
 ## 8. @GenerateJob - Job Boilerplate
 
-Generates boilerplate for Job (Auto ID, timeout/retry config).
+Generates an abstract class that extends `BaseJob` with auto-generated ID, timeout, and retry policy.
 
 ### Usage
 
 ```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'fetch_user_job.g.dart';
+
 @GenerateJob(
-  generateId: true,
-  defaultTimeout: Duration(seconds: 30),
-  defaultRetryCount: 3,
+  timeout: Duration(seconds: 30),
+  maxRetries: 3,
+  retryDelay: Duration(seconds: 2),
 )
-class FetchUserJob extends BaseJob {
+class FetchUserJob extends _$FetchUserJob {  // Extends generated class!
   final String userId;
   
-  FetchUserJob(this.userId);
+  FetchUserJob(this.userId);  // No need to call super(id: ...)
 }
 ```
+
+### Generated Code
+
+```dart
+// fetch_user_job.g.dart
+abstract class _$FetchUserJob extends BaseJob {
+  _$FetchUserJob({
+    super.cancellationToken,
+    super.metadata,
+    super.strategy,
+  }) : super(
+          id: generateJobId('fetch_user_job'),
+          timeout: Duration(microseconds: 30000000),
+          retryPolicy: RetryPolicy(maxRetries: 3, initialDelay: Duration(microseconds: 2000000)),
+        );
+}
+```
+
+### Options
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `timeout` | `null` | Job timeout duration |
+| `maxRetries` | `null` | Maximum retry attempts |
+| `retryDelay` | `1 second` | Initial delay for exponential backoff |
+| `idPrefix` | class name in snake_case | Custom Job ID prefix |
+
+> **Note:** The class must `extend _$ClassName` (e.g., `FetchUserJob extends _$FetchUserJob`), NOT `BaseJob` directly.
 
 ---
 
 ## 9. @GenerateEvent - Event Boilerplate
 
-Generates boilerplate for Event class.
+Generates an extension with `toEvent()` method and a wrapper class.
 
 ### Usage
 
 ```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'order_placed.g.dart';
+
 @GenerateEvent()
-class UserLoggedIn extends BaseEvent {
-  final String username;
+class OrderPlaced {
+  final Order order;
+  final DateTime timestamp;
   
-  UserLoggedIn(this.username);
+  OrderPlaced({required this.order, required this.timestamp});
 }
+```
+
+### Generated Code
+
+```dart
+// order_placed.g.dart
+extension _$OrderPlacedEvent on OrderPlaced {
+  BaseEvent toEvent(String correlationId) {
+    return _OrderPlacedEventWrapper(correlationId, this);
+  }
+}
+
+class _OrderPlacedEventWrapper extends BaseEvent {
+  final OrderPlaced payload;
+  _OrderPlacedEventWrapper(super.correlationId, this.payload);
+}
+```
+
+### Usage After Generation
+
+```dart
+// Create event from payload
+final event = OrderPlaced(
+  order: myOrder,
+  timestamp: DateTime.now(),
+).toEvent(job.id);
+
+bus.emit(event);
 ```
 
 ---

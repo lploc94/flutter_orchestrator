@@ -32,6 +32,9 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
       );
     }
     final generateEquality = annotation.read('generateEquality').boolValue;
+    final statusFieldReader = annotation.read('statusField');
+    final statusFieldName =
+        statusFieldReader.isNull ? 'status' : statusFieldReader.stringValue;
 
     // Get all instance fields
     final fields = classElement.fields
@@ -52,10 +55,10 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     _generateCopyWith(buffer, className, fields);
 
     // Generate state transition methods
-    _generateTransitionMethods(buffer, className, fields);
+    _generateTransitionMethods(buffer, className, fields, statusFieldName);
 
     // Generate when/maybeWhen
-    _generatePatternMatching(buffer, className, fields);
+    _generatePatternMatching(buffer, className, fields, statusFieldName);
 
     buffer.writeln('}');
 
@@ -101,10 +104,11 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     StringBuffer buffer,
     String className,
     List<FieldElement> fields,
+    String statusFieldName,
   ) {
-    // Check if class has 'status' field of type AsyncStatus
+    // Check if class has status field of type AsyncStatus
     final hasStatusField = fields.any((f) =>
-        f.name == 'status' &&
+        f.name == statusFieldName &&
         f.type.getDisplayString(withNullability: true).contains('AsyncStatus'));
 
     // Check for common data/error field patterns
@@ -117,12 +121,12 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     if (hasStatusField) {
       // toLoading
       buffer.writeln(
-          '  $className toLoading() => copyWith(status: AsyncStatus.loading);');
+          '  $className toLoading() => copyWith($statusFieldName: AsyncStatus.loading);');
       buffer.writeln();
 
       // toRefreshing
       buffer.writeln(
-          '  $className toRefreshing() => copyWith(status: AsyncStatus.refreshing);');
+          '  $className toRefreshing() => copyWith($statusFieldName: AsyncStatus.refreshing);');
       buffer.writeln();
 
       // toSuccess (with optional data param if data field exists)
@@ -130,24 +134,24 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
         final dataField = fields.firstWhere((f) => f.name == 'data');
         final dataType = dataField.type.getDisplayString(withNullability: true);
         buffer.writeln('  $className toSuccess($dataType data) => copyWith(');
-        buffer.writeln('    status: AsyncStatus.success,');
+        buffer.writeln('    $statusFieldName: AsyncStatus.success,');
         buffer.writeln('    data: data,');
         buffer.writeln('  );');
       } else {
         buffer.writeln(
-            '  $className toSuccess() => copyWith(status: AsyncStatus.success);');
+            '  $className toSuccess() => copyWith($statusFieldName: AsyncStatus.success);');
       }
       buffer.writeln();
 
       // toFailure
       if (hasErrorField) {
         buffer.writeln('  $className toFailure(Object error) => copyWith(');
-        buffer.writeln('    status: AsyncStatus.failure,');
+        buffer.writeln('    $statusFieldName: AsyncStatus.failure,');
         buffer.writeln('    $errorFieldName: error,');
         buffer.writeln('  );');
       } else {
         buffer.writeln(
-            '  $className toFailure() => copyWith(status: AsyncStatus.failure);');
+            '  $className toFailure() => copyWith($statusFieldName: AsyncStatus.failure);');
       }
       buffer.writeln();
     }
@@ -157,9 +161,10 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     StringBuffer buffer,
     String className,
     List<FieldElement> fields,
+    String statusFieldName,
   ) {
     final hasStatusField = fields.any((f) =>
-        f.name == 'status' &&
+        f.name == statusFieldName &&
         f.type.getDisplayString(withNullability: true).contains('AsyncStatus'));
 
     if (!hasStatusField) return;
@@ -194,7 +199,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
       buffer.writeln('    R Function()? refreshing,');
     }
     buffer.writeln('  }) {');
-    buffer.writeln('    return switch (status) {');
+    buffer.writeln('    return switch ($statusFieldName) {');
     buffer.writeln('      AsyncStatus.initial => initial(),');
     buffer.writeln('      AsyncStatus.loading => loading(),');
     if (hasDataField) {
@@ -236,7 +241,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     }
     buffer.writeln('    required R Function() orElse,');
     buffer.writeln('  }) {');
-    buffer.writeln('    return switch (status) {');
+    buffer.writeln('    return switch ($statusFieldName) {');
     buffer.writeln('      AsyncStatus.initial => initial?.call() ?? orElse(),');
     buffer.writeln('      AsyncStatus.loading => loading?.call() ?? orElse(),');
     if (hasDataField) {

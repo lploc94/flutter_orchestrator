@@ -5,7 +5,8 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 
 /// Generator for classes annotated with `@GenerateJob`.
 ///
-/// Generates a mixin that provides BaseJob functionality.
+/// Generates an abstract class that extends BaseJob with auto-generated ID,
+/// timeout, and retry policy based on annotation configuration.
 class JobGenerator extends GeneratorForAnnotation<GenerateJob> {
   @override
   String generateForAnnotatedElement(
@@ -67,23 +68,31 @@ class JobGenerator extends GeneratorForAnnotation<GenerateJob> {
 
     final buffer = StringBuffer();
     buffer.writeln('// ignore_for_file: unused_element');
-    buffer.writeln('mixin _\$${className}Job {');
 
-    // Generate ID getter
-    buffer.writeln("  String get _generatedId => generateJobId('$idPrefix');");
-    buffer.writeln();
+    // Generate abstract class that extends BaseJob
+    buffer.writeln('abstract class _\$${className} extends BaseJob {');
 
-    // Generate timeout getter if configured
+    // Constructor
+    buffer.writeln('  _\$${className}({');
+    buffer.writeln('    super.cancellationToken,');
+    buffer.writeln('    super.metadata,');
+    buffer.writeln('    super.strategy,');
+    buffer.writeln('  }) : super(');
+
+    // Pass ID
+    buffer.writeln("          id: generateJobId('$idPrefix'),");
+
+    // Pass timeout if configured
     if (timeoutCode != null) {
-      buffer.writeln('  Duration get _generatedTimeout => $timeoutCode;');
+      buffer.writeln('          timeout: $timeoutCode,');
     }
 
-    // Generate retry policy getter if configured
+    // Pass retry policy if configured
     if (retryPolicyCode != null) {
-      buffer.writeln(
-          '  RetryPolicy get _generatedRetryPolicy => $retryPolicyCode;');
+      buffer.writeln('          retryPolicy: $retryPolicyCode,');
     }
 
+    buffer.writeln('        );');
     buffer.writeln('}');
 
     return buffer.toString();

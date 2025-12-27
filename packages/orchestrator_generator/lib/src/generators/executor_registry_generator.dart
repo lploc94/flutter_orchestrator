@@ -67,7 +67,7 @@ class ExecutorRegistryGenerator
     // It seems it copies the signature.
 
     String params = '';
-    if (element is FunctionElement) {
+    if (element is ExecutableElement) {
       // Copy parameters
       params = element.parameters.map((p) => '${p.type} ${p.name}').join(', ');
     }

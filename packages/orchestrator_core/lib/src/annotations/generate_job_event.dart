@@ -1,18 +1,24 @@
 /// Annotation to simplify Job class declaration.
 ///
-/// When applied to a class, the generator will:
-/// - Create a class that extends `BaseJob`
-/// - Auto-generate job ID
-/// - Apply configured timeout and retry policy
+/// When applied to a class, the generator will create an abstract class
+/// `_$ClassName` that:
+/// - Extends `BaseJob`
+/// - Auto-generates job ID with class name as prefix
+/// - Applies configured timeout and retry policy
 ///
 /// Example:
 /// ```dart
 /// @GenerateJob(timeout: Duration(seconds: 30), maxRetries: 3)
-/// class FetchUserJob {
+/// class FetchUserJob extends _$FetchUserJob {
 ///   final String userId;
 ///   FetchUserJob(this.userId);
 /// }
 /// ```
+///
+/// The generated `_$FetchUserJob` handles:
+/// - `id`: Auto-generated as `fetch_user_job-<timestamp>-<random>`
+/// - `timeout`: 30 seconds
+/// - `retryPolicy`: 3 retries with exponential backoff
 class GenerateJob {
   /// Timeout duration for this job type.
   final Duration? timeout;
@@ -36,9 +42,9 @@ class GenerateJob {
 
 /// Annotation to simplify Event class declaration.
 ///
-/// When applied to a class, the generator will:
-/// - Create a class that extends `BaseEvent`
-/// - Handle correlationId automatically
+/// When applied to a class, the generator creates:
+/// - An extension with `toEvent(correlationId)` method
+/// - A wrapper class that extends `BaseEvent`
 ///
 /// Example:
 /// ```dart
@@ -46,7 +52,15 @@ class GenerateJob {
 /// class OrderPlaced {
 ///   final Order order;
 ///   final DateTime timestamp;
+///   OrderPlaced({required this.order, required this.timestamp});
 /// }
+/// ```
+///
+/// Usage after generation:
+/// ```dart
+/// final event = OrderPlaced(order: myOrder, timestamp: DateTime.now())
+///     .toEvent(job.id);
+/// bus.emit(event);
 /// ```
 class GenerateEvent {
   const GenerateEvent();

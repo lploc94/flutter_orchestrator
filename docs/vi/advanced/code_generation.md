@@ -309,7 +309,21 @@ class UserState {
 }
 ```
 
-### Generated Methods
+### Tên Status Field Tùy Chỉnh
+
+Nếu status field có tên khác, sử dụng tham số `statusField`:
+
+```dart
+@GenerateAsyncState(statusField: 'loadingStatus')
+class CustomState {
+  final AsyncStatus loadingStatus;  // Tên tùy chỉnh
+  final Data? data;
+  
+  const CustomState({this.loadingStatus = AsyncStatus.initial, this.data});
+}
+```
+
+Các method được sinh sẽ dùng `loadingStatus` thay vì `status`:
 
 ```dart
 // user_state.g.dart
@@ -383,44 +397,104 @@ emit(state.copyWith(username: null));  // ✅ Hoạt động đúng
 
 ## @GenerateJob - Job Boilerplate
 
-Sinh boilerplate cho Job (ID tự động, cấu hình timeout/retry).
+Sinh abstract class kế thừa `BaseJob` với ID tự động, timeout và retry policy.
 
 ### Sử dụng
 
 ```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'fetch_user_job.g.dart';
+
 @GenerateJob(
-  generateId: true,
-  defaultTimeout: Duration(seconds: 30),
-  defaultRetryCount: 3,
+  timeout: Duration(seconds: 30),
+  maxRetries: 3,
+  retryDelay: Duration(seconds: 2),
 )
-class FetchUserJob extends BaseJob {
+class FetchUserJob extends _$FetchUserJob {  // Kế thừa class được sinh!
   final String userId;
   
-  FetchUserJob(this.userId);
+  FetchUserJob(this.userId);  // Không cần gọi super(id: ...)
 }
 ```
 
+### Code được sinh
 
+```dart
+// fetch_user_job.g.dart
+abstract class _$FetchUserJob extends BaseJob {
+  _$FetchUserJob({
+    super.cancellationToken,
+    super.metadata,
+    super.strategy,
+  }) : super(
+          id: generateJobId('fetch_user_job'),
+          timeout: Duration(microseconds: 30000000),
+          retryPolicy: RetryPolicy(maxRetries: 3, initialDelay: Duration(microseconds: 2000000)),
+        );
+}
+```
+
+### Tùy chọn
+
+| Tham số | Mặc định | Mô tả |
+|---------|----------|-------|
+| `timeout` | `null` | Thời gian timeout của Job |
+| `maxRetries` | `null` | Số lần retry tối đa |
+| `retryDelay` | `1 giây` | Delay ban đầu cho exponential backoff |
+| `idPrefix` | tên class dạng snake_case | Prefix tùy chỉnh cho Job ID |
+
+> **Lưu ý:** Class phải `extend _$ClassName` (ví dụ: `FetchUserJob extends _$FetchUserJob`), KHÔNG phải `BaseJob` trực tiếp.
 
 ---
 
 ## @GenerateEvent - Event Boilerplate
 
-Sinh boilerplate cho Event class.
+Sinh extension với method `toEvent()` và wrapper class.
 
 ### Sử dụng
 
 ```dart
+import 'package:orchestrator_core/orchestrator_core.dart';
+
+part 'order_placed.g.dart';
+
 @GenerateEvent()
-class UserLoggedIn extends BaseEvent {
-  final String username;
+class OrderPlaced {
+  final Order order;
+  final DateTime timestamp;
   
-  UserLoggedIn(this.username);
+  OrderPlaced({required this.order, required this.timestamp});
 }
 ```
 
+### Code được sinh
 
+```dart
+// order_placed.g.dart
+extension _$OrderPlacedEvent on OrderPlaced {
+  BaseEvent toEvent(String correlationId) {
+    return _OrderPlacedEventWrapper(correlationId, this);
+  }
+}
 
+class _OrderPlacedEventWrapper extends BaseEvent {
+  final OrderPlaced payload;
+  _OrderPlacedEventWrapper(super.correlationId, this.payload);
+}
+```
+
+### Cách sử dụng sau khi sinh
+
+```dart
+// Tạo event từ payload
+final event = OrderPlaced(
+  order: myOrder,
+  timestamp: DateTime.now(),
+).toEvent(job.id);
+
+bus.emit(event);
+```
 ---
 
 ## Chạy Code Generator

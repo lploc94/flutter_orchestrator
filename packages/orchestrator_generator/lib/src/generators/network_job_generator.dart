@@ -110,8 +110,10 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
     // Checks for `id` param specifically.
 
     // Let's check if `id` is a parameter in the default constructor.
-    bool hasIdParam =
-        constructor?.parameters.any((p) => p.name == 'id') ?? false;
+    bool hasIdParam = false;
+    if (constructor != null) {
+      hasIdParam = constructor.parameters.any((p) => p.name == 'id');
+    }
 
     if (hasIdParam) {
       buffer.writeln("      id: json['id'] as String,");
