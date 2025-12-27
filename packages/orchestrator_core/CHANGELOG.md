@@ -1,3 +1,9 @@
+## 0.3.2 - 2025-12-27
+
+### Fixed
+- Improved pub.dev scoring: added documentation field, formatted code.
+- Updated dependency ranges for wider compatibility.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

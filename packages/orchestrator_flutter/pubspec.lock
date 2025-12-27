@@ -171,9 +171,10 @@ packages:
   orchestrator_core:
     dependency: "direct main"
     description:
-      path: "../orchestrator_core"
-      relative: true
-    source: path
+      name: orchestrator_core
+      sha256: e95b12d21e1662d7e016dff2b307f7d84420b2f58fc2c90f38d558aae81e8a1c
+      url: "https://pub.dev"
+    source: hosted
     version: "0.3.1"
   path:
     dependency: "direct main"
