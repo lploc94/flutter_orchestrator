@@ -18,13 +18,6 @@
       ]
     },
     {
-      "name": "orchestrator_core",
-      "version": "0.3.3",
-      "dependencies": [
-        "meta"
-      ]
-    },
-    {
       "name": "flutter_test",
       "version": "0.0.0",
       "dependencies": [
@@ -82,6 +75,13 @@
       ]
     },
     {
+      "name": "orchestrator_core",
+      "version": "0.3.3",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
       "name": "flutter",
       "version": "0.0.0",
       "dependencies": [
@@ -92,11 +92,6 @@
         "sky_engine",
         "vector_math"
       ]
-    },
-    {
-      "name": "meta",
-      "version": "1.16.0",
-      "dependencies": []
     },
     {
       "name": "vm_service",
@@ -130,6 +125,11 @@
         "path",
         "term_glyph"
       ]
+    },
+    {
+      "name": "meta",
+      "version": "1.16.0",
+      "dependencies": []
     },
     {
       "name": "material_color_utilities",
