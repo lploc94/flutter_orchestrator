@@ -13,7 +13,7 @@ If you are interested in design philosophy and architectural thinking, please re
 - [Cheat Sheet - Core Concepts Overview](guide/core_concepts.md)
 - [Standard Project Structure](guide/project_structure.md)
 
-### ️ CLI Tool
+### CLI Tool
 - [Orchestrator CLI](guide/cli.md) - Scaffolding tool
 - [CLI Cheatsheet](guide/cli_cheatsheet.md) - Quick reference
 

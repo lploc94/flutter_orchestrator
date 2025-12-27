@@ -39,16 +39,19 @@ dependencies:
     sdk: flutter
   
   # Core framework (REQUIRED)
-  orchestrator_core: ^1.0.0
+  orchestrator_core: ^0.3.3
   
   # Choose 1 suitable integration:
-  orchestrator_bloc: ^1.0.0      # If using flutter_bloc
-  # orchestrator_provider: ^1.0.0  # If using provider
-  # orchestrator_riverpod: ^1.0.0  # If using riverpod
+  orchestrator_bloc: ^0.3.1      # If using flutter_bloc
+  # orchestrator_provider: ^0.3.1  # If using provider
+  # orchestrator_riverpod: ^0.3.1  # If using riverpod
+
+  # Flutter platform support (offline queue, cleanup, DevTools observer)
+  orchestrator_flutter: ^0.3.2
 
 dev_dependencies:
   build_runner: ^2.4.0
-  orchestrator_generator: ^1.0.0  # For code generation (Network Jobs)
+  orchestrator_generator: ^0.3.1  # Optional code generation
 ```
 
 ---
@@ -58,25 +61,34 @@ dev_dependencies:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:orchestrator_core/orchestrator_core.dart';
+import 'package:orchestrator_flutter/orchestrator_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 1. Register all Executors BEFORE runApp
   _registerExecutors();
-  
-  // 2. (Optional) Configure Logger
-  OrchestratorConfig.setLogger(ConsoleLogger());
+
+  // 2. (Optional) Flutter integrations (offline queue, cleanup...)
+  OrchestratorFlutter.initialize();
+
+  // 3. (Optional) Enable debug logging
+  OrchestratorConfig.enableDebugLogging();
+
+  // 4. (Optional) DevTools observer (debug/profile only)
+  initDevToolsObserver();
   
   runApp(const MyApp());
 }
 
 void _registerExecutors() {
   final dispatcher = Dispatcher();
+
+  final counterService = CounterService();
   
   // Each Job type -> One Executor
-  dispatcher.register<IncrementJob>(IncrementExecutor());
-  dispatcher.register<FetchUserJob>(FetchUserExecutor(ApiService()));
+  dispatcher.register<IncrementJob>(IncrementExecutor(counterService));
+  dispatcher.register<DecrementJob>(DecrementExecutor(counterService));
   // ... add other executors
 }
 ```
@@ -95,11 +107,11 @@ Job is a **data class** describing the action to be performed:
 import 'package:orchestrator_core/orchestrator_core.dart';
 
 class IncrementJob extends BaseJob {
-  IncrementJob() : super(id: generateJobId());
+  IncrementJob() : super(id: generateJobId('increment'));
 }
 
 class DecrementJob extends BaseJob {
-  DecrementJob() : super(id: generateJobId());
+  DecrementJob() : super(id: generateJobId('decrement'));
 }
 ```
 
@@ -108,26 +120,35 @@ class DecrementJob extends BaseJob {
 Executor contains the actual **business logic**:
 
 ```dart
+class CounterService {
+  int _count = 0;
+
+  int increment() => ++_count;
+  int decrement() => --_count;
+}
+
 class IncrementExecutor extends BaseExecutor<IncrementJob> {
-  int _count = 0;  // Database simulation
+  final CounterService _service;
+
+  IncrementExecutor(this._service);
 
   @override
   Future<int> process(IncrementJob job) async {
     // Simulate network delay
     await Future.delayed(const Duration(milliseconds: 300));
-    _count++;
-    return _count;
+    return _service.increment();
   }
 }
 
 class DecrementExecutor extends BaseExecutor<DecrementJob> {
-  int _count = 0;
+  final CounterService _service;
+
+  DecrementExecutor(this._service);
 
   @override
   Future<int> process(DecrementJob job) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    _count--;
-    return _count;
+    return _service.decrement();
   }
 }
 ```
@@ -244,8 +265,11 @@ class CounterPage extends StatelessWidget {
 ```dart
 void main() {
   // IMPORTANT: Register BEFORE runApp
-  Dispatcher().register<IncrementJob>(IncrementExecutor());
-  Dispatcher().register<DecrementJob>(DecrementExecutor());
+  final dispatcher = Dispatcher();
+  final counterService = CounterService();
+
+  dispatcher.register<IncrementJob>(IncrementExecutor(counterService));
+  dispatcher.register<DecrementJob>(DecrementExecutor(counterService));
   
   runApp(MaterialApp(home: CounterPage()));
 }

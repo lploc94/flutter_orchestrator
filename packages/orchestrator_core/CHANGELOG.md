@@ -1,3 +1,9 @@
+## 0.3.3 - 2025-12-27
+
+### Changed
+- Exposed `Dispatcher.registeredExecutors` getter for DevTools integration.
+- Exposed `OrchestratorConfig.cleanupService` getter for DevTools integration.
+
 ## 0.3.2 - 2025-12-27
 
 ### Fixed

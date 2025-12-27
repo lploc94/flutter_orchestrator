@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3] - 2025-12-27
+
+### orchestrator_core
+- **Fixed**: Exposed `Dispatcher.registeredExecutors` and `OrchestratorConfig.cleanupService` to fix missing symbols in DevTools integration.
+
+### orchestrator_generator
+- **Fixed**: Suppressed false positive `unnecessary_null_comparison` lint warnings in generated code.
+
+### orchestrator_flutter
+- **Fixed**: Bumped version to 0.3.3 to sync with `orchestrator_core` updates and resolve analysis errors.
+
 ## [0.3.2] - 2025-12-27
 
 ### All Packages (Pub.dev Ecosystem Optimization)

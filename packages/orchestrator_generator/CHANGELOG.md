@@ -1,3 +1,8 @@
+## 0.3.3 - 2025-12-27
+
+### Fixed
+- Fixed false positive lint warning `unnecessary_null_comparison` in generator logic.
+
 ## 0.3.2 - 2025-12-27
 
 ### Fixed

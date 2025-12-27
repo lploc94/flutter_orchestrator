@@ -1,3 +1,9 @@
+## 0.3.3 - 2025-12-27
+
+### Fixed
+- Bumped `orchestrator_core` dependency to `^0.3.3` to fix undefined getters in DevTools integration.
+- Fixes pub.dev analysis issues related to missing API symbols.
+
 ## 0.3.2 - 2025-12-27
 
 ### Fixed

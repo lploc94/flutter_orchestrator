@@ -46,7 +46,7 @@ flowchart LR
 
 1. **Complete Logic Separation**: Executors know nothing about UI, Orchestrators know nothing about API/DB calls.
 2. **Easy Testing**: With logic in pure Dart Executors, you can Unit Test 100% of logic without mocking Context or Widgets.
-3. **Automatic Offline Support**: Just mark with `@NetworkJob`, and queuing, retry, sync when online are all handled automatically.
+3. **Automatic Offline Support**: Implement `NetworkAction` for offline queuing (optional: `@NetworkJob` + codegen for serialization/registry).
 4. **Better Teamwork**: Dev A works on screens (Orchestrator), Dev B works on logic (Executor). No more conflicts in a 2000-line Controller.
 5. **DevTools Integration**: Real-time debugging with Flutter DevTools extension for event monitoring, metrics, and network queue inspection.
 
@@ -57,13 +57,17 @@ See detailed documentation at: [Framework Docs (English)](docs/en/README.md)
 ### Quick Installation
 
 ```bash
-# Core + State Management Integration
-flutter pub add orchestrator_core orchestrator_bloc
+# Core framework (REQUIRED)
+flutter pub add orchestrator_core
 
-# Flutter Platform Support (Offline Storage, DevTools)
+# Choose 1 suitable integration:
+flutter pub add orchestrator_bloc
+# flutter pub add orchestrator_provider
+# flutter pub add orchestrator_riverpod
+
+# Flutter platform support (offline queue, cleanup, DevTools)
 flutter pub add orchestrator_flutter
 
-# Code Generation (Optional)
 # Code Generation (Optional)
 flutter pub add dev:orchestrator_generator dev:build_runner
 
@@ -78,7 +82,7 @@ flutter pub add dev:orchestrator_test
 class LoginJob extends BaseJob {
   final String username;
   final String password;
-  LoginJob(this.username, this.password);
+  LoginJob(this.username, this.password) : super(id: generateJobId('login'));
 }
 ```
 
@@ -124,6 +128,7 @@ flutter_orchestrator/
 │   ├── orchestrator_provider/   # Provider integration
 │   ├── orchestrator_riverpod/   # Riverpod integration
 │   ├── orchestrator_generator/  # Code generation
+│   ├── orchestrator_test/       # Testing utilities
 │   ├── orchestrator_cli/    # CLI tool
 │   └── orchestrator_devtools_extension/ # DevTools Extension
 │
@@ -136,14 +141,14 @@ flutter_orchestrator/
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [orchestrator_core](packages/orchestrator_core) | 0.3.1 | Core framework (Pure Dart) - Jobs, Executors, Dispatcher, Events |
-| [orchestrator_flutter](packages/orchestrator_flutter) | 0.3.1 | Flutter platform support - Offline storage, Connectivity, DevTools Observer |
-| [orchestrator_bloc](packages/orchestrator_bloc) | 0.3.0 | flutter_bloc integration - OrchestratorCubit, OrchestratorBloc |
-| [orchestrator_provider](packages/orchestrator_provider) | 0.3.0 | provider integration - OrchestratorNotifier |
-| [orchestrator_riverpod](packages/orchestrator_riverpod) | 0.3.0 | riverpod integration - OrchestratorNotifier |
-| [orchestrator_generator](packages/orchestrator_generator) | 0.3.0 | Code generation for @NetworkJob, @AsyncState, @Orchestrator |
-| [orchestrator_test](packages/orchestrator_test) | 0.1.0 | Testing utilities - Mocks, Fakes, Matchers, BDD helpers |
-| [orchestrator_cli](packages/orchestrator_cli) | 0.1.0 | CLI tool for project scaffolding (WIP) |
+| [orchestrator_core](packages/orchestrator_core) | 0.3.3 | Core framework (Pure Dart) - Jobs, Executors, Dispatcher, Events |
+| [orchestrator_flutter](packages/orchestrator_flutter) | 0.3.3 | Flutter platform support - Offline storage, Connectivity, DevTools Observer |
+| [orchestrator_bloc](packages/orchestrator_bloc) | 0.3.1 | flutter_bloc integration - OrchestratorCubit, OrchestratorBloc |
+| [orchestrator_provider](packages/orchestrator_provider) | 0.3.1 | provider integration - OrchestratorNotifier |
+| [orchestrator_riverpod](packages/orchestrator_riverpod) | 0.3.1 | riverpod integration - OrchestratorNotifier |
+| [orchestrator_generator](packages/orchestrator_generator) | 0.3.3 | Code generation for @NetworkJob, @AsyncState, @Orchestrator |
+| [orchestrator_test](packages/orchestrator_test) | 0.1.1 | Testing utilities - Mocks, Fakes, Matchers, BDD helpers |
+| [orchestrator_cli](packages/orchestrator_cli) | 0.1.2 | CLI tool for project scaffolding |
 | orchestrator_devtools_extension | - | DevTools Extension for real-time debugging (bundled in orchestrator_flutter) |
 
 ## DevTools Extension
@@ -156,7 +161,7 @@ Flutter Orchestrator includes a DevTools extension for real-time debugging:
 - **Network Queue**: Inspect pending offline jobs
 - **Executor Registry**: View registered executors
 
-The extension is automatically available when using `orchestrator_flutter`. See [DevTools Extension Guide](docs/en/advanced/devtools-extension.md) for details.
+To stream events to the DevTools extension, call `initDevToolsObserver()` in `main()` (debug/profile) when using `orchestrator_flutter`. See [DevTools Extension Guide](docs/en/advanced/devtools-extension.md) for details.
 
 ## Contributing
 

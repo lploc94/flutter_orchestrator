@@ -13,11 +13,11 @@ Nếu bạn muốn tìm hiểu về triết lý thiết kế và tư duy kiến 
 - [Cheat Sheet - Tổng quan các khái niệm](guide/core_concepts.md) ✅
 - [Cấu trúc thư mục chuẩn](guide/project_structure.md) ✅
 
-### �️ CLI Tool
+### CLI Tool
 - [Orchestrator CLI](guide/cli.md) ✅ - Công cụ scaffolding
 - [CLI Cheatsheet](guide/cli_cheatsheet.md) ✅ - Tham khảo nhanh
 
-### �📖 Khái niệm chi tiết (Concepts)
+### Khái niệm chi tiết (Concepts)
 | Concept | Mô tả | Status |
 |---------|-------|--------|
 | [Job](concepts/job.md) | Định nghĩa hành động (gói dữ liệu) | ✅ |
