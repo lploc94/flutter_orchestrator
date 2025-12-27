@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -263,7 +262,7 @@ class _CleanupTabState extends State<CleanupTab> {
   Widget _buildLastReport(BuildContext context) {
     final report = _lastReport!;
     return Card(
-      color: Colors.green.withOpacity(0.1),
+      color: Colors.green.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

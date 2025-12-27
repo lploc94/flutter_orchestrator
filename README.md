@@ -64,7 +64,11 @@ flutter pub add orchestrator_core orchestrator_bloc
 flutter pub add orchestrator_flutter
 
 # Code Generation (Optional)
+# Code Generation (Optional)
 flutter pub add dev:orchestrator_generator dev:build_runner
+
+# Testing Support (Dev Dependency)
+flutter pub add dev:orchestrator_test
 ```
 
 ### Simple Example
@@ -138,6 +142,7 @@ flutter_orchestrator/
 | [orchestrator_provider](packages/orchestrator_provider) | 0.3.0 | provider integration - OrchestratorNotifier |
 | [orchestrator_riverpod](packages/orchestrator_riverpod) | 0.3.0 | riverpod integration - OrchestratorNotifier |
 | [orchestrator_generator](packages/orchestrator_generator) | 0.3.0 | Code generation for @NetworkJob, @AsyncState, @Orchestrator |
+| [orchestrator_test](packages/orchestrator_test) | 0.1.0 | Testing utilities - Mocks, Fakes, Matchers, BDD helpers |
 | [orchestrator_cli](packages/orchestrator_cli) | 0.1.0 | CLI tool for project scaffolding (WIP) |
 | orchestrator_devtools_extension | - | DevTools Extension for real-time debugging (bundled in orchestrator_flutter) |
 

@@ -1,0 +1,16 @@
+include: package:lints/recommended.yaml
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    sort_constructors_first: true
+    sort_unnamed_constructors_first: true
+    prefer_final_locals: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    avoid_dynamic_calls: false
+    lines_longer_than_80_chars: false
+
+analyzer:
+  exclude:
+    - "**.g.dart"

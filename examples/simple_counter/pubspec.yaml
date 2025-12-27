@@ -27,10 +27,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  bloc_test: ^9.1.0
   flutter_lints: ^5.0.0
   build_runner: ^2.4.0
   orchestrator_generator:
     path: ../../packages/orchestrator_generator
+  orchestrator_test:
+    path: ../../packages/orchestrator_test
 
 # Override to use local packages for development
 dependency_overrides:

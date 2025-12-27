@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2025-12-27
+
+### orchestrator_test (New Package)
+- **Released**: Version 0.1.0
+- **Features**:
+  - **Mocks**: `MockDispatcher`, `MockSignalBus`, `MockExecutor` (using mocktail).
+  - **Fakes**: `FakeCacheProvider`, `FakeConnectivityProvider`, `FakeNetworkQueueStorage`.
+  - **Helpers**: `testOrchestrator` (BDD-style), `EventCapture`.
+  - **Matchers**: Comprehensive event and job matchers.
+
 ## [0.3.0] - 2025-12-27
 
 ### orchestrator_core (Code Generation)

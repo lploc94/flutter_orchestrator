@@ -1,0 +1,28 @@
+name: orchestrator_test
+description: >-
+  Testing utilities for Orchestrator framework. Provides mocks, helpers, 
+  and custom matchers for easy unit testing of Orchestrator-based code.
+version: 0.1.0
+homepage: https://github.com/lploc94/flutter_orchestrator
+repository: https://github.com/lploc94/flutter_orchestrator
+issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
+documentation: https://github.com/lploc94/flutter_orchestrator/tree/main/book
+
+topics:
+  - testing
+  - orchestrator
+  - mocks
+  - unit-testing
+  - flutter
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  orchestrator_core: ^0.3.0
+  mocktail: ^1.0.0
+  test: ^1.24.0
+  meta: ^1.9.0
+
+dev_dependencies:
+  lints: ^5.0.0
