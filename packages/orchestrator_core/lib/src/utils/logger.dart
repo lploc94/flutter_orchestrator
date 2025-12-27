@@ -1,6 +1,7 @@
 import '../models/event.dart';
 import '../infra/cache/cache_provider.dart';
 import '../infra/cache/in_memory_cache_provider.dart';
+import '../infra/cleanup.dart';
 
 import '../infra/offline/connectivity_provider.dart';
 import '../infra/offline/offline_manager.dart';
@@ -62,7 +63,7 @@ class NoOpLogger extends OrchestratorLogger {
   }
 }
 
-/// Global logger instance.
+/// Global configuration for the Orchestrator system.
 class OrchestratorConfig {
   static OrchestratorLogger _logger = NoOpLogger();
 
@@ -120,5 +121,34 @@ class OrchestratorConfig {
 
   static void setNetworkQueueManager(NetworkQueueManager manager) {
     _networkQueueManager = manager;
+  }
+
+  // --- Cleanup Configuration ---
+
+  static CleanupPolicy _cleanupPolicy = CleanupPolicy.defaultPolicy;
+  static CleanupService? _cleanupService;
+
+  /// Current cleanup policy.
+  static CleanupPolicy get cleanupPolicy => _cleanupPolicy;
+
+  /// Set the cleanup policy.
+  static void setCleanupPolicy(CleanupPolicy policy) {
+    _cleanupPolicy = policy;
+  }
+
+  /// Current cleanup service (null if not configured).
+  static CleanupService? get cleanupService => _cleanupService;
+
+  /// Set the cleanup service.
+  ///
+  /// Example:
+  /// ```dart
+  /// OrchestratorConfig.setCleanupService(FlutterCleanupService(
+  ///   policy: OrchestratorConfig.cleanupPolicy,
+  ///   cacheProvider: OrchestratorConfig.cacheProvider,
+  /// ));
+  /// ```
+  static void setCleanupService(CleanupService service) {
+    _cleanupService = service;
   }
 }

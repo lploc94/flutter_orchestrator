@@ -38,6 +38,9 @@ export 'src/infra/cache/in_memory_cache_provider.dart';
 export 'src/infra/cache/cache_job_executor.dart';
 export 'src/jobs/invalidate_cache_job.dart';
 
+// Cleanup
+export 'src/infra/cleanup.dart';
+
 // Base classes
 export 'src/base/base_executor.dart';
 export 'src/base/base_orchestrator.dart';

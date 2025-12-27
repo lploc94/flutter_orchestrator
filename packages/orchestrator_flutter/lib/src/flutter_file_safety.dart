@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 
 class FlutterFileSafety implements FileSafetyDelegate {
   static const String _safeDirName = 'orchestrator_offline_files';
-  
+
   /// Cached safe directory path for performance and security checks
   String? _cachedSafeDirPath;
 
@@ -144,11 +144,11 @@ class FlutterFileSafety implements FileSafetyDelegate {
   /// Prevents path traversal attacks and ensures we only delete our own files
   Future<bool> _isSafeFile(String path) async {
     final safeDirPath = await _getSafeDirPath();
-    
+
     // Security: Use proper path containment check instead of string contains
     // This prevents attacks like '/var/important/orchestrator_offline_files_fake/file'
     if (!p.isWithin(safeDirPath, path)) return false;
-    
+
     // Also verify the file exists before attempting cleanup
     return await File(path).exists();
   }
@@ -163,10 +163,80 @@ class FlutterFileSafety implements FileSafetyDelegate {
 
     final filename = p.basename(oldPath);
     // Use microseconds + random number to avoid collision even in fast loops
-    final uniqueName = '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(99999)}_$filename';
+    final uniqueName =
+        '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(99999)}_$filename';
     final newPath = p.join(safeDir.path, uniqueName);
 
     await File(oldPath).copy(newPath);
     return newPath;
+  }
+
+  // --- Cleanup Methods (RFC 004) ---
+
+  /// Cleanup files older than [maxAge] in the safe directory.
+  ///
+  /// Returns a record with:
+  /// - `count`: Number of files deleted.
+  /// - `bytes`: Total bytes freed.
+  ///
+  /// Example:
+  /// ```dart
+  /// final result = await fileSafety.cleanupOldFiles(Duration(days: 7));
+  /// print('Deleted ${result.count} files (${result.bytes} bytes)');
+  /// ```
+  Future<({int count, int bytes})> cleanupOldFiles(Duration maxAge) async {
+    final safeDirPath = await _getSafeDirPath();
+    final safeDir = Directory(safeDirPath);
+
+    if (!await safeDir.exists()) return (count: 0, bytes: 0);
+
+    int count = 0;
+    int bytes = 0;
+    final cutoff = DateTime.now().subtract(maxAge);
+
+    await for (final entity in safeDir.list()) {
+      if (entity is File) {
+        try {
+          final stat = await entity.stat();
+          if (stat.modified.isBefore(cutoff)) {
+            bytes += stat.size;
+            await entity.delete();
+            count++;
+          }
+        } catch (_) {
+          // Ignore errors for individual files
+        }
+      }
+    }
+
+    return (count: count, bytes: bytes);
+  }
+
+  /// Get current storage usage in the safe directory.
+  ///
+  /// Returns a record with:
+  /// - `fileCount`: Number of files.
+  /// - `totalBytes`: Total size in bytes.
+  Future<({int fileCount, int totalBytes})> getStorageUsage() async {
+    final safeDirPath = await _getSafeDirPath();
+    final safeDir = Directory(safeDirPath);
+
+    if (!await safeDir.exists()) return (fileCount: 0, totalBytes: 0);
+
+    int fileCount = 0;
+    int totalBytes = 0;
+
+    await for (final entity in safeDir.list()) {
+      if (entity is File) {
+        try {
+          totalBytes += await entity.length();
+          fileCount++;
+        } catch (_) {
+          // Ignore errors
+        }
+      }
+    }
+
+    return (fileCount: fileCount, totalBytes: totalBytes);
   }
 }
