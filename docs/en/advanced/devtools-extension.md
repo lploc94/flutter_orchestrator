@@ -63,6 +63,73 @@ The DevTools extension is automatically available when you:
 - **Watch Metrics**: Keep the Metrics tab open during load testing
 - **Debug Offline**: Use the Network Queue tab to verify offline job handling
 
+## Release Build Optimization
+
+> [!IMPORTANT]
+> Although `OrchestratorObserver` only activates in debug/profile mode (automatically checks `kDebugMode || kProfileMode`), the code still exists in release builds. To optimize app size and ensure no debug code in production, follow this guide.
+
+### Option 1: Conditional Initialization (Recommended)
+
+Use `kReleaseMode` to skip `initDevToolsObserver()` in release:
+
+```dart
+import 'package:flutter/foundation.dart';
+import 'package:orchestrator_flutter/orchestrator_flutter.dart';
+
+void main() {
+  // Only init DevTools in debug/profile mode
+  if (!kReleaseMode) {
+    initDevToolsObserver();
+  }
+  runApp(MyApp());
+}
+```
+
+### Option 2: Assert (Tree-shaking friendly)
+
+Use `assert` so the compiler automatically removes code in release:
+
+```dart
+void main() {
+  assert(() {
+    initDevToolsObserver();
+    return true;
+  }());
+  runApp(MyApp());
+}
+```
+
+### Option 3: No Import in Release
+
+To completely remove the dependency in release, use conditional imports:
+
+```dart
+// lib/devtools_init.dart
+export 'devtools_init_stub.dart'
+    if (dart.library.developer) 'devtools_init_real.dart';
+
+// lib/devtools_init_stub.dart
+void initDevTools() {} // No-op
+
+// lib/devtools_init_real.dart
+import 'package:orchestrator_flutter/orchestrator_flutter.dart';
+void initDevTools() => initDevToolsObserver();
+```
+
+### Verify Build Size
+
+Compare sizes before and after applying optimization:
+
+```bash
+# Before
+flutter build apk --release --analyze-size
+
+# After adding conditional
+flutter build apk --release --analyze-size
+```
+
+Typically, this can reduce a few KB to tens of KB depending on the compiler's tree-shaking.
+
 ## Troubleshooting
 
 ### Extension Not Showing
