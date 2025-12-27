@@ -1,47 +1,65 @@
-# Testing
+# Testing (Kiểm Thử)
 
-Kiến trúc Flutter Orchestrator được thiết kế để **dễ test**. Logic nghiệp vụ nằm trong Executor thuần Dart, không phụ thuộc Flutter → Test đơn giản và nhanh.
+Kiến trúc Flutter Orchestrator được thiết kế để **Dễ Kiểm Thử**. Business logic nằm trong các Executor và Orchestrator viết bằng Dart thuần, không phụ thuộc vào Flutter, giúp kiểm thử đơn giản và nhanh chóng.
+
+Chúng tôi cung cấp package **`orchestrator_test`** để đơn giản hóa việc kiểm thử với mocks, fakes, và BDD-style helpers.
 
 ---
 
-## 1. Lợi ích của kiến trúc
+## 1. Lợi Ích Kiến Trúc
 
 ```mermaid
 flowchart LR
-    subgraph Testable["Dễ test (Pure Dart)"]
+    subgraph Testable["Kiểm Thử Được (Pure Dart)"]
         Job["Job"]
         Executor["Executor"]
         Orchestrator["BaseOrchestrator"]
     end
     
-    subgraph Hard["Khó test (Flutter)"]
+    subgraph Hard["Khó Kiểm Thử (Flutter)"]
         Widget["Widget"]
         BuildContext["BuildContext"]
     end
     
-    Testable -.->|"không phụ thuộc"| Hard
+    Testable -.->|"độc lập"| Hard
     
     style Testable fill:#e8f5e9,stroke:#2e7d32,color:#000
     style Hard fill:#ffebee,stroke:#c62828,color:#000
 ```
 
 **Lợi ích:**
-- ✅ Executor thuần Dart → Test không cần Flutter
+- ✅ Pure Dart Executors → Test không cần Flutter
 - ✅ Không cần mock `BuildContext`, `Widget`
-- ✅ Fast tests → Chạy trong milliseconds
-- ✅ Scoped Bus → Isolated tests
+- ✅ Test nhanh → Chạy trong mili-giây
+- ✅ Scoped Bus → Test cô lập
 
 ---
 
-## 2. Unit Test Executor
+## 2. Cài Đặt
 
-### 2.1. Test cơ bản
+Thêm `orchestrator_test` vào `dev_dependencies`:
+
+```yaml
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  orchestrator_test: ^0.1.0
+  bloc_test: ^9.0.0 # Khuyến nghị cho Cubits/Blocs
+```
+
+---
+
+## 3. Unit Test Executor
+
+Executors chứa logic nghiệp vụ thuần. Bạn có thể unit test chúng bằng cách mock các dependencies (như API services).
+
+`orchestrator_test` export `mocktail`, nên bạn có thể dễ dàng tạo mocks.
 
 ```dart
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
+import 'package:orchestrator_test/orchestrator_test.dart';
 
-// Mock dependencies
+// Mock API dependency
 class MockApiService extends Mock implements ApiService {}
 
 void main() {
@@ -57,8 +75,7 @@ void main() {
     test('should return user on success', () async {
       // Arrange
       final expectedUser = User(id: '123', name: 'John');
-      when(() => mockApi.getUser('123'))
-        .thenAnswer((_) async => expectedUser);
+      when(() => mockApi.getUser('123')).thenAnswer((_) async => expectedUser);
       
       // Act
       final result = await executor.process(FetchUserJob(userId: '123'));
@@ -67,210 +84,167 @@ void main() {
       expect(result, equals(expectedUser));
       verify(() => mockApi.getUser('123')).called(1);
     });
-    
-    test('should throw on API error', () async {
-      // Arrange
-      when(() => mockApi.getUser(any()))
-        .thenThrow(Exception('Network error'));
-      
-      // Act & Assert
-      expect(
-        () => executor.process(FetchUserJob(userId: '123')),
-        throwsException,
-      );
-    });
   });
 }
-```
-
-### 2.2. Test với Cancellation
-
-```dart
-test('should throw CancelledException when cancelled', () async {
-  final token = CancellationToken();
-  final job = FetchUserJob(userId: '123', cancellationToken: token);
-  
-  // Cancel before execution
-  token.cancel();
-  
-  expect(
-    () => executor.process(job),
-    throwsA(isA<CancelledException>()),
-  );
-});
-
-test('CancellationToken.throwIfCancelled works correctly', () {
-  final token = CancellationToken();
-  
-  // Not cancelled yet
-  expect(() => token.throwIfCancelled(), returnsNormally);
-  
-  // After cancel
-  token.cancel();
-  expect(
-    () => token.throwIfCancelled(),
-    throwsA(isA<CancelledException>()),
-  );
-});
-```
-
-### 2.3. Test Progress Emission
-
-```dart
-class ProgressExecutor extends BaseExecutor<DownloadJob> {
-  @override
-  Future<File> process(DownloadJob job) async {
-    for (int i = 1; i <= 10; i++) {
-      await Future.delayed(Duration(milliseconds: 10));
-      emitProgress(job.id, progress: i / 10.0, message: 'Downloading $i/10');
-    }
-    return File('downloaded.zip');
-  }
-}
-
-test('should emit progress events', () async {
-  final executor = ProgressExecutor();
-  final bus = SignalBus.scoped();
-  final progressEvents = <JobProgressEvent>[];
-  
-  bus.stream
-    .where((e) => e is JobProgressEvent)
-    .cast<JobProgressEvent>()
-    .listen(progressEvents.add);
-  
-  // Execute with scoped bus
-  final job = DownloadJob()..bus = bus;
-  await executor.process(job);
-  
-  expect(progressEvents.length, equals(10));
-  expect(progressEvents.last.progress, equals(1.0));
-  
-  bus.dispose();
-});
 ```
 
 ---
 
-## 3. Unit Test Orchestrator
+## 4. Test Orchestrator (BDD Style)
 
-### 3.1. Setup với Scoped Bus
-
-**Quan trọng:** Luôn dùng `SignalBus.scoped()` để test isolation.
+Orchestrators (Cubits) quản lý state. Bạn có thể test chúng với helper `testOrchestrator`, cung cấp cách khai báo để test chuyển đổi state, tương tự `blocTest`.
 
 ```dart
-class TestOrchestrator extends BaseOrchestrator<String> {
-  final List<String> eventLog = [];
-  
-  TestOrchestrator({SignalBus? bus}) : super('Init', bus: bus);
-  
-  @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    eventLog.add('Success:${event.data}');
-    emit('Success: ${event.data}');
-  }
-  
-  @override
-  void onActiveFailure(JobFailureEvent event) {
-    eventLog.add('Failure:${event.error}');
-    emit('Failure: ${event.error}');
-  }
-  
-  String fetchUser(String id) => dispatch(FetchUserJob(userId: id));
-}
+import 'package:orchestrator_test/orchestrator_test.dart';
+
+testOrchestrator<CounterOrchestrator, int>(
+  'emits 1 when increment is called',
+  build: () => CounterOrchestrator(),
+  act: (orchestrator) => orchestrator.increment(),
+  expect: () => [1],
+);
+
+testOrchestrator<CounterOrchestrator, int>(
+  'emits specific state sequence',
+  build: () => CounterOrchestrator(),
+  act: (orchestrator) async {
+    orchestrator.increment();
+    orchestrator.increment();
+  },
+  expect: () => [1, 2],
+);
 ```
 
-### 3.2. Test State Changes
+### 4.1. Test với Mocks
+
+Bạn có thể truyền `MockDispatcher` vào orchestrator nếu hỗ trợ dependency injection, hoặc dùng `FakeExecutor` đăng ký vào global dispatcher.
 
 ```dart
-void main() {
-  late SignalBus scopedBus;
-  late TestOrchestrator orchestrator;
-  late Dispatcher dispatcher;
-  
-  setUp(() {
-    scopedBus = SignalBus.scoped();
-    orchestrator = TestOrchestrator(bus: scopedBus);
-    dispatcher = Dispatcher();
-    dispatcher.register(FetchUserExecutor(MockApiService()));
-  });
-  
-  tearDown(() {
-    orchestrator.dispose();
-    scopedBus.dispose();
-  });
-  
-  test('should update state on success', () async {
-    orchestrator.fetchUser('123');
-    
-    await expectLater(
-      orchestrator.stream,
-      emitsThrough('Success: User(123)'),
-    );
-    
-    expect(orchestrator.eventLog, contains('Success:User(123)'));
-  });
-  
-  test('should update state on failure', () async {
-    // Setup failure
-    dispatcher.register(FailingExecutor());
-    
-    orchestrator.fetchUser('invalid');
-    
-    await expectLater(
-      orchestrator.stream,
-      emitsThrough(contains('Failure')),
-    );
-  });
-}
-```
-
-### 3.3. Test Scoped Bus Isolation
-
-```dart
-test('events are isolated between scoped buses', () async {
-  // Scope 1
-  final bus1 = SignalBus.scoped();
-  final orc1 = TestOrchestrator(bus: bus1);
-  
-  // Scope 2
-  final bus2 = SignalBus.scoped();
-  final orc2 = TestOrchestrator(bus: bus2);
-  
-  // Global bus spy
-  final globalEvents = <BaseEvent>[];
-  SignalBus.instance.stream.listen(globalEvents.add);
-  
-  // Run job in Scope 1
-  orc1.fetchUser('123');
-  await Future.delayed(Duration(milliseconds: 50));
-  
-  // Scope 1 got event
-  expect(orc1.eventLog, contains('Success:User(123)'));
-  
-  // Scope 2 saw NOTHING
-  expect(orc2.eventLog, isEmpty);
-  
-  // Global bus saw NOTHING
-  expect(globalEvents, isEmpty);
-  
-  orc1.dispose();
-  orc2.dispose();
-  bus1.dispose();
-  bus2.dispose();
-});
+testOrchestrator<UserOrchestrator, UserState>(
+  'emits [loading, success] on fetch',
+  setUp: () {
+    // Đăng ký fake executor để xử lý job ngay lập tức
+    final dispatcher = Dispatcher();
+    dispatcher.register(FakeExecutor<FetchUserJob>(
+      (job) async => User(name: 'Fake User')
+    ));
+  },
+  build: () => UserOrchestrator(),
+  act: (orc) => orc.fetchUser('123'),
+  expect: () => [
+    UserState.loading(),
+    UserState.success(User(name: 'Fake User')),
+  ],
+);
 ```
 
 ---
 
-## 4. Test Timeout & Retry
+## 5. Integration Test với Fakes
 
-### 4.1. Test Timeout
+`orchestrator_test` cung cấp các **Fakes** mạnh mẽ để mô phỏng hành vi phức tạp mà không cần mock thủ công.
+
+### 5.1. FakeExecutor
+
+Mô phỏng response từ backend hoặc logic mà không cần network calls.
+
+```dart
+final executor = FakeExecutor<MyJob>((job) async {
+  if (job.id == 'error') throw Exception('Failed');
+  return 'Success';
+});
+
+dispatcher.register(executor);
+```
+
+### 5.2. FakeConnectivityProvider
+
+Test tính năng "Offline Support" bằng cách điều khiển trạng thái mạng.
+
+```dart
+test('queues job when offline', () async {
+  final connectivity = FakeConnectivityProvider(isConnected: false);
+  OrchestratorConfig.setConnectivityProvider(connectivity);
+
+  dispatcher.dispatch(NetworkJob());
+
+  // Xác nhận job được queue, không xử lý
+  expect(queueManager.hasPendingJobs, isTrue);
+
+  // Online lại -> Job sẽ được xử lý
+  connectivity.goOnline();
+  await Future.delayed(Duration(milliseconds: 100)); // Đợi sync
+  expect(queueManager.hasPendingJobs, isFalse);
+});
+```
+
+### 5.3. FakeCacheProvider
+
+Test logic caching trong memory.
+
+```dart
+final cache = FakeCacheProvider(trackTtl: true);
+await cache.write('key', 'value', ttl: Duration(seconds: 1));
+```
+
+---
+
+## 6. Event Testing
+
+### 6.1. EventCapture
+
+Capture các events được emit bởi `SignalBus` để verify interactions.
+
+```dart
+test('should emit failure event', () async {
+  final capture = EventCapture(); // Lắng nghe global bus mặc định
+  
+  // Dispatch job sẽ fail
+  dispatcher.dispatch(FailingJob());
+  
+  // Đợi event cụ thể
+  final event = await capture.waitFor<JobFailureEvent>();
+  
+  expect(event.error, isA<Exception>());
+  expect(capture.events, hasLength(1));
+});
+```
+
+### 6.2. Event Matchers
+
+Custom matchers giúp assertions dễ đọc hơn.
+
+```dart
+expect(event, isJobSuccess(data: 'result'));
+expect(event, isJobFailure(wasRetried: true));
+expect(event, isJobProgress(minProgress: 0.5));
+expect(event, isJobCancelled());
+expect(event, isJobTimeout());
+```
+
+Và cho sequences:
+
+```dart
+expect(
+  events,
+  emitsEventsInOrder([
+    isJobProgress(),
+    isJobSuccess(),
+  ]),
+);
+```
+
+---
+
+## 7. Test Timeout & Retry
+
+### 7.1. Test Timeout
 
 ```dart
 class SlowExecutor extends BaseExecutor<TestJob> {
   @override
   Future<dynamic> process(TestJob job) async {
-    await Future.delayed(Duration(seconds: 10));  // Very slow
+    await Future.delayed(Duration(seconds: 10));  // Rất chậm
     return 'done';
   }
 }
@@ -287,7 +261,7 @@ test('should timeout correctly', () async {
 });
 ```
 
-### 4.2. Test Retry
+### 7.2. Test Retry
 
 ```dart
 class FailingExecutor extends BaseExecutor<FailingJob> {
@@ -307,7 +281,7 @@ test('should retry on failure', () async {
   final executor = FailingExecutor();
   dispatcher.register(executor);
   
-  // Fail 2 times, retry 3 times → should succeed
+  // Fail 2 lần, retry 3 lần → nên thành công
   final job = FailingJob(
     failCount: 2,
     retryPolicy: RetryPolicy(maxRetries: 3),
@@ -316,7 +290,7 @@ test('should retry on failure', () async {
   orchestrator.dispatch(job);
   await Future.delayed(Duration(milliseconds: 500));
   
-  // Verified retry attempts
+  // Xác nhận số lần retry
   expect(executor.attempts, equals(3));  // 2 fails + 1 success
   expect(orchestrator.eventLog, contains('Success:success after retries'));
 });
@@ -324,175 +298,73 @@ test('should retry on failure', () async {
 
 ---
 
-## 5. Integration Test
+## 8. Job Matchers
 
-Test luồng hoàn chỉnh từ Orchestrator → Dispatcher → Executor → Events.
+`orchestrator_test` cung cấp các matchers để verify properties của Job:
 
 ```dart
+// Match job ID
+expect(job, hasJobId('my-job-id'));
+
+// Match job type
+expect(job, isJobOfType<MyJob>());
+
+// Match timeout
+expect(job, hasTimeout(Duration(seconds: 30)));
+
+// Match cancellation token presence
+expect(job, hasCancellationToken());
+
+// Match retry policy
+expect(job, hasRetryPolicy(maxRetries: 3));
+
+// Kiểm tra job list
+expect(dispatcher.dispatchedJobs, containsJobOfType<MyJob>());
+expect(dispatcher.dispatchedJobs, hasJobCount<MyJob>(2));
+```
+
+---
+
+## 9. Ví Dụ Đầy Đủ (Integration)
+
+Đây là ví dụ integration test sử dụng `bloc_test` và `FakeExecutor`:
+
+```dart
+import 'package:bloc_test/bloc_test.dart';
+import 'package:orchestrator_test/orchestrator_test.dart';
+
 void main() {
-  late SignalBus bus;
   late Dispatcher dispatcher;
-  late UserCubit cubit;
-  late MockApiService mockApi;
-  
+
   setUp(() {
-    bus = SignalBus.scoped();
     dispatcher = Dispatcher();
-    mockApi = MockApiService();
-    
-    // Register executors
-    dispatcher.register(FetchUserExecutor(mockApi));
-    dispatcher.register(UpdateUserExecutor(mockApi));
-    
-    // Create cubit with scoped bus
-    cubit = UserCubit(bus: bus);
+    dispatcher.resetForTesting();
   });
-  
-  tearDown(() {
-    cubit.close();
-    bus.dispose();
-  });
-  
-  test('full flow: load → update → refresh', () async {
-    // Arrange
-    when(() => mockApi.getUser('123'))
-      .thenAnswer((_) async => User(id: '123', name: 'John'));
-    when(() => mockApi.updateUser(any()))
-      .thenAnswer((_) async => User(id: '123', name: 'Jane'));
-    
-    // Act 1: Load
-    cubit.loadUser('123');
-    await Future.delayed(Duration(milliseconds: 50));
-    
-    // Assert 1
-    expect(cubit.state.user?.name, equals('John'));
-    
-    // Act 2: Update
-    cubit.updateName('Jane');
-    await Future.delayed(Duration(milliseconds: 50));
-    
-    // Assert 2
-    expect(cubit.state.user?.name, equals('Jane'));
-  });
+
+  blocTest<CounterCubit, CounterState>(
+    'emits [loading, success] when increment is called',
+    setUp: () {
+      // Đăng ký FakeExecutor
+      dispatcher.register<IncrementJob>(
+        FakeExecutor<IncrementJob>((job) async => 10),
+      );
+    },
+    build: () => CounterCubit(),
+    act: (cubit) => cubit.increment(),
+    expect: () => [
+      // Sử dụng matchers hoặc giá trị cụ thể
+      isA<CounterState>().having((s) => s.isLoading, 'isLoading', true),
+      isA<CounterState>().having((s) => s.count, 'count', 10),
+    ],
+  );
 }
 ```
 
 ---
 
-## 6. Mocking Dependencies
+## 10. Coverage
 
-### 6.1. Với Mocktail
-
-```dart
-import 'package:mocktail/mocktail.dart';
-
-class MockApiService extends Mock implements ApiService {}
-class MockDatabaseService extends Mock implements DatabaseService {}
-
-void main() {
-  setUpAll(() {
-    // Register fallback values for custom types
-    registerFallbackValue(User(id: '', name: ''));
-    registerFallbackValue(FetchUserJob(userId: ''));
-  });
-}
-```
-
-### 6.2. Với get_it
-
-```dart
-import 'package:get_it/get_it.dart';
-
-final getIt = GetIt.instance;
-
-void setupTestDI() {
-  getIt.reset();
-  
-  // Register mocks
-  getIt.registerSingleton<ApiService>(MockApiService());
-  getIt.registerSingleton<SignalBus>(SignalBus.scoped());
-  
-  // Register executors with mock
-  final dispatcher = Dispatcher();
-  dispatcher.register(FetchUserExecutor(getIt<ApiService>()));
-  getIt.registerSingleton(dispatcher);
-}
-
-void main() {
-  setUp(setupTestDI);
-  tearDown(() => getIt.reset());
-}
-```
-
----
-
-## 7. Test Utilities
-
-### 7.1. Helper cho event waiting
-
-```dart
-extension TestBusExtension on SignalBus {
-  /// Wait for specific event type
-  Future<T> waitFor<T extends BaseEvent>({
-    Duration timeout = const Duration(seconds: 5),
-  }) {
-    return stream
-      .where((e) => e is T)
-      .cast<T>()
-      .first
-      .timeout(timeout);
-  }
-  
-  /// Collect events during action
-  Future<List<BaseEvent>> collectEvents(
-    Future<void> Function() action,
-  ) async {
-    final events = <BaseEvent>[];
-    final sub = stream.listen(events.add);
-    
-    await action();
-    await Future.delayed(Duration(milliseconds: 50));
-    
-    await sub.cancel();
-    return events;
-  }
-}
-
-// Usage
-test('collect events', () async {
-  final bus = SignalBus.scoped();
-  
-  final events = await bus.collectEvents(() async {
-    dispatcher.dispatch(FetchUserJob(userId: '123'));
-  });
-  
-  expect(events, contains(isA<JobSuccessEvent>()));
-});
-```
-
-### 7.2. Test Dispatcher Helper
-
-```dart
-class TestDispatcher extends Dispatcher {
-  final List<BaseJob> dispatchedJobs = [];
-  
-  @override
-  String dispatch(BaseJob job) {
-    dispatchedJobs.add(job);
-    return super.dispatch(job);
-  }
-  
-  void expectDispatched<T extends BaseJob>() {
-    expect(dispatchedJobs.whereType<T>().isNotEmpty, isTrue);
-  }
-}
-```
-
----
-
-## 8. Coverage
-
-### 8.1. Chạy với coverage
+### 10.1. Chạy với coverage
 
 ```bash
 # Generate coverage
@@ -509,11 +381,11 @@ dart pub global run coverage:format_coverage \
 # Generate HTML report
 genhtml coverage/lcov.info -o coverage/html
 
-# Open report
+# Mở report
 open coverage/html/index.html
 ```
 
-### 8.2. CI/CD (GitHub Actions)
+### 10.2. CI/CD (GitHub Actions)
 
 ```yaml
 # .github/workflows/test.yml
@@ -542,30 +414,31 @@ jobs:
 
 ---
 
-## 9. Best Practices
+## 11. Best Practices
 
 ### ✅ Nên làm
 
-- **Dùng Scoped Bus:** Luôn dùng `SignalBus.scoped()` trong tests
-- **Dispose sau test:** Gọi `dispose()` trong `tearDown`
-- **Test happy path & error cases:** Đầy đủ scenarios
-- **Mock external dependencies:** API, Database, etc.
-- **Verify interactions:** Dùng `verify()` của Mocktail
+- **Dùng Fakes thay vì Mocks**: Ưu tiên `FakeExecutor` hơn mock `process()`. Thực tế hơn và ít setup hơn.
+- **Isolate Tests**: Đảm bảo `Dispatcher` và `SignalBus` được reset hoặc scoped giữa các tests. `Dispatcher` là singleton, dùng `setUp(() => dispatcher.resetForTesting())`.
+- **Test Matchers**: Dùng `isJobSuccess`, `hasJobId` để giữ tests dễ đọc.
+- **Offline Tests**: Luôn dùng `FakeConnectivityProvider` để test offline/online transitions rõ ràng.
+- **Dùng Scoped Bus**: Luôn `SignalBus.scoped()` trong tests để isolation
+- **Dispose sau test**: Gọi `dispose()` trong `tearDown`
 
 ### ❌ Không nên làm
 
 ```dart
-// ❌ SAI: Dùng Global Bus trong test → Pollution
+// ❌ SAI: Dùng Global Bus trong test → Gây ô nhiễm
 test('bad test', () async {
   final orc = TestOrchestrator();  // Dùng global bus!
-  // → Tests khác sẽ bị ảnh hưởng
+  // → Ảnh hưởng các tests khác
 });
 
 // ✅ ĐÚNG: Dùng Scoped Bus
 test('good test', () async {
   final bus = SignalBus.scoped();
   final orc = TestOrchestrator(bus: bus);
-  // → Isolated
+  // → Cô lập
   
   orc.dispose();
   bus.dispose();
@@ -581,7 +454,7 @@ test('leaky test', () async {
 
 ---
 
-## Xem thêm
+## Xem Thêm
 
-- [Orchestrator - Scoped Bus](../concepts/orchestrator.md#9-scoped-bus-cho-testing) - Chi tiết Scoped Bus
-- [SignalBus - Testing](../concepts/signal_bus.md#4-scoped-bus---testing--module-isolation) - SignalBus.scoped()
+- [Orchestrator - Scoped Bus](../concepts/orchestrator.md#11-scoped-bus-advanced)
+- [SignalBus - Testing](../concepts/signal_bus.md#3-scoped-bus-for-testing--isolation)

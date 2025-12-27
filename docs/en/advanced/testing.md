@@ -6,7 +6,36 @@ We provide a dedicated package, **`orchestrator_test`**, to simplify testing wit
 
 ---
 
-## 1. Setup
+## 1. Architecture Benefits
+
+```mermaid
+flowchart LR
+    subgraph Testable["Testable (Pure Dart)"]
+        Job["Job"]
+        Executor["Executor"]
+        Orchestrator["BaseOrchestrator"]
+    end
+    
+    subgraph Hard["Hard to Test (Flutter)"]
+        Widget["Widget"]
+        BuildContext["BuildContext"]
+    end
+    
+    Testable -.->|"independent"| Hard
+    
+    style Testable fill:#e8f5e9,stroke:#2e7d32,color:#000
+    style Hard fill:#ffebee,stroke:#c62828,color:#000
+```
+
+**Benefits:**
+- ✅ Pure Dart Executors → Test without Flutter
+- ✅ No need to mock `BuildContext`, `Widget`
+- ✅ Fast tests → Run in milliseconds
+- ✅ Scoped Bus → Isolated tests
+
+---
+
+## 2. Setup
 
 Add `orchestrator_test` to your `dev_dependencies`:
 
@@ -20,7 +49,7 @@ dev_dependencies:
 
 ---
 
-## 2. Unit Testing Executors
+## 3. Unit Testing Executors
 
 Executors contain the pure business logic. You can unit test them by mocking their dependencies (like API services or the Dispatcher).
 
@@ -61,7 +90,7 @@ void main() {
 
 ---
 
-## 3. Testing Orchestrators (BDD Style)
+## 4. Testing Orchestrators (BDD Style)
 
 Orchestrators (Cubits) manage state. You can test them using the `testOrchestrator` helper, which provides a declarative way to test state transitions, similar to `blocTest`.
 
@@ -86,7 +115,7 @@ testOrchestrator<CounterOrchestrator, int>(
 );
 ```
 
-### 3.1. Testing with Mocks
+### 4.1. Testing with Mocks
 
 You can pass a `MockDispatcher` to your orchestrator if it supports dependency injection, or use a `FakeExecutor` registered to the global dispatcher (if your orchestrator uses the global singleton).
 
@@ -111,11 +140,11 @@ testOrchestrator<UserOrchestrator, UserState>(
 
 ---
 
-## 4. Integration Testing with Fakes
+## 5. Integration Testing with Fakes
 
 `orchestrator_test` provides powerful **Fakes** to simulate complex behavior without mocking everything manually.
 
-### 4.1. FakeExecutor
+### 5.1. FakeExecutor
 
 Simulate backend responses or logic without network calls.
 
@@ -128,7 +157,7 @@ final executor = FakeExecutor<MyJob>((job) async {
 dispatcher.register(executor);
 ```
 
-### 4.2. FakeConnectivityProvider
+### 5.2. FakeConnectivityProvider
 
 Test "Offline Support" features by controlling network state.
 
@@ -149,7 +178,7 @@ test('queues job when offline', () async {
 });
 ```
 
-### 4.3. FakeCacheProvider
+### 5.3. FakeCacheProvider
 
 Test caching logic in memory.
 
@@ -160,9 +189,9 @@ await cache.write('key', 'value', ttl: Duration(seconds: 1));
 
 ---
 
-## 5. Event Testing
+## 6. Event Testing
 
-### 5.1. EventCapture
+### 6.1. EventCapture
 
 Capture events emitted by the `SignalBus` to verify interactions.
 
@@ -181,7 +210,7 @@ test('should emit failure event', () async {
 });
 ```
 
-### 5.2. Event Matchers
+### 6.2. Event Matchers
 
 Custom matchers make assertions readable.
 
@@ -207,7 +236,96 @@ expect(
 
 ---
 
-## 6. Full Example (Integration)
+## 7. Testing Timeout & Retry
+
+### 7.1. Test Timeout
+
+```dart
+class SlowExecutor extends BaseExecutor<TestJob> {
+  @override
+  Future<dynamic> process(TestJob job) async {
+    await Future.delayed(Duration(seconds: 10));  // Very slow
+    return 'done';
+  }
+}
+
+test('should timeout correctly', () async {
+  dispatcher.register(SlowExecutor());
+  
+  final job = TestJob(timeout: Duration(milliseconds: 100));
+  orchestrator.dispatch(job);
+  
+  await Future.delayed(Duration(milliseconds: 200));
+  
+  expect(orchestrator.eventLog.any((e) => e.contains('Timeout')), isTrue);
+});
+```
+
+### 7.2. Test Retry
+
+```dart
+class FailingExecutor extends BaseExecutor<FailingJob> {
+  int attempts = 0;
+  
+  @override
+  Future<dynamic> process(FailingJob job) async {
+    attempts++;
+    if (attempts <= job.failCount) {
+      throw Exception('Simulated failure #$attempts');
+    }
+    return 'success after retries';
+  }
+}
+
+test('should retry on failure', () async {
+  final executor = FailingExecutor();
+  dispatcher.register(executor);
+  
+  // Fail 2 times, retry 3 times → should succeed
+  final job = FailingJob(
+    failCount: 2,
+    retryPolicy: RetryPolicy(maxRetries: 3),
+  );
+  
+  orchestrator.dispatch(job);
+  await Future.delayed(Duration(milliseconds: 500));
+  
+  // Verified retry attempts
+  expect(executor.attempts, equals(3));  // 2 fails + 1 success
+  expect(orchestrator.eventLog, contains('Success:success after retries'));
+});
+```
+
+---
+
+## 8. Job Matchers
+
+`orchestrator_test` provides matchers for verifying Job properties:
+
+```dart
+// Match job ID
+expect(job, hasJobId('my-job-id'));
+
+// Match job type
+expect(job, isJobOfType<MyJob>());
+
+// Match timeout
+expect(job, hasTimeout(Duration(seconds: 30)));
+
+// Match cancellation token presence
+expect(job, hasCancellationToken());
+
+// Match retry policy
+expect(job, hasRetryPolicy(maxRetries: 3));
+
+// Check job list
+expect(dispatcher.dispatchedJobs, containsJobOfType<MyJob>());
+expect(dispatcher.dispatchedJobs, hasJobCount<MyJob>(2));
+```
+
+---
+
+## 9. Full Example (Integration)
 
 Here is a full integration test example using `bloc_test` and `FakeExecutor`:
 
@@ -244,9 +362,99 @@ void main() {
 
 ---
 
-## 7. Best Practices
+## 10. Coverage
+
+### 10.1. Run with coverage
+
+```bash
+# Generate coverage
+dart test --coverage=coverage
+
+# Convert to lcov
+dart pub global activate coverage
+dart pub global run coverage:format_coverage \
+  --lcov \
+  --in=coverage \
+  --out=coverage/lcov.info \
+  --report-on=lib
+
+# Generate HTML report
+genhtml coverage/lcov.info -o coverage/html
+
+# Open report
+open coverage/html/index.html
+```
+
+### 10.2. CI/CD (GitHub Actions)
+
+```yaml
+# .github/workflows/test.yml
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dart-lang/setup-dart@v1
+      
+      - name: Install dependencies
+        run: dart pub get
+        
+      - name: Run tests
+        run: dart test --coverage=coverage
+        
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage/lcov.info
+```
+
+---
+
+## 11. Best Practices
+
+### ✅ Do
 
 - **Use Fakes over Mocks**: Prefer `FakeExecutor` over mocking `process()` when possible. It's more realistic and requires less setup.
 - **Isolate Tests**: Ensure `Dispatcher` and `SignalBus` are reset or scoped between tests. `Dispatcher` is a singleton, so use `setUp(() => dispatcher.resetForTesting())`.
 - **Test Matchers**: Use `isJobSuccess`, `hasJobId` etc. to keep tests readable.
 - **Offline Tests**: Always use `FakeConnectivityProvider` to test offline/online transitions explicitly.
+- **Use Scoped Bus**: Always `SignalBus.scoped()` in tests for isolation
+- **Dispose after test**: Call `dispose()` in `tearDown`
+
+### ❌ Don't
+
+```dart
+// ❌ WRONG: Use Global Bus in test → Pollution
+test('bad test', () async {
+  final orc = TestOrchestrator();  // Uses global bus!
+  // → Affects other tests
+});
+
+// ✅ CORRECT: Use Scoped Bus
+test('good test', () async {
+  final bus = SignalBus.scoped();
+  final orc = TestOrchestrator(bus: bus);
+  // → Isolated
+  
+  orc.dispose();
+  bus.dispose();
+});
+
+// ❌ WRONG: Forget dispose
+test('leaky test', () async {
+  final bus = SignalBus.scoped();
+  // ... test ...
+  // Forgot bus.dispose() → Memory leak
+});
+```
+
+---
+
+## See Also
+
+- [Orchestrator - Scoped Bus](../concepts/orchestrator.md#11-scoped-bus-advanced)
+- [SignalBus - Testing](../concepts/signal_bus.md#3-scoped-bus-for-testing--isolation)
