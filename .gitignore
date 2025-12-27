@@ -22,3 +22,7 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Misc
+.flutter-plugins-dependencies
+analysis_options.yaml
