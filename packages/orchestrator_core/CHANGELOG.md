@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2025-12-27
+
+### Added
+- **Resource Cleanup**: Introduced `CleanupPolicy` and `CleanupService` interface.
+- **Cache**: Added LRU eviction and proactive expiration to `InMemoryCacheProvider`.
+- **Config**: Added `cleanupPolicy` configuration to `OrchestratorConfig`.
+
 ## [0.3.0] - 2025-12-26
 
 ### Features: Extended Code Generation
