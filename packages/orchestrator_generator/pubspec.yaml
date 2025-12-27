@@ -25,5 +25,9 @@ dependencies:
   dart_style: ">=2.3.0 <4.0.0"
   orchestrator_core: ^0.3.3
 
+dependency_overrides:
+  orchestrator_core:
+    path: ../orchestrator_core
+
 dev_dependencies:
   test: ^1.24.0
