@@ -1,3 +1,9 @@
+## 0.1.2 - 2025-12-27
+
+### Fixed
+- Fix pub.dev analysis score by excluding brick templates from analysis.
+- Upgrade `mason` dependency to `^0.1.2` to resolve pre-release warning.
+
 ## 0.1.1 - 2025-12-27
 
 ### Fixed
