@@ -18,8 +18,9 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
       );
     }
 
-    final generateSerialization =
-        annotation.read('generateSerialization').boolValue;
+    final generateSerialization = annotation
+        .read('generateSerialization')
+        .boolValue;
 
     if (!generateSerialization) {
       return '';
@@ -35,7 +36,7 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
     }
     final buffer = StringBuffer();
 
-    buffer.writeln('// ignore_for_file: unused_element');
+    buffer.writeln('// ignore_for_file: type=lint');
     // Generate extension
     buffer.writeln('extension _\$${className}Serialization on $className {');
 
@@ -160,7 +161,8 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
     buffer.writeln();
     buffer.writeln('  // ignore: unused_element');
     buffer.writeln(
-        '  static BaseJob fromJsonToBase(Map<String, dynamic> json) => fromJson(json);');
+      '  static BaseJob fromJsonToBase(Map<String, dynamic> json) => fromJson(json);',
+    );
 
     buffer.writeln('}'); // End extension
 
@@ -172,14 +174,16 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
   }
 
   ConstantReader? _getJsonKey(FieldElement field) {
-    final annotation = TypeChecker.fromRuntime(JsonKey)
-        .firstAnnotationOf(field, throwOnUnresolved: false);
+    final annotation = TypeChecker.fromRuntime(
+      JsonKey,
+    ).firstAnnotationOf(field, throwOnUnresolved: false);
     if (annotation != null) return ConstantReader(annotation);
     return null;
   }
 
   bool _hasJsonIgnore(FieldElement field) {
-    return TypeChecker.fromRuntime(JsonIgnore)
-        .hasAnnotationOf(field, throwOnUnresolved: false);
+    return TypeChecker.fromRuntime(
+      JsonIgnore,
+    ).hasAnnotationOf(field, throwOnUnresolved: false);
   }
 }

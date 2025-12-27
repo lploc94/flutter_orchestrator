@@ -29,6 +29,7 @@ class ExecutorRegistryGenerator
     if (entries.isEmpty) return '// No executors registered';
 
     final buffer = StringBuffer();
+    buffer.writeln('// ignore_for_file: type=lint');
 
     // We need to know what the input function looks like to match signature if we want to be smart.
     // For now, let's assume we generate a standalone `registerExecutors` function that takes a Dispatcher
@@ -104,10 +105,12 @@ class ExecutorRegistryGenerator
         }
 
         buffer.writeln(
-            "  dispatcher.register<$jobName>($execName($constructorArgs));");
+          "  dispatcher.register<$jobName>($execName($constructorArgs));",
+        );
       } else {
-        buffer
-            .writeln("  // Warning: Could not parse entry in ExecutorRegistry");
+        buffer.writeln(
+          "  // Warning: Could not parse entry in ExecutorRegistry",
+        );
       }
     }
 

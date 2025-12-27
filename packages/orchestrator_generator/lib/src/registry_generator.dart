@@ -18,6 +18,7 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
     BuildStep buildStep,
   ) {
     final buffer = StringBuffer();
+    buffer.writeln('// ignore_for_file: type=lint');
 
     // Read the list of jobs from the annotation
     // Usage: @NetworkRegistry([JobA, JobB])
@@ -32,7 +33,8 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
       // Return a no-op function with a warning comment
       buffer.writeln('// WARNING: No jobs registered in @NetworkRegistry');
       buffer.writeln(
-          '// Add job types to the annotation: @NetworkRegistry([MyJob, OtherJob])');
+        '// Add job types to the annotation: @NetworkRegistry([MyJob, OtherJob])',
+      );
       buffer.writeln('void registerNetworkJobs() {}');
       return buffer.toString();
     }
@@ -40,7 +42,8 @@ class NetworkRegistryGenerator extends GeneratorForAnnotation<NetworkRegistry> {
     // Generate documentation
     buffer.writeln('/// Auto-generated function to register all network jobs.');
     buffer.writeln(
-        '/// Call this during app initialization before processing offline queue.');
+      '/// Call this during app initialization before processing offline queue.',
+    );
     buffer.writeln('///');
     buffer.writeln('/// Registered jobs:');
 

@@ -33,8 +33,9 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     }
     final generateEquality = annotation.read('generateEquality').boolValue;
     final statusFieldReader = annotation.read('statusField');
-    final statusFieldName =
-        statusFieldReader.isNull ? 'status' : statusFieldReader.stringValue;
+    final statusFieldName = statusFieldReader.isNull
+        ? 'status'
+        : statusFieldReader.stringValue;
 
     // Get all instance fields
     final fields = classElement.fields
@@ -42,7 +43,7 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
         .toList();
 
     final buffer = StringBuffer();
-    buffer.writeln('// ignore_for_file: unused_element');
+    buffer.writeln('// ignore_for_file: type=lint');
     buffer.writeln();
 
     // Define sentinel constant
@@ -76,9 +77,11 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     List<FieldElement> fields,
   ) {
     // Build parameter list with Object? type and _sentinel default
-    final params = fields.map((f) {
-      return 'Object? ${f.name} = _\$${className}Sentinel';
-    }).join(', ');
+    final params = fields
+        .map((f) {
+          return 'Object? ${f.name} = _\$${className}Sentinel';
+        })
+        .join(', ');
 
     buffer.writeln('  $className copyWith({$params}) {');
     buffer.writeln('    return $className(');
@@ -93,7 +96,8 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
 
       // If sentinel, use this.field; otherwise cast to proper type
       buffer.writeln(
-          '      $fieldName: $fieldName == _\$${className}Sentinel ? this.$fieldName : $fieldName$cast,');
+        '      $fieldName: $fieldName == _\$${className}Sentinel ? this.$fieldName : $fieldName$cast,',
+      );
     }
     buffer.writeln('    );');
     buffer.writeln('  }');
@@ -107,26 +111,34 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     String statusFieldName,
   ) {
     // Check if class has status field of type AsyncStatus
-    final hasStatusField = fields.any((f) =>
-        f.name == statusFieldName &&
-        f.type.getDisplayString(withNullability: true).contains('AsyncStatus'));
+    final hasStatusField = fields.any(
+      (f) =>
+          f.name == statusFieldName &&
+          f.type
+              .getDisplayString(withNullability: true)
+              .contains('AsyncStatus'),
+    );
 
     // Check for common data/error field patterns
     final hasDataField = fields.any((f) => f.name == 'data');
-    final hasErrorField =
-        fields.any((f) => f.name == 'error' || f.name == 'errorMessage');
-    final errorFieldName =
-        fields.any((f) => f.name == 'error') ? 'error' : 'errorMessage';
+    final hasErrorField = fields.any(
+      (f) => f.name == 'error' || f.name == 'errorMessage',
+    );
+    final errorFieldName = fields.any((f) => f.name == 'error')
+        ? 'error'
+        : 'errorMessage';
 
     if (hasStatusField) {
       // toLoading
       buffer.writeln(
-          '  $className toLoading() => copyWith($statusFieldName: AsyncStatus.loading);');
+        '  $className toLoading() => copyWith($statusFieldName: AsyncStatus.loading);',
+      );
       buffer.writeln();
 
       // toRefreshing
       buffer.writeln(
-          '  $className toRefreshing() => copyWith($statusFieldName: AsyncStatus.refreshing);');
+        '  $className toRefreshing() => copyWith($statusFieldName: AsyncStatus.refreshing);',
+      );
       buffer.writeln();
 
       // toSuccess (with optional data param if data field exists)
@@ -139,7 +151,8 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
         buffer.writeln('  );');
       } else {
         buffer.writeln(
-            '  $className toSuccess() => copyWith($statusFieldName: AsyncStatus.success);');
+          '  $className toSuccess() => copyWith($statusFieldName: AsyncStatus.success);',
+        );
       }
       buffer.writeln();
 
@@ -151,7 +164,8 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
         buffer.writeln('  );');
       } else {
         buffer.writeln(
-            '  $className toFailure() => copyWith($statusFieldName: AsyncStatus.failure);');
+          '  $className toFailure() => copyWith($statusFieldName: AsyncStatus.failure);',
+        );
       }
       buffer.writeln();
     }
@@ -163,17 +177,23 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     List<FieldElement> fields,
     String statusFieldName,
   ) {
-    final hasStatusField = fields.any((f) =>
-        f.name == statusFieldName &&
-        f.type.getDisplayString(withNullability: true).contains('AsyncStatus'));
+    final hasStatusField = fields.any(
+      (f) =>
+          f.name == statusFieldName &&
+          f.type
+              .getDisplayString(withNullability: true)
+              .contains('AsyncStatus'),
+    );
 
     if (!hasStatusField) return;
 
     final hasDataField = fields.any((f) => f.name == 'data');
-    final hasErrorField =
-        fields.any((f) => f.name == 'error' || f.name == 'errorMessage');
-    final errorFieldName =
-        fields.any((f) => f.name == 'error') ? 'error' : 'errorMessage';
+    final hasErrorField = fields.any(
+      (f) => f.name == 'error' || f.name == 'errorMessage',
+    );
+    final errorFieldName = fields.any((f) => f.name == 'error')
+        ? 'error'
+        : 'errorMessage';
 
     // Generate when
     buffer.writeln('  R when<R>({');
@@ -214,10 +234,12 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     }
     if (hasDataField) {
       buffer.writeln(
-          '      AsyncStatus.refreshing => refreshing?.call(data!) ?? loading(),');
+        '      AsyncStatus.refreshing => refreshing?.call(data!) ?? loading(),',
+      );
     } else {
       buffer.writeln(
-          '      AsyncStatus.refreshing => refreshing?.call() ?? loading(),');
+        '      AsyncStatus.refreshing => refreshing?.call() ?? loading(),',
+      );
     }
     buffer.writeln('    };');
     buffer.writeln('  }');
@@ -246,20 +268,25 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     buffer.writeln('      AsyncStatus.loading => loading?.call() ?? orElse(),');
     if (hasDataField) {
       buffer.writeln(
-          '      AsyncStatus.success => success?.call(data!) ?? orElse(),');
+        '      AsyncStatus.success => success?.call(data!) ?? orElse(),',
+      );
     } else {
-      buffer
-          .writeln('      AsyncStatus.success => success?.call() ?? orElse(),');
+      buffer.writeln(
+        '      AsyncStatus.success => success?.call() ?? orElse(),',
+      );
     }
     if (hasErrorField) {
       buffer.writeln(
-          '      AsyncStatus.failure => failure?.call($errorFieldName!) ?? orElse(),');
+        '      AsyncStatus.failure => failure?.call($errorFieldName!) ?? orElse(),',
+      );
     } else {
-      buffer
-          .writeln('      AsyncStatus.failure => failure?.call() ?? orElse(),');
+      buffer.writeln(
+        '      AsyncStatus.failure => failure?.call() ?? orElse(),',
+      );
     }
     buffer.writeln(
-        '      AsyncStatus.refreshing => loading?.call() ?? orElse(),');
+      '      AsyncStatus.refreshing => loading?.call() ?? orElse(),',
+    );
     buffer.writeln('    };');
     buffer.writeln('  }');
     buffer.writeln();

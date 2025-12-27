@@ -67,7 +67,7 @@ class JobGenerator extends GeneratorForAnnotation<GenerateJob> {
     //     .toList();
 
     final buffer = StringBuffer();
-    buffer.writeln('// ignore_for_file: unused_element');
+    buffer.writeln('// ignore_for_file: type=lint');
 
     // Generate abstract class that extends BaseJob
     buffer.writeln('abstract class _\$${className} extends BaseJob {');
@@ -141,15 +141,16 @@ class EventGenerator extends GeneratorForAnnotation<GenerateEvent> {
     //     .toList();
 
     final buffer = StringBuffer();
-    buffer.writeln('// ignore_for_file: unused_element');
+    buffer.writeln('// ignore_for_file: type=lint');
 
     // Generate extension with factory
     buffer.writeln('extension _\$${className}Event on $className {');
 
     // Generate a method to create BaseEvent wrapper
     buffer.writeln('  BaseEvent toEvent(String correlationId) {');
-    buffer
-        .writeln('    return _${className}EventWrapper(correlationId, this);');
+    buffer.writeln(
+      '    return _${className}EventWrapper(correlationId, this);',
+    );
     buffer.writeln('  }');
     buffer.writeln('}');
     buffer.writeln();
@@ -158,7 +159,8 @@ class EventGenerator extends GeneratorForAnnotation<GenerateEvent> {
     buffer.writeln('class _${className}EventWrapper extends BaseEvent {');
     buffer.writeln('  final $className payload;');
     buffer.writeln(
-        '  _${className}EventWrapper(super.correlationId, this.payload);');
+      '  _${className}EventWrapper(super.correlationId, this.payload);',
+    );
     buffer.writeln('}');
 
     return buffer.toString();

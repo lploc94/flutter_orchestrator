@@ -40,7 +40,7 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
     }
 
     final buffer = StringBuffer();
-    buffer.writeln('// ignore_for_file: unused_element');
+    buffer.writeln('// ignore_for_file: type=lint');
 
     // Separate active and passive handlers
     final activeHandlers = eventHandlers.where((h) => !h.isPassive).toList();
@@ -65,12 +65,14 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
 
     // Generate mixin with correct state type to avoid generic conflict
     buffer.writeln(
-        'mixin _\$${className}EventRouting on BaseOrchestrator<$stateType> {');
+      'mixin _\$${className}EventRouting on BaseOrchestrator<$stateType> {',
+    );
 
     // Declare abstract methods for handlers so mixin can call them
     for (final handler in eventHandlers) {
       buffer.writeln(
-          '  void ${handler.methodName}(${handler.eventTypeName} event);');
+        '  void ${handler.methodName}(${handler.eventTypeName} event);',
+      );
     }
     buffer.writeln();
 
@@ -113,8 +115,10 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
     final onEventChecker = TypeChecker.fromRuntime(OnEvent);
 
     for (final method in classElement.methods) {
-      final annotation =
-          onEventChecker.firstAnnotationOf(method, throwOnUnresolved: false);
+      final annotation = onEventChecker.firstAnnotationOf(
+        method,
+        throwOnUnresolved: false,
+      );
       if (annotation == null) continue;
 
       final reader = ConstantReader(annotation);
@@ -124,13 +128,15 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
       String eventTypeName;
 
       if (eventTypeValue.isType) {
-        eventTypeName =
-            eventTypeValue.typeValue.getDisplayString(withNullability: true);
+        eventTypeName = eventTypeValue.typeValue.getDisplayString(
+          withNullability: true,
+        );
       } else {
         // Fallback: try to get from method parameter
         if (method.parameters.isNotEmpty) {
-          eventTypeName = method.parameters.first.type
-              .getDisplayString(withNullability: true);
+          eventTypeName = method.parameters.first.type.getDisplayString(
+            withNullability: true,
+          );
         } else {
           continue; // Skip invalid handler
         }
@@ -139,12 +145,14 @@ class OrchestratorGenerator extends GeneratorForAnnotation<Orchestrator> {
       final isPassive = reader.read('passive').boolValue;
       final priority = reader.read('priority').intValue;
 
-      handlers.add(_EventHandler(
-        methodName: method.name,
-        eventTypeName: eventTypeName,
-        isPassive: isPassive,
-        priority: priority,
-      ));
+      handlers.add(
+        _EventHandler(
+          methodName: method.name,
+          eventTypeName: eventTypeName,
+          isPassive: isPassive,
+          priority: priority,
+        ),
+      );
     }
 
     return handlers;

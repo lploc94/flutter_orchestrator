@@ -20,13 +20,11 @@ environment:
 dependencies:
   build: ">=2.4.0 <5.0.0"
   source_gen: ">=1.4.0 <5.0.0"
-  analyzer: ">=6.0.0 <10.0.0"
+  analyzer: ">=4.6.0 <10.0.0"
   code_builder: ^4.5.0
   dart_style: ">=2.3.0 <4.0.0"
-  orchestrator_core: ^0.3.0
+  orchestrator_core:
+    path: ../orchestrator_core
 
 dev_dependencies:
   test: ^1.24.0
-
-
-
