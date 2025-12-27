@@ -136,8 +136,8 @@ flutter_orchestrator/
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [orchestrator_core](packages/orchestrator_core) | 0.3.0 | Core framework (Pure Dart) - Jobs, Executors, Dispatcher, Events |
-| [orchestrator_flutter](packages/orchestrator_flutter) | 0.3.0 | Flutter platform support - Offline storage, Connectivity, DevTools Observer |
+| [orchestrator_core](packages/orchestrator_core) | 0.3.1 | Core framework (Pure Dart) - Jobs, Executors, Dispatcher, Events |
+| [orchestrator_flutter](packages/orchestrator_flutter) | 0.3.1 | Flutter platform support - Offline storage, Connectivity, DevTools Observer |
 | [orchestrator_bloc](packages/orchestrator_bloc) | 0.3.0 | flutter_bloc integration - OrchestratorCubit, OrchestratorBloc |
 | [orchestrator_provider](packages/orchestrator_provider) | 0.3.0 | provider integration - OrchestratorNotifier |
 | [orchestrator_riverpod](packages/orchestrator_riverpod) | 0.3.0 | riverpod integration - OrchestratorNotifier |
