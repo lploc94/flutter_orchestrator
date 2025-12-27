@@ -23,7 +23,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_bloc: ">=8.0.0 <10.0.0"
-  orchestrator_core: ^0.3.2
+  orchestrator_core: ^0.3.0
 
 dev_dependencies:
   flutter_test:

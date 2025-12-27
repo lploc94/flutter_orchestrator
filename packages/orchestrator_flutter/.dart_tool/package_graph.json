@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "orchestrator_flutter",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "dependencies": [
         "connectivity_plus",
         "flutter",
@@ -72,13 +72,6 @@
         "path_provider_linux",
         "path_provider_platform_interface",
         "path_provider_windows"
-      ]
-    },
-    {
-      "name": "orchestrator_core",
-      "version": "0.3.1",
-      "dependencies": [
-        "meta"
       ]
     },
     {
@@ -386,6 +379,13 @@
       "version": "7.0.1",
       "dependencies": [
         "collection",
+        "meta"
+      ]
+    },
+    {
+      "name": "orchestrator_core",
+      "version": "0.3.2",
+      "dependencies": [
         "meta"
       ]
     }

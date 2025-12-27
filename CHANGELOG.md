@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2025-12-27
+
+### All Packages (Pub.dev Ecosystem Optimization)
+- **Optimized**: Achieved 160/160 points on pub.dev for the entire ecosystem.
+- **Improved**: Added `documentation` and `issue_tracker` fields to all package `pubspec.yaml` files.
+- **Improved**: Provided example files for `orchestrator_test` and `orchestrator_cli`.
+- **Improved**: Formatted all Dart files according to the official Dart style guide.
+- **Improved**: Expanded dependency version ranges for better compatibility.
+- **orchestrator_flutter**: Included pre-built DevTools Extension assets for seamless integration.
+
 ## [0.3.1] - 2025-12-27
 
 ### orchestrator_test (New Package)

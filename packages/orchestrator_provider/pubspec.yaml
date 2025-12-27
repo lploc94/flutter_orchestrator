@@ -23,7 +23,7 @@ dependencies:
   flutter:
     sdk: flutter
   provider: ^6.0.0
-  orchestrator_core: ^0.3.2
+  orchestrator_core: ^0.3.0
 
 dev_dependencies:
   flutter_test:
