@@ -12,6 +12,7 @@ import 'widgets/job_inspector_tab.dart';
 import 'widgets/network_queue_tab.dart';
 import 'widgets/filter_bar.dart';
 import 'widgets/metrics_tab.dart';
+import 'widgets/cleanup_tab.dart';
 
 /// Main inspector widget with 4 tabs: Events, Jobs, Executors, Network Queue.
 class OrchestratorInspector extends StatefulWidget {
@@ -302,7 +303,7 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
     final filteredEvents = _getFilteredEvents();
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Column(
@@ -338,6 +339,7 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
               Tab(text: 'Executors', icon: Icon(Icons.hub)),
               Tab(text: 'Network Queue', icon: Icon(Icons.cloud_queue)),
               Tab(text: 'Metrics', icon: Icon(Icons.analytics)),
+              Tab(text: 'Cleanup', icon: Icon(Icons.cleaning_services)),
             ],
           ),
         ),
@@ -369,6 +371,7 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
                     executorCount: _executorRegistry.length,
                     networkQueueSize: _networkQueue.length,
                   ),
+                  const CleanupTab(),
                 ],
               ),
             ),

@@ -80,6 +80,67 @@ class OrchestratorObserver {
       },
     );
 
+    // Register Service Extension for Cleanup Stats
+    developer.registerExtension(
+      'ext.orchestrator.cleanup.getStats',
+      (method, parameters) async {
+        try {
+          final service = OrchestratorConfig.cleanupService;
+          if (service == null) {
+            return developer.ServiceExtensionResponse.result(
+              jsonEncode({'available': false}),
+            );
+          }
+          final stats = await service.getStats();
+          return developer.ServiceExtensionResponse.result(
+            jsonEncode({
+              'available': true,
+              'cacheEntryCount': stats.cacheEntryCount,
+              'maxCacheEntries': stats.cacheMaxEntries,
+              'fileCount': stats.fileCount,
+              'fileSizeBytes': stats.fileSizeBytes,
+            }),
+          );
+        } catch (e) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.extensionError,
+            'Failed to get cleanup stats: $e',
+          );
+        }
+      },
+    );
+
+    // Register Service Extension for Force Cleanup
+    developer.registerExtension(
+      'ext.orchestrator.cleanup.run',
+      (method, parameters) async {
+        try {
+          final service = OrchestratorConfig.cleanupService;
+          if (service == null) {
+            return developer.ServiceExtensionResponse.result(
+              jsonEncode(
+                  {'success': false, 'error': 'No CleanupService configured'}),
+            );
+          }
+          final report = await service.runCleanup();
+          return developer.ServiceExtensionResponse.result(
+            jsonEncode({
+              'success': true,
+              'cacheEntriesRemoved': report.cacheEntriesRemoved,
+              'filesRemoved': report.filesRemoved,
+              'bytesFreed': report.bytesFreed,
+              'durationMs': report.duration.inMilliseconds,
+            }),
+          );
+        } catch (e) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.extensionError,
+            'Failed to run cleanup: $e',
+          );
+        }
+      },
+    );
+
     // Also send once at startup just in case
     _sendRegistryEvent();
   }
