@@ -1,7 +1,7 @@
 /// Configuration for Builders used in `build.yaml`.
 ///
 /// Use strict versions of these builders to generate code.
-library builder;
+library orchestrator_generator;
 
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';

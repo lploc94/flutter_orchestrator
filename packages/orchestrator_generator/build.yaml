@@ -7,7 +7,7 @@ targets:
 builders:
   network_registry:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["networkRegistryBuilder"]
     build_extensions: {".dart": [".network_registry.g.part"]}
     auto_apply: dependents
@@ -16,7 +16,7 @@ builders:
 
   network_job:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["networkJobBuilder"]
     build_extensions: {".dart": [".network_job.g.part"]}
     auto_apply: dependents
@@ -25,7 +25,7 @@ builders:
 
   executor_registry:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["executorRegistryBuilder"]
     build_extensions: {".dart": [".executor_registry.g.part"]}
     auto_apply: dependents
@@ -34,7 +34,7 @@ builders:
 
   orchestrator:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["orchestratorBuilder"]
     build_extensions: {".dart": [".orchestrator.g.part"]}
     auto_apply: dependents
@@ -43,7 +43,7 @@ builders:
 
   async_state:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["asyncStateBuilder"]
     build_extensions: {".dart": [".async_state.g.part"]}
     auto_apply: dependents
@@ -52,7 +52,7 @@ builders:
 
   job:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["jobBuilder"]
     build_extensions: {".dart": [".job.g.part"]}
     auto_apply: dependents
@@ -61,7 +61,7 @@ builders:
 
   event:
     target: ":orchestrator_generator"
-    import: "package:orchestrator_generator/builder.dart"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
     builder_factories: ["eventBuilder"]
     build_extensions: {".dart": [".event.g.part"]}
     auto_apply: dependents

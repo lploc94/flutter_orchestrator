@@ -2,7 +2,7 @@ name: orchestrator_generator
 description: >-
   Code generator for orchestrator_core's offline support. Generates NetworkJobRegistry 
   registration code from @NetworkRegistry annotation.
-version: 0.3.4
+version: 0.3.5
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues
@@ -24,10 +24,6 @@ dependencies:
   code_builder: ^4.5.0
   dart_style: ">=2.3.0 <4.0.0"
   orchestrator_core: ^0.3.3
-
-dependency_overrides:
-  orchestrator_core:
-    path: ../orchestrator_core
 
 dev_dependencies:
   test: ^1.24.0

@@ -33,9 +33,8 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     }
     final generateEquality = annotation.read('generateEquality').boolValue;
     final statusFieldReader = annotation.read('statusField');
-    final statusFieldName = statusFieldReader.isNull
-        ? 'status'
-        : statusFieldReader.stringValue;
+    final statusFieldName =
+        statusFieldReader.isNull ? 'status' : statusFieldReader.stringValue;
 
     // Get all instance fields
     final fields = classElement.fields
@@ -77,11 +76,9 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     List<FieldElement> fields,
   ) {
     // Build parameter list with Object? type and _sentinel default
-    final params = fields
-        .map((f) {
-          return 'Object? ${f.name} = _\$${className}Sentinel';
-        })
-        .join(', ');
+    final params = fields.map((f) {
+      return 'Object? ${f.name} = _\$${className}Sentinel';
+    }).join(', ');
 
     buffer.writeln('  $className copyWith({$params}) {');
     buffer.writeln('    return $className(');
@@ -124,9 +121,8 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     final hasErrorField = fields.any(
       (f) => f.name == 'error' || f.name == 'errorMessage',
     );
-    final errorFieldName = fields.any((f) => f.name == 'error')
-        ? 'error'
-        : 'errorMessage';
+    final errorFieldName =
+        fields.any((f) => f.name == 'error') ? 'error' : 'errorMessage';
 
     if (hasStatusField) {
       // toLoading
@@ -191,9 +187,8 @@ class AsyncStateGenerator extends GeneratorForAnnotation<GenerateAsyncState> {
     final hasErrorField = fields.any(
       (f) => f.name == 'error' || f.name == 'errorMessage',
     );
-    final errorFieldName = fields.any((f) => f.name == 'error')
-        ? 'error'
-        : 'errorMessage';
+    final errorFieldName =
+        fields.any((f) => f.name == 'error') ? 'error' : 'errorMessage';
 
     // Generate when
     buffer.writeln('  R when<R>({');

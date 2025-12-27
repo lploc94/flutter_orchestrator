@@ -1,3 +1,9 @@
+## 0.3.5 - 2025-12-27
+
+### Fixed
+- Renamed `lib/builder.dart` to `lib/orchestrator_generator.dart` to match package name importance.
+- Removed checked-in `pubspec.lock` to fix pub verification warning.
+
 ## 0.3.4 - 2025-12-27
 
 ### Fixed

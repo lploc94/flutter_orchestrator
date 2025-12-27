@@ -18,9 +18,8 @@ class NetworkJobGenerator extends GeneratorForAnnotation<NetworkJob> {
       );
     }
 
-    final generateSerialization = annotation
-        .read('generateSerialization')
-        .boolValue;
+    final generateSerialization =
+        annotation.read('generateSerialization').boolValue;
 
     if (!generateSerialization) {
       return '';
