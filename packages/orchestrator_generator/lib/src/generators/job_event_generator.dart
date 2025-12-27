@@ -67,7 +67,9 @@ class JobGenerator extends GeneratorForAnnotation<GenerateJob> {
     //     .toList();
 
     final buffer = StringBuffer();
-    buffer.writeln('// ignore_for_file: type=lint');
+    buffer.writeln(
+      '// ignore_for_file: type=lint, avoid_unused_constructor_parameters, unused_element, unused_element_parameter',
+    );
 
     // Generate abstract class that extends BaseJob
     buffer.writeln('abstract class _\$${className} extends BaseJob {');
