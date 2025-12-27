@@ -133,7 +133,10 @@ class Dispatcher {
 
           // 3. Emit Events (Started + Fake Success)
           final bus = job.bus ?? SignalBus.instance;
-          bus.emit(JobStartedEvent(job.id));
+          bus.emit(JobStartedEvent(
+            job.id,
+            jobType: job.runtimeType.toString(),
+          ));
           bus.emit(
               JobSuccessEvent(job.id, optimisticResult, isOptimistic: true));
 

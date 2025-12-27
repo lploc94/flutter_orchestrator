@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "orchestrator_flutter",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": [
         "connectivity_plus",
         "flutter",
@@ -15,6 +15,13 @@
       ],
       "devDependencies": [
         "flutter_test"
+      ]
+    },
+    {
+      "name": "orchestrator_core",
+      "version": "0.3.0",
+      "dependencies": [
+        "meta"
       ]
     },
     {
@@ -75,13 +82,6 @@
       ]
     },
     {
-      "name": "orchestrator_core",
-      "version": "0.3.0",
-      "dependencies": [
-        "meta"
-      ]
-    },
-    {
       "name": "flutter",
       "version": "0.0.0",
       "dependencies": [
@@ -92,6 +92,11 @@
         "sky_engine",
         "vector_math"
       ]
+    },
+    {
+      "name": "meta",
+      "version": "1.16.0",
+      "dependencies": []
     },
     {
       "name": "vm_service",
@@ -125,11 +130,6 @@
         "path",
         "term_glyph"
       ]
-    },
-    {
-      "name": "meta",
-      "version": "1.16.0",
-      "dependencies": []
     },
     {
       "name": "material_color_utilities",

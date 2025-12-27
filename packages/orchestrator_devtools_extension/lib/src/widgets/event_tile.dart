@@ -17,7 +17,7 @@ class EventTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+        side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ExpansionTile(
@@ -33,7 +33,7 @@ class EventTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'ID: ${event.correlationId.length > 8 ? event.correlationId.substring(0, 8) + '...' : event.correlationId}',
+                    'ID: ${event.correlationId.length > 8 ? '${event.correlationId.substring(0, 8)}...' : event.correlationId}',
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 10,
@@ -48,7 +48,7 @@ class EventTile extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
+                      color: Colors.orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: Colors.orange, width: 0.5),
                     ),
@@ -65,7 +65,7 @@ class EventTile extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.teal.withOpacity(0.1),
+                      color: Colors.teal.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: Colors.teal, width: 0.5),
                     ),
@@ -88,7 +88,7 @@ class EventTile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(8.0),
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.05),
+              color: Colors.grey.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(4),
             ),
             child: JsonViewer(data: event.rawData),

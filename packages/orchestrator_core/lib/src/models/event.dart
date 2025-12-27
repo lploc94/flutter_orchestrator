@@ -132,7 +132,11 @@ class JobProgressEvent extends BaseEvent {
 
 /// Emitted when a Job starts executing.
 class JobStartedEvent extends BaseEvent {
-  JobStartedEvent(super.correlationId);
+  final String jobType;
+  JobStartedEvent(super.correlationId, {required this.jobType});
+
+  @override
+  String toString() => 'JobStartedEvent(id: $correlationId, type: $jobType)';
 }
 
 /// Emitted when a Job is retrying after failure.

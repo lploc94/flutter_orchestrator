@@ -108,7 +108,9 @@ class OrchestratorObserver {
     };
 
     // Add event-specific fields
-    if (event is JobSuccessEvent) {
+    if (event is JobStartedEvent) {
+      json['jobType'] = event.jobType;
+    } else if (event is JobSuccessEvent) {
       json['data'] = _sanitizeData(event.data);
       json['isOptimistic'] = event.isOptimistic;
     } else if (event is JobFailureEvent) {

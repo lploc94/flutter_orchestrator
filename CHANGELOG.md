@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-12-27
+
+### orchestrator_core (Code Generation)
+- **Added**: Extended Code Generation support
+  - `@Orchestrator` & `@OnEvent`: Declarative routing.
+  - `@GenerateAsyncState`: Auto-generate state helpers.
+  - `@GenerateJob`: Simplifies job boilerplate.
+  - `@GenerateEvent`: Reduces event boilerplate.
+  - `@NetworkJob`: Added `generateSerialization` flag.
+  - `@ExecutorRegistry`: Auto-registration of executors.
+
+### orchestrator_flutter
+- **Fixed**: Serialization bug for DevTools (`jobType` unknown).
+- **Fixed**: `pubspec.yaml` dependency configuration (bumped to depend on `core ^0.3.0`).
+
+### orchestrator_devtools_extension
+- **Improved**: Added "Peak Throughput" metric.
+- **Improved**: Refined Health Score and Cache Hit Rate logic.
+- **Improved**: Improved Network Queue display and Dark Mode UI.
+
 ## [0.2.0] - 2025-12-25
 
 ### Added

@@ -3,12 +3,14 @@ class EventEntry {
   final String type;
   final String correlationId;
   final DateTime timestamp;
+  final String? jobType;
   final Map<String, dynamic> rawData;
 
   EventEntry({
     required this.type,
     required this.correlationId,
     required this.timestamp,
+    this.jobType,
     required this.rawData,
   });
 
@@ -20,6 +22,7 @@ class EventEntry {
       timestamp:
           DateTime.tryParse(json['timestamp'] as String? ?? '') ??
           DateTime.now(),
+      jobType: json['jobType'] as String?,
       rawData: json,
     );
   }

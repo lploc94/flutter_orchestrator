@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+// import 'package:flutter/services.dart';
 
 /// A interactive JSON tree viewer for inspecting data
 class JsonViewer extends StatelessWidget {
@@ -47,11 +47,12 @@ class JsonViewer extends StatelessWidget {
       );
     }
     if (node is List) {
-      if (node.isEmpty)
+      if (node.isEmpty) {
         return Text(
           '[]',
           style: TextStyle(color: Colors.grey, fontSize: fontSize),
         );
+      }
       return _CollapsibleNode(
         title: Text(
           '[${node.length}]',
@@ -75,11 +76,12 @@ class JsonViewer extends StatelessWidget {
       );
     }
     if (node is Map) {
-      if (node.isEmpty)
+      if (node.isEmpty) {
         return Text(
           '{}',
           style: TextStyle(color: Colors.grey, fontSize: fontSize),
         );
+      }
       return _CollapsibleNode(
         title: Text(
           '{${node.length}}',
@@ -113,13 +115,8 @@ class JsonViewer extends StatelessWidget {
 class _CollapsibleNode extends StatefulWidget {
   final Widget title;
   final List<Widget> children;
-  final bool initiallyExpanded;
 
-  const _CollapsibleNode({
-    required this.title,
-    required this.children,
-    this.initiallyExpanded = false,
-  });
+  const _CollapsibleNode({required this.title, required this.children});
 
   @override
   State<_CollapsibleNode> createState() => _CollapsibleNodeState();
@@ -131,7 +128,7 @@ class _CollapsibleNodeState extends State<_CollapsibleNode> {
   @override
   void initState() {
     super.initState();
-    _expanded = widget.initiallyExpanded;
+    _expanded = false;
   }
 
   @override

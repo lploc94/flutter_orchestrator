@@ -41,7 +41,7 @@ class ExecutorRegistryTab extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: Colors.blue.withOpacity(0.2),
+              backgroundColor: Colors.green.withValues(alpha: 0.1),
               child: const Icon(Icons.bolt, color: Colors.blue),
             ),
             title: Text(

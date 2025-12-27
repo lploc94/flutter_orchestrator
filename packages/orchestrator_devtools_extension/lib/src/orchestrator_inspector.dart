@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+// import 'dart:convert'; // removed
 
 import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +10,8 @@ import 'widgets/event_timeline_tab.dart';
 import 'widgets/executor_registry_tab.dart';
 import 'widgets/job_inspector_tab.dart';
 import 'widgets/network_queue_tab.dart';
+import 'widgets/filter_bar.dart';
+import 'widgets/metrics_tab.dart';
 
 /// Main inspector widget with 4 tabs: Events, Jobs, Executors, Network Queue.
 class OrchestratorInspector extends StatefulWidget {
@@ -55,10 +57,7 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
     });
   }
 
-  void _submitSearch() {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    setState(() {});
-  }
+  // _submitSearch removed because it was unused
 
   void _setupEventListener() async {
     // Prevent multiple concurrent connection attempts
@@ -73,9 +72,11 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
     );
 
     try {
+      // unused import removed
+
       // 1. Check if already connected
       VmService? service;
-      if (serviceManager.hasConnection) {
+      if (serviceManager.connectedState.value.connected) {
         service = serviceManager.service;
         debugPrint('[OrchestratorInspector] ✅ Service already connected.');
       } else {
@@ -265,46 +266,43 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
       }
 
       // Normal Event
+      var entry = EventEntry.fromJson(data);
+
+      // Enrich with JobType
+      if (entry.jobType != null) {
+        _correlationToJobType[entry.correlationId] = entry.jobType!;
+        _knownJobTypes.add(entry.jobType!);
+      } else if (_correlationToJobType.containsKey(entry.correlationId)) {
+        // Hydrate from history
+        final type = _correlationToJobType[entry.correlationId];
+        // Create new entry with jobType (since EventEntry is immutable-ish)
+        entry = EventEntry(
+          type: entry.type,
+          correlationId: entry.correlationId,
+          timestamp: entry.timestamp,
+          rawData: entry.rawData,
+          jobType: type,
+        );
+      }
+
       setState(() {
-        _events.insert(0, EventEntry.fromJson(data!));
+        _events.insert(0, entry);
         if (_events.length > 500) _events.removeLast();
       });
     }
   }
 
-  void _clearEvents() {
-    setState(() {
-      _events.clear();
-    });
-  }
-
-  List<EventEntry> _getFilteredEvents() {
-    if (_searchController.text.isEmpty && !_showErrorsOnly) {
-      return _events;
-    }
-
-    final query = _searchController.text.toLowerCase();
-    return _events.where((event) {
-      final matchesQuery =
-          query.isEmpty ||
-          event.type.toLowerCase().contains(query) ||
-          event.correlationId.toLowerCase().contains(query);
-
-      final matchesFilter =
-          !_showErrorsOnly ||
-          event.type == 'JobFailureEvent' ||
-          event.type == 'NetworkSyncFailureEvent';
-
-      return matchesQuery && matchesFilter;
-    }).toList();
-  }
+  // Job Type state
+  final Set<String> _knownJobTypes = {};
+  String? _selectedJobType;
+  final Map<String, String> _correlationToJobType = {};
 
   @override
   Widget build(BuildContext context) {
     final filteredEvents = _getFilteredEvents();
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Column(
@@ -339,12 +337,26 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
               Tab(text: 'Jobs', icon: Icon(Icons.work_outline)),
               Tab(text: 'Executors', icon: Icon(Icons.hub)),
               Tab(text: 'Network Queue', icon: Icon(Icons.cloud_queue)),
+              Tab(text: 'Metrics', icon: Icon(Icons.analytics)),
             ],
           ),
         ),
         body: Column(
           children: [
-            _buildFilterBar(),
+            FilterBar(
+              jobTypes: _knownJobTypes.toList()..sort(),
+              showErrorsOnly: _showErrorsOnly,
+              onSearchChanged: (val) {
+                _searchController.text = val;
+                setState(() {});
+              },
+              onJobTypeChanged: (val) {
+                setState(() => _selectedJobType = val);
+              },
+              onErrorFilterChanged: (val) {
+                setState(() => _showErrorsOnly = val);
+              },
+            ),
             Expanded(
               child: TabBarView(
                 children: [
@@ -352,6 +364,11 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
                   JobInspectorTab(events: filteredEvents),
                   ExecutorRegistryTab(registry: _executorRegistry),
                   NetworkQueueTab(queue: _networkQueue),
+                  MetricsTab(
+                    events: _events,
+                    executorCount: _executorRegistry.length,
+                    networkQueueSize: _networkQueue.length,
+                  ),
                 ],
               ),
             ),
@@ -361,51 +378,35 @@ class _OrchestratorInspectorState extends State<OrchestratorInspector> {
     );
   }
 
-  Widget _buildFilterBar() {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 40,
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search (Debounced 1.5s)...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.keyboard_return, size: 16),
-                    onPressed: _submitSearch,
-                    tooltip: 'Search Immediately',
-                  ),
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 0,
-                    horizontal: 12,
-                  ),
-                  isDense: true,
-                ),
-                style: const TextStyle(fontSize: 13),
-                onSubmitted: (_) => _submitSearch(),
-                textInputAction: TextInputAction.search,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('Errors Only'),
-            selected: _showErrorsOnly,
-            onSelected: (value) => setState(() => _showErrorsOnly = value),
-            avatar: _showErrorsOnly ? const Icon(Icons.check, size: 16) : null,
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
-      ),
-    );
+  void _clearEvents() {
+    setState(() {
+      _events.clear();
+      _knownJobTypes.clear();
+      _correlationToJobType.clear();
+    });
+  }
+
+  List<EventEntry> _getFilteredEvents() {
+    return _events.where((event) {
+      // 1. Search Query
+      final query = _searchController.text.toLowerCase();
+      final matchesQuery =
+          query.isEmpty ||
+          event.type.toLowerCase().contains(query) ||
+          event.correlationId.toLowerCase().contains(query) ||
+          (event.jobType?.toLowerCase().contains(query) ?? false);
+
+      // 2. Error Filter
+      final matchesError =
+          !_showErrorsOnly ||
+          event.type == 'JobFailureEvent' ||
+          event.type == 'NetworkSyncFailureEvent';
+
+      // 3. Job Type Filter
+      final matchesJobType =
+          _selectedJobType == null || event.jobType == _selectedJobType;
+
+      return matchesQuery && matchesError && matchesJobType;
+    }).toList();
   }
 }

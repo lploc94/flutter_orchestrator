@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/event_entry.dart';
 import 'event_tile.dart';
+import 'job_detail_view.dart';
 
 /// Tab 2: Job Inspector - Shows jobs grouped by correlation ID
 class JobInspectorTab extends StatelessWidget {
@@ -63,8 +64,8 @@ class JobInspectorTab extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: duration.inMilliseconds > 500
-                        ? Colors.red.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
+                        ? Colors.red.withValues(alpha: 0.1)
+                        : Colors.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: duration.inMilliseconds > 500
@@ -86,9 +87,29 @@ class JobInspectorTab extends StatelessWidget {
                 ),
             ],
           ),
-          children: jobEvents.map((e) {
-            return EventTile(event: e);
-          }).toList(),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    icon: const Icon(Icons.fullscreen),
+                    label: const Text('View Full Details'),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              JobDetailView(jobId: jobId, events: jobEvents),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            ...jobEvents.map((e) => EventTile(event: e)),
+          ],
         );
       },
     );

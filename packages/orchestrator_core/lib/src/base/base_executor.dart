@@ -46,7 +46,10 @@ abstract class BaseExecutor<T extends BaseJob> {
     _activeBus[job.id] = bus;
 
     // Emit started event
-    bus.emit(JobStartedEvent(job.id));
+    bus.emit(JobStartedEvent(
+      job.id,
+      jobType: job.runtimeType.toString(),
+    ));
 
     // --- Unified Data Flow: 1. Placeholder ---
     if (job.strategy?.placeholder != null) {

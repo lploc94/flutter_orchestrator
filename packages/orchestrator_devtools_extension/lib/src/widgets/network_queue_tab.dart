@@ -36,15 +36,16 @@ class NetworkQueueTab extends StatelessWidget {
         final id = job['id'] as String? ?? 'Unknown ID';
         final status = job['status'] as String? ?? 'Pending';
         final retryCount = job['retryCount'] as int? ?? 0;
-        final createdAt = job['createdAt'] != null
-            ? DateTime.tryParse(job['createdAt'].toString())
+        final createdAtRaw = job['timestamp'] ?? job['createdAt'];
+        final createdAt = createdAtRaw != null
+            ? DateTime.tryParse(createdAtRaw.toString())
             : null;
 
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           elevation: 0,
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+            side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: ExpansionTile(
@@ -58,7 +59,7 @@ class NetworkQueueTab extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
