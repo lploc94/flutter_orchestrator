@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-12-27
+
+### Changed
+- Updated dependency to `orchestrator_core: ^0.3.0`.
+- Compatible with new Unified Data Flow and DevTools extension.
+
 ## [0.2.0] - 2025-12-25
 
 ### Fixed
