@@ -76,6 +76,51 @@ abstract class BaseExecutor<T extends BaseJob> {
 }
 ```
 
+### 1.1. TypedExecutor - Type-Safe Alternative
+
+For compile-time type safety on return values, use `TypedExecutor`:
+
+```dart
+/// TypedExecutor<JobType, ResultType>
+abstract class TypedExecutor<T extends BaseJob, R> extends BaseExecutor<T> {
+  /// Override this instead of process()
+  Future<R> run(T job);
+}
+
+/// Sync version for non-async operations
+abstract class SyncTypedExecutor<T extends BaseJob, R> extends BaseExecutor<T> {
+  R runSync(T job);
+}
+```
+
+**Example:**
+
+```dart
+class FetchUserExecutor extends TypedExecutor<FetchUserJob, User> {
+  final UserRepository _repo;
+
+  FetchUserExecutor(this._repo);
+
+  @override
+  Future<User> run(FetchUserJob job) async {
+    // Return type enforced at compile time
+    return await _repo.getById(job.userId);
+  }
+}
+
+// Sync example
+class CalculateTaxExecutor extends SyncTypedExecutor<TaxJob, double> {
+  @override
+  double runSync(TaxJob job) {
+    return job.amount * 0.1;
+  }
+}
+```
+
+**When to use:**
+- `TypedExecutor`: When you want compile-time guarantees on result types
+- `BaseExecutor`: When result type varies or is dynamic
+
 ---
 
 ## 2. Execution Flow

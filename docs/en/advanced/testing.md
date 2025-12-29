@@ -94,6 +94,44 @@ void main() {
 
 Orchestrators (Cubits) manage state. You can test them using the `testOrchestrator` helper, which provides a declarative way to test state transitions, similar to `blocTest`.
 
+### 4.0. Dependency Injection for Testing
+
+Since v0.4.0, `BaseOrchestrator` supports optional `bus` and `dispatcher` injection:
+
+```dart
+// In your orchestrator
+class UserOrchestrator extends BaseOrchestrator<UserState> {
+  UserOrchestrator({super.bus, super.dispatcher}) : super(UserState.initial());
+}
+
+// In your test
+test('verifies dispatch was called', () {
+  final mockDispatcher = MockDispatcher();
+  final bus = SignalBus.scoped();
+
+  // Stub the dispatch to return a job ID
+  when(() => mockDispatcher.dispatch(any())).thenReturn('mock-job-id');
+
+  final orchestrator = UserOrchestrator(
+    bus: bus,
+    dispatcher: mockDispatcher,
+  );
+
+  orchestrator.fetchUser('123');
+
+  // Verify dispatch was called with correct job
+  verify(() => mockDispatcher.dispatch(any(that: isA<FetchUserJob>()))).called(1);
+
+  orchestrator.dispose();
+  bus.dispose();
+});
+```
+
+This enables:
+- **Mock Dispatcher**: Verify `dispatch()` calls without executing real jobs
+- **Scoped Bus**: Isolate event streams between tests
+- **Fast Tests**: No actual job execution, just verification
+
 ```dart
 import 'package:orchestrator_test/orchestrator_test.dart';
 

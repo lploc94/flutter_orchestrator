@@ -5,6 +5,9 @@
   - `JobSuccessEvent`, `JobFailureEvent`, `JobCancelledEvent`, `JobTimeoutEvent`, `JobCacheHitEvent`, `JobPlaceholderEvent` all have optional `jobType` parameter.
   - New helper method `isFromJobType<J>()` on all result events for type-safe filtering.
   - `BaseExecutor` automatically tracks and emits `jobType` for all events.
+- **TypedExecutor**: New base class for type-safe executors with compile-time result type checking.
+  - `TypedExecutor<T, R>`: Async executor with typed `run(T job)` method returning `Future<R>`.
+  - `SyncTypedExecutor<T, R>`: Sync executor with `runSync(T job)` method returning `R`.
 - **Use Case**: Passive handlers can now filter events by job type:
   ```dart
   @override

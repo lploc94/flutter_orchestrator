@@ -109,9 +109,31 @@ generateJobId('user')        // → "user-1703579123456789-d4e5f6"
 generateJobId('fetch_order') // → "fetch_order-1703579123456789-789abc"
 ```
 
-**Mechanism:**
-- Combines `microsecondsSinceEpoch` + random 6-char hex
-- Ensures uniqueness even when creating multiple jobs in same millisecond
+### ID Format
+
+Job IDs follow the pattern: `{prefix}-{timestamp}-{randomHex}`
+
+| Component | Description |
+|-----------|-------------|
+| `prefix` | Custom string from `generateJobId('my_prefix')` or defaults to `'job'` |
+| `timestamp` | Microseconds since epoch (ensures ordering and approximate uniqueness) |
+| `randomHex` | 6-character cryptographic random hex (ensures uniqueness within same microsecond) |
+
+**Example breakdown:**
+```
+chamber-1735489200123456-a1b2c3
+│       │                │
+│       │                └── 6-char random hex
+│       └── microseconds since epoch
+└── custom prefix
+```
+
+> **Note:** The format uses hyphens (`-`) as separators, not underscores.
+
+**Uniqueness guarantees:**
+- Microsecond timestamp provides ~1M unique slots per second
+- Random hex adds 16^6 = 16,777,216 combinations
+- Combined probability of collision is effectively zero in practice
 
 ---
 

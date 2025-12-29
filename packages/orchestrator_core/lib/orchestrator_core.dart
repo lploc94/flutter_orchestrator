@@ -44,6 +44,7 @@ export 'src/infra/cleanup.dart';
 // Base classes
 export 'src/base/base_executor.dart';
 export 'src/base/base_orchestrator.dart';
+export 'src/base/typed_executor.dart';
 
 // Utilities
 export 'src/utils/cancellation_token.dart';
