@@ -36,17 +36,31 @@ class CancelJobEvent extends OrchestratorBlocEvent {
 ///   }
 /// }
 /// ```
+///
+/// For testing, you can inject custom [bus] and [dispatcher]:
+/// ```dart
+/// final mockDispatcher = MockDispatcher();
+/// final bloc = MyBloc(dispatcher: mockDispatcher);
+/// ```
 abstract class OrchestratorBloc<E extends OrchestratorBlocEvent, S>
     extends Bloc<E, S> {
-  final SignalBus _bus = SignalBus.instance;
-  final Dispatcher _dispatcher = Dispatcher();
+  final SignalBus _bus;
+  final Dispatcher _dispatcher;
 
   final Set<String> _activeJobIds = {};
   final Map<String, double> _jobProgress = {};
 
   StreamSubscription? _busSubscription;
 
-  OrchestratorBloc(super.initialState) {
+  /// Creates a new OrchestratorBloc with the given initial state.
+  ///
+  /// Optionally accepts a [bus] for event communication (defaults to global [SignalBus.instance]).
+  /// Optionally accepts a [dispatcher] for job routing (defaults to global [Dispatcher] singleton).
+  ///
+  /// The [dispatcher] parameter is useful for testing, allowing injection of mock dispatchers.
+  OrchestratorBloc(super.initialState, {SignalBus? bus, Dispatcher? dispatcher})
+      : _bus = bus ?? SignalBus.instance,
+        _dispatcher = dispatcher ?? Dispatcher() {
     _subscribeToBus();
   }
 

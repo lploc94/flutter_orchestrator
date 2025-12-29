@@ -28,9 +28,23 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 ///   CounterNotifier.new,
 /// );
 /// ```
+///
+/// For testing, you can override the bus and dispatcher:
+/// ```dart
+/// // In your notifier, expose a way to inject dependencies
+/// class TestableNotifier extends OrchestratorNotifier<MyState> {
+///   @override
+///   MyState buildState() => MyState.initial();
+///
+///   @override
+///   SignalBus get bus => _customBus ?? super.bus;
+///   SignalBus? _customBus;
+///   void setTestBus(SignalBus bus) => _customBus = bus;
+/// }
+/// ```
 abstract class OrchestratorNotifier<S> extends Notifier<S> {
-  final SignalBus _bus = SignalBus.instance;
-  final Dispatcher _dispatcher = Dispatcher();
+  SignalBus _bus = SignalBus.instance;
+  Dispatcher _dispatcher = Dispatcher();
 
   /// Active job IDs being tracked
   final Set<String> _activeJobIds = {};
@@ -41,6 +55,24 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   StreamSubscription? _busSubscription;
   bool _isDisposed = false;
   bool _isInitialized = false;
+
+  /// The SignalBus used for event communication.
+  ///
+  /// Defaults to [SignalBus.instance]. Override in subclass for testing.
+  SignalBus get bus => _bus;
+
+  /// The Dispatcher used for job routing.
+  ///
+  /// Defaults to [Dispatcher] singleton. Override in subclass for testing.
+  Dispatcher get dispatcher => _dispatcher;
+
+  /// Configure custom bus and dispatcher for testing.
+  ///
+  /// Call this in your test setup before the notifier is built.
+  void configureForTesting({SignalBus? bus, Dispatcher? dispatcher}) {
+    if (bus != null) _bus = bus;
+    if (dispatcher != null) _dispatcher = dispatcher;
+  }
 
   /// Override this method to provide initial state.
   ///
@@ -79,7 +111,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   /// Dispatch a job and start tracking it
   String dispatch(BaseJob job) {
     _ensureSubscribed();
-    final id = _dispatcher.dispatch(job);
+    final id = dispatcher.dispatch(job);
     _activeJobIds.add(id);
     _jobProgress[id] = 0.0;
     return id;
@@ -99,7 +131,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
 
   void _subscribeToBus() {
     _busSubscription?.cancel();
-    _busSubscription = _bus.stream.listen(_routeEvent);
+    _busSubscription = bus.stream.listen(_routeEvent);
   }
 
   void _routeEvent(BaseEvent event) {

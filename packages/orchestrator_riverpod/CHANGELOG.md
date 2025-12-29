@@ -1,3 +1,14 @@
+## 0.4.0 - 2025-12-29
+
+### Added
+- **Testing Support**: `OrchestratorNotifier` now exposes `bus` and `dispatcher` getters.
+  - Added `configureForTesting({bus, dispatcher})` method for test setup.
+  - Allows overriding dependencies in tests without constructor changes.
+  - Backward compatible: defaults to global singletons.
+
+### Changed
+- Updated dependency to `orchestrator_core: ^0.4.0`.
+
 ## 0.3.1 - 2025-12-27
 
 ### Fixed

@@ -1,3 +1,14 @@
+## 0.4.0 - 2025-12-29
+
+### Added
+- **Testing Support**: `BaseOrchestrator` now accepts optional `dispatcher` parameter for dependency injection.
+  - Allows mocking `Dispatcher` in tests to verify dispatch behavior.
+  - Backward compatible: defaults to global `Dispatcher()` singleton.
+- **Convenience**: Added `SignalBus.listen()` method as shorthand for `stream.listen()`.
+
+### Changed
+- `BaseOrchestrator` constructor signature updated to accept optional `bus` and `dispatcher` parameters.
+
 ## 0.3.3 - 2025-12-27
 
 ### Changed

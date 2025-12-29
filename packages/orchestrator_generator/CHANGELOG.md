@@ -1,3 +1,8 @@
+## 0.4.0 - 2025-12-29
+
+### Changed
+- Updated dependency to `orchestrator_core: ^0.4.0`.
+
 ## 0.3.5 - 2025-12-27
 
 ### Fixed

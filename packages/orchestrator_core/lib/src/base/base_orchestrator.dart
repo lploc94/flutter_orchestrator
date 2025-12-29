@@ -17,7 +17,7 @@ abstract class BaseOrchestrator<S> {
   S _state;
   final StreamController<S> _stateController = StreamController<S>.broadcast();
   final SignalBus _bus;
-  final Dispatcher _dispatcher = Dispatcher();
+  final Dispatcher _dispatcher;
 
   /// Active transactions tracking (Jobs this orchestrator owns).
   final Set<String> _activeJobIds = {};
@@ -29,8 +29,15 @@ abstract class BaseOrchestrator<S> {
   /// Bus subscription.
   StreamSubscription? _busSubscription;
 
-  BaseOrchestrator(this._state, {SignalBus? bus})
-      : _bus = bus ?? SignalBus.instance {
+  /// Creates a new orchestrator with the given initial state.
+  ///
+  /// Optionally accepts a [bus] for event communication (defaults to global [SignalBus.instance]).
+  /// Optionally accepts a [dispatcher] for job routing (defaults to global [Dispatcher] singleton).
+  ///
+  /// The [dispatcher] parameter is useful for testing, allowing injection of mock dispatchers.
+  BaseOrchestrator(this._state, {SignalBus? bus, Dispatcher? dispatcher})
+      : _bus = bus ?? SignalBus.instance,
+        _dispatcher = dispatcher ?? Dispatcher() {
     _stateController.add(_state);
     _subscribeToBus();
   }

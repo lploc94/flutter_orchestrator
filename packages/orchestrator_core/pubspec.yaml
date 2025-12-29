@@ -2,7 +2,7 @@ name: orchestrator_core
 description: >-
   Event-Driven Orchestrator architecture for Dart/Flutter. Separate UI state 
   management from business logic execution with SignalBus and Dispatcher pattern.
-version: 0.3.3
+version: 0.4.0
 homepage: https://github.com/lploc94/flutter_orchestrator
 repository: https://github.com/lploc94/flutter_orchestrator
 issue_tracker: https://github.com/lploc94/flutter_orchestrator/issues

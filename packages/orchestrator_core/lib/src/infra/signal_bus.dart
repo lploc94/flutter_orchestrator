@@ -39,6 +39,30 @@ class SignalBus {
     return _controller.stream;
   }
 
+  /// Convenience method to listen to events.
+  ///
+  /// Equivalent to `stream.listen(onData)`.
+  ///
+  /// Example:
+  /// ```dart
+  /// final subscription = bus.listen((event) {
+  ///   print('Received: $event');
+  /// });
+  /// ```
+  StreamSubscription<BaseEvent> listen(
+    void Function(BaseEvent event) onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return stream.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+  }
+
   /// Fire an event into the bus.
   /// In a strict architecture, this method should be protected.
   /// Silently ignores if bus is disposed (prevents crashes during cleanup).

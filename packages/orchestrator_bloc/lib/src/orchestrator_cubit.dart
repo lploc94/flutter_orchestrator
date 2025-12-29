@@ -22,9 +22,15 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 ///   }
 /// }
 /// ```
+///
+/// For testing, you can inject custom [bus] and [dispatcher]:
+/// ```dart
+/// final mockDispatcher = MockDispatcher();
+/// final cubit = MyCubit(dispatcher: mockDispatcher);
+/// ```
 abstract class OrchestratorCubit<S> extends Cubit<S> {
-  final SignalBus _bus = SignalBus.instance;
-  final Dispatcher _dispatcher = Dispatcher();
+  final SignalBus _bus;
+  final Dispatcher _dispatcher;
 
   /// Active job IDs being tracked by this cubit
   final Set<String> _activeJobIds = {};
@@ -34,7 +40,15 @@ abstract class OrchestratorCubit<S> extends Cubit<S> {
 
   StreamSubscription? _busSubscription;
 
-  OrchestratorCubit(super.initialState) {
+  /// Creates a new OrchestratorCubit with the given initial state.
+  ///
+  /// Optionally accepts a [bus] for event communication (defaults to global [SignalBus.instance]).
+  /// Optionally accepts a [dispatcher] for job routing (defaults to global [Dispatcher] singleton).
+  ///
+  /// The [dispatcher] parameter is useful for testing, allowing injection of mock dispatchers.
+  OrchestratorCubit(super.initialState, {SignalBus? bus, Dispatcher? dispatcher})
+      : _bus = bus ?? SignalBus.instance,
+        _dispatcher = dispatcher ?? Dispatcher() {
     _subscribeToBus();
   }
 

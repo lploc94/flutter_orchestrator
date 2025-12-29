@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-12-29
+
+### Testing Infrastructure Improvements
+
+This release focuses on improving testability across all packages.
+
+### orchestrator_core
+- **Added**: `BaseOrchestrator` now accepts optional `dispatcher` parameter for dependency injection.
+  - Enables mocking `Dispatcher` in tests to verify dispatch behavior.
+  - Backward compatible: defaults to global singleton.
+- **Added**: `SignalBus.listen()` convenience method as shorthand for `stream.listen()`.
+
+### orchestrator_bloc
+- **Added**: `OrchestratorCubit` and `OrchestratorBloc` now accept optional `bus` and `dispatcher` parameters for testing.
+
+### orchestrator_provider
+- **Added**: `OrchestratorNotifier` now accepts optional `bus` and `dispatcher` parameters for testing.
+
+### orchestrator_riverpod
+- **Added**: `OrchestratorNotifier` exposes `bus` and `dispatcher` getters.
+- **Added**: `configureForTesting({bus, dispatcher})` method for test setup.
+
+### orchestrator_test
+- **Changed**: Relaxed `test` package constraint from `^1.24.0` to `>=1.24.0 <2.0.0`.
+  - Fixes compatibility issues with `isar_generator` and other packages.
+
+### All Integration Packages
+- Updated dependency to `orchestrator_core: ^0.4.0`.
+
 ## [0.3.3] - 2025-12-27
 
 ### orchestrator_core

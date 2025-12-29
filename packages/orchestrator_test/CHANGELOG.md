@@ -1,3 +1,10 @@
+## 0.2.0 - 2025-12-29
+
+### Changed
+- **Dependency**: Relaxed `test` package constraint from `^1.24.0` to `>=1.24.0 <2.0.0`.
+  - Fixes compatibility issues with `isar_generator` and other packages that depend on different `analyzer` versions.
+- Updated dependency to `orchestrator_core: ^0.4.0`.
+
 ## 0.1.1 - 2025-12-27
 
 ### Fixed

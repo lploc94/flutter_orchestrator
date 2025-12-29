@@ -1,3 +1,14 @@
+## 0.4.0 - 2025-12-29
+
+### Added
+- **Testing Support**: `OrchestratorCubit` and `OrchestratorBloc` now accept optional `bus` and `dispatcher` parameters.
+  - Allows injecting mock `Dispatcher` for testing dispatch behavior.
+  - Allows injecting scoped `SignalBus` for isolated testing.
+  - Backward compatible: defaults to global singletons.
+
+### Changed
+- Updated dependency to `orchestrator_core: ^0.4.0`.
+
 ## 0.3.1 - 2025-12-27
 
 ### Fixed
