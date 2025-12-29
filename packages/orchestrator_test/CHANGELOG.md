@@ -1,3 +1,8 @@
+## 0.3.1 - 2025-12-29
+
+### Fixed
+- Fixed `FakeDispatcher.simulateFailure()` to use named arguments for `JobFailureEvent`.
+
 ## 0.3.0 - 2025-12-29
 
 ### Changed

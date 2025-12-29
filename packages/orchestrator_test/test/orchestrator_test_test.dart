@@ -75,7 +75,7 @@ void main() {
 
     test('captures emitted events', () {
       bus.emit(JobSuccessEvent('job-1', 'data1'));
-      bus.emit(JobFailureEvent('job-2', Exception('error'), null, false));
+      bus.emit(JobFailureEvent('job-2', Exception('error')));
       bus.emit(JobSuccessEvent('job-3', 'data2'));
 
       expect(bus.emittedEvents, hasLength(3));
@@ -85,14 +85,14 @@ void main() {
 
     test('lastEvent returns the last emitted event', () {
       bus.emit(JobSuccessEvent('job-1', 'data'));
-      bus.emit(JobFailureEvent('job-2', Exception('error'), null, false));
+      bus.emit(JobFailureEvent('job-2', Exception('error')));
 
       expect(bus.lastEvent, isA<JobFailureEvent>());
     });
 
     test('lastEventOfType returns last event of specific type', () {
       bus.emit(JobSuccessEvent('job-1', 'data1'));
-      bus.emit(JobFailureEvent('job-2', Exception('error'), null, false));
+      bus.emit(JobFailureEvent('job-2', Exception('error')));
       bus.emit(JobSuccessEvent('job-3', 'data2'));
 
       final lastSuccess = bus.lastEventOfType<JobSuccessEvent>();
@@ -310,7 +310,7 @@ void main() {
     });
 
     test('isJobFailure matches JobFailureEvent', () {
-      final event = JobFailureEvent('job-1', Exception('error'), null, true);
+      final event = JobFailureEvent('job-1', Exception('error'), wasRetried: true);
 
       expect(event, isJobFailure());
       expect(event, isJobFailure(correlationId: 'job-1'));

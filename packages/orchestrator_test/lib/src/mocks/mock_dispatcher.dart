@@ -130,7 +130,7 @@ class FakeDispatcher implements Dispatcher {
 
   /// Simulate a [JobFailureEvent] for the given job ID.
   void simulateFailure(String jobId, Object error, {bool wasRetried = false}) {
-    _bus.emit(JobFailureEvent(jobId, error, StackTrace.current, wasRetried));
+    _bus.emit(JobFailureEvent(jobId, error, stackTrace: StackTrace.current, wasRetried: wasRetried));
   }
 
   /// Simulate a [JobProgressEvent] for the given job ID.
