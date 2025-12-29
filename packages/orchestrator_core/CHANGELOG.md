@@ -1,3 +1,9 @@
+## 0.5.1 - 2025-12-30
+
+### Fixed
+- Re-publish with complete code generation annotations (`@TypedJob`, `@OrchestratorProvider`).
+- All 105 tests passing.
+
 ## 0.5.0 - 2025-12-29
 
 ### Added

@@ -1,3 +1,9 @@
+## 0.5.1 - 2025-12-30
+
+### Fixed
+- Updated dependency to `orchestrator_core: ^0.5.1` for proper annotation support.
+- Removed `autoDispose` option from `@OrchestratorProvider` (incompatible with current OrchestratorNotifier).
+
 ## 0.5.0 - 2025-12-29
 
 ### Added
