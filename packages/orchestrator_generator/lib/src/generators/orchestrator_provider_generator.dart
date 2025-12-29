@@ -53,11 +53,7 @@ class OrchestratorProviderGenerator
     }
 
     // Read annotation values
-    final autoDisposeReader = annotation.read('autoDispose');
     final nameReader = annotation.read('name');
-
-    final autoDispose =
-        autoDisposeReader.isNull ? false : autoDisposeReader.boolValue;
 
     String providerName;
     if (!nameReader.isNull) {
@@ -75,16 +71,9 @@ class OrchestratorProviderGenerator
     buffer.writeln('/// Provider for [$className].');
     buffer.writeln('///');
     buffer.writeln('/// Generated from @OrchestratorProvider annotation.');
-
-    if (autoDispose) {
-      buffer.writeln(
-        'final $providerName = NotifierProvider.autoDispose<$className, $stateType>(',
-      );
-    } else {
-      buffer.writeln(
-        'final $providerName = NotifierProvider<$className, $stateType>(',
-      );
-    }
+    buffer.writeln(
+      'final $providerName = NotifierProvider<$className, $stateType>(',
+    );
     buffer.writeln('  $className.new,');
     buffer.writeln(');');
 
