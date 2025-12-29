@@ -1,3 +1,20 @@
+## 0.5.0 - 2025-12-29
+
+### Added
+- **Type Safety**: All result events now include `jobType` field for cross-feature event filtering.
+  - `JobSuccessEvent`, `JobFailureEvent`, `JobCancelledEvent`, `JobTimeoutEvent`, `JobCacheHitEvent`, `JobPlaceholderEvent` all have optional `jobType` parameter.
+  - New helper method `isFromJobType<J>()` on all result events for type-safe filtering.
+  - `BaseExecutor` automatically tracks and emits `jobType` for all events.
+- **Use Case**: Passive handlers can now filter events by job type:
+  ```dart
+  @override
+  void onPassiveEvent(BaseEvent event) {
+    if (event is JobSuccessEvent && event.isFromJobType<FetchUserJob>()) {
+      // Handle only FetchUserJob success events
+    }
+  }
+  ```
+
 ## 0.4.0 - 2025-12-29
 
 ### Added

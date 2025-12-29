@@ -168,8 +168,8 @@ void main() {
       final event = JobFailureEvent(
         'err-id',
         Exception('test'),
-        StackTrace.current,
-        true,
+        stackTrace: StackTrace.current,
+        wasRetried: true,
       );
       expect(event.error, isA<Exception>());
       expect(event.wasRetried, isTrue);

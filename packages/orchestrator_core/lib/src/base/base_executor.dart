@@ -21,6 +21,9 @@ abstract class BaseExecutor<T extends BaseJob> {
   /// Map tracking active jobs to their respective buses (Scoped or Global).
   final Map<String, SignalBus> _activeBus = {};
 
+  /// Map tracking active jobs to their job types.
+  final Map<String, String> _activeJobTypes = {};
+
   /// Cache Provider (Shared Singleton from Config).
   CacheProvider get cacheProvider => OrchestratorConfig.cacheProvider;
 
@@ -43,18 +46,20 @@ abstract class BaseExecutor<T extends BaseJob> {
     // Determine target bus for this job
     // job.bus is set explicitly by Orchestrator
     final bus = job.bus ?? _globalBus;
+    final jobType = job.runtimeType.toString();
     _activeBus[job.id] = bus;
+    _activeJobTypes[job.id] = jobType;
 
     // Emit started event
     bus.emit(JobStartedEvent(
       job.id,
-      jobType: job.runtimeType.toString(),
+      jobType: jobType,
     ));
 
     // --- Unified Data Flow: 1. Placeholder ---
     if (job.strategy?.placeholder != null) {
       log.debug('Job ${job.id} emitting placeholder');
-      bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder));
+      bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder, jobType: jobType));
     }
 
     try {
@@ -70,13 +75,13 @@ abstract class BaseExecutor<T extends BaseJob> {
         final cachedData = await cacheProvider.read(cachePolicy.key);
         if (cachedData != null) {
           log.debug('Job ${job.id} cache hit: ${cachePolicy.key}');
-          bus.emit(JobCacheHitEvent(job.id, cachedData));
+          bus.emit(JobCacheHitEvent(job.id, cachedData, jobType: jobType));
 
           // If NOT revalidating (Cache-First), return immediately
           if (!cachePolicy.revalidate) {
             log.debug(
                 'Job ${job.id} cache-first strategy. Stopping execution.');
-            bus.emit(JobSuccessEvent(job.id, cachedData));
+            bus.emit(JobSuccessEvent(job.id, cachedData, jobType: jobType));
             return;
           }
         }
@@ -101,7 +106,8 @@ abstract class BaseExecutor<T extends BaseJob> {
               'Job ${job.id} timed out after ${job.timeout!.inSeconds}s',
             );
             final b = _activeBus[job.id] ?? _globalBus;
-            b.emit(JobTimeoutEvent(job.id, job.timeout!));
+            final jt = _activeJobTypes[job.id];
+            b.emit(JobTimeoutEvent(job.id, job.timeout!, jobType: jt));
             throw TimeoutException('Job timed out', job.timeout);
           },
         );
@@ -113,7 +119,8 @@ abstract class BaseExecutor<T extends BaseJob> {
         cancelListenerCleanup = job.cancellationToken!.onCancel(() {
           log.info('Job ${job.id} was cancelled');
           final b = _activeBus[job.id] ?? _globalBus;
-          b.emit(JobCancelledEvent(job.id));
+          final jt = _activeJobTypes[job.id];
+          b.emit(JobCancelledEvent(job.id, jobType: jt));
         });
       }
 
@@ -153,8 +160,9 @@ abstract class BaseExecutor<T extends BaseJob> {
     } finally {
       // Cleanup: remove listener if still registered (in case of error)
       job.cancellationToken?.clearListeners();
-      // Cleanup bus tracking
+      // Cleanup bus and jobType tracking
       _activeBus.remove(job.id);
+      _activeJobTypes.remove(job.id);
     }
   }
 
@@ -179,7 +187,8 @@ abstract class BaseExecutor<T extends BaseJob> {
           log.warning('Job ${job.id} failed after ${attempt + 1} attempts');
           // Use active bus if available, else global
           final bus = _activeBus[job.id] ?? _globalBus;
-          bus.emit(JobFailureEvent(job.id, e, null, true));
+          final jt = _activeJobTypes[job.id];
+          bus.emit(JobFailureEvent(job.id, e, wasRetried: true, jobType: jt));
           rethrow;
         }
 
@@ -208,13 +217,15 @@ abstract class BaseExecutor<T extends BaseJob> {
   /// Emit success result.
   void emitResult<R>(String correlationId, R data) {
     final bus = _activeBus[correlationId] ?? _globalBus;
-    bus.emit(JobSuccessEvent<R>(correlationId, data));
+    final jobType = _activeJobTypes[correlationId];
+    bus.emit(JobSuccessEvent<R>(correlationId, data, jobType: jobType));
   }
 
   /// Emit failure.
   void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
     final bus = _activeBus[correlationId] ?? _globalBus;
-    bus.emit(JobFailureEvent(correlationId, error, stack));
+    final jobType = _activeJobTypes[correlationId];
+    bus.emit(JobFailureEvent(correlationId, error, stackTrace: stack, jobType: jobType));
   }
 
   /// Emit progress update (for long-running tasks).
