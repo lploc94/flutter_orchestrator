@@ -27,7 +27,3 @@ dependencies:
 
 dev_dependencies:
   test: ^1.24.0
-
-dependency_overrides:
-  orchestrator_core:
-    path: ../orchestrator_core
