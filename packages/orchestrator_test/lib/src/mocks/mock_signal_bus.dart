@@ -54,6 +54,21 @@ class FakeSignalBus implements SignalBus {
   Stream<BaseEvent> get stream => _controller.stream;
 
   @override
+  StreamSubscription<BaseEvent> listen(
+    void Function(BaseEvent event) onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return stream.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+  }
+
+  @override
   void emit(BaseEvent event) {
     if (!_controller.isClosed) {
       emittedEvents.add(event);

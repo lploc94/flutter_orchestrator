@@ -1,3 +1,8 @@
+## 0.2.1 - 2025-12-29
+
+### Fixed
+- Added missing `listen()` method implementation to `FakeSignalBus`.
+
 ## 0.2.0 - 2025-12-29
 
 ### Changed
