@@ -67,3 +67,21 @@ builders:
     auto_apply: dependents
     build_to: cache
     applies_builders: ["source_gen:combining_builder"]
+
+  typed_job:
+    target: ":orchestrator_generator"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
+    builder_factories: ["typedJobBuilder"]
+    build_extensions: {".dart": [".typed_job.g.part"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen:combining_builder"]
+
+  orchestrator_provider:
+    target: ":orchestrator_generator"
+    import: "package:orchestrator_generator/orchestrator_generator.dart"
+    builder_factories: ["orchestratorProviderBuilder"]
+    build_extensions: {".dart": [".orchestrator_provider.g.part"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen:combining_builder"]

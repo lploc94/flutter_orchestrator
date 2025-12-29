@@ -25,6 +25,8 @@ export 'src/annotations/network_registry.dart';
 export 'src/annotations/orchestrator.dart';
 export 'src/annotations/async_state.dart';
 export 'src/annotations/generate_job_event.dart';
+export 'src/annotations/typed_job.dart';
+export 'src/annotations/orchestrator_provider.dart';
 
 // Infrastructure
 export 'src/infra/signal_bus.dart';

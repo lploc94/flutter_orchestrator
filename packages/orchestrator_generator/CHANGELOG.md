@@ -1,5 +1,14 @@
 ## 0.5.0 - 2025-12-29
 
+### Added
+- **TypedJobGenerator**: Generate sealed job hierarchies from `@TypedJob` annotated interfaces.
+  - Converts abstract interface methods to concrete job classes.
+  - Supports timeout, retry policy, and custom ID prefix configuration.
+  - Example: `abstract class UserJobInterface { Future<User> fetchUser(String id); }` → `sealed class UserJob` + `class FetchUserJob`.
+- **OrchestratorProviderGenerator**: Generate Riverpod providers from `@OrchestratorProvider` annotated classes.
+  - Creates `NotifierProvider` with automatic state type inference.
+  - Supports `autoDispose` option for screen-specific orchestrators.
+
 ### Changed
 - Updated dependency to `orchestrator_core: ^0.5.0`.
 

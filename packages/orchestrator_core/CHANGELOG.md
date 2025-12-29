@@ -8,6 +8,9 @@
 - **TypedExecutor**: New base class for type-safe executors with compile-time result type checking.
   - `TypedExecutor<T, R>`: Async executor with typed `run(T job)` method returning `Future<R>`.
   - `SyncTypedExecutor<T, R>`: Sync executor with `runSync(T job)` method returning `R`.
+- **Code Generation Annotations**:
+  - `@TypedJob`: Generate sealed job hierarchies from interface classes.
+  - `@OrchestratorProvider`: Generate Riverpod providers for orchestrators.
 - **Use Case**: Passive handlers can now filter events by job type:
   ```dart
   @override

@@ -11,6 +11,8 @@ import 'src/generators/executor_registry_generator.dart';
 import 'src/generators/orchestrator_generator.dart';
 import 'src/generators/async_state_generator.dart';
 import 'src/generators/job_event_generator.dart';
+import 'src/generators/typed_job_generator.dart';
+import 'src/generators/orchestrator_provider_generator.dart';
 
 /// Builder for generating network job registry code.
 /// This name must match the builder_factories in build.yaml.
@@ -40,3 +42,11 @@ Builder jobBuilder(BuilderOptions options) =>
 /// Builder for generating event boilerplate code.
 Builder eventBuilder(BuilderOptions options) =>
     SharedPartBuilder([EventGenerator()], 'event');
+
+/// Builder for generating typed job hierarchies from interface classes.
+Builder typedJobBuilder(BuilderOptions options) =>
+    SharedPartBuilder([TypedJobGenerator()], 'typed_job');
+
+/// Builder for generating Riverpod providers for orchestrators.
+Builder orchestratorProviderBuilder(BuilderOptions options) =>
+    SharedPartBuilder([OrchestratorProviderGenerator()], 'orchestrator_provider');
