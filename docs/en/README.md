@@ -40,6 +40,7 @@ If you are interested in design philosophy and architectural thinking, please re
 - [Error Handling & Logging](advanced/error_handling.md)
 - [Testing](advanced/testing.md)
 - [Code Generation](advanced/code_generation.md)
+- [Saga Pattern](advanced/saga_pattern.md)
 
 ### 📦 Examples
 - [Simple Counter](../../examples/simple_counter) - Hello World example

@@ -59,7 +59,8 @@ abstract class BaseExecutor<T extends BaseJob> {
     // --- Unified Data Flow: 1. Placeholder ---
     if (job.strategy?.placeholder != null) {
       log.debug('Job ${job.id} emitting placeholder');
-      bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder, jobType: jobType));
+      bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder,
+          jobType: jobType));
     }
 
     try {
@@ -225,7 +226,8 @@ abstract class BaseExecutor<T extends BaseJob> {
   void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
     final bus = _activeBus[correlationId] ?? _globalBus;
     final jobType = _activeJobTypes[correlationId];
-    bus.emit(JobFailureEvent(correlationId, error, stackTrace: stack, jobType: jobType));
+    bus.emit(JobFailureEvent(correlationId, error,
+        stackTrace: stack, jobType: jobType));
   }
 
   /// Emit progress update (for long-running tasks).

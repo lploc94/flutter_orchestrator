@@ -8,9 +8,11 @@ Chương này cung cấp các hướng dẫn thực tế, các nguyên tắc và
 
 ## 7.1. Nguyên tắc Vàng (The Golden Rules)
 
-Mọi kiến trúc đều có những quy tắc bất di bất dịch. Đây là quy tắc của chúng ta.
+Mọi kiến trúc đều có những quy tắc bất di bất dịch. Dưới đây là bộ quy tắc cốt lõi chia làm 2 cấp độ: Cơ bản và Nâng cao.
 
-### ✅ NÊN LÀM (DO)
+### 7.1.1. Cơ bản (Do's & Don'ts)
+
+#### ✅ NÊN LÀM (DO)
 
 ```mermaid
 graph TB
@@ -37,7 +39,7 @@ graph TB
 3.  **Correlation IDs**: Không có chúng, bạn không thể phân biệt an toàn giữa nhiều request đồng thời.
 4.  **Dịch vụ Hủy bỏ (Cancellation Service)**: Tôn trọng thời gian và pin của người dùng. Nếu họ rời màn hình, hãy giết các tác vụ chạy nền.
 
-### ❌ KHÔNG NÊN LÀM (DON'T)
+#### ❌ KHÔNG NÊN LÀM (DON'T)
 
 ```mermaid
 graph TB
@@ -62,6 +64,49 @@ graph TB
 1.  **Không gọi Repository trong Orchestrator**: Orchestrator thậm chí không nên import các class repository của bạn.
 2.  **Không tạo God Events**: Tránh `GenericSuccessEvent` hoặc `DataLoadedEvent`. Hãy cụ thể: `UserLoginSuccessEvent`, `ProductDetailsLoadedEvent`.
 3.  **Kiểm tra Cancellation**: Một executor chạy trong 5 giây mà không bao giờ kiểm tra `isCancelled` là kẻ ngốn pin.
+
+---
+
+### 7.1.2. Nâng cao (State, Ownership & Sagas)
+
+#### Quy Tắc Sở Hữu (Ownership & Lifecycle)
+Dựa trên nguyên lý **Aggregate Root** (DDD) và **Hierarchical State Machine** (HFSM).
+
+```mermaid
+graph TB
+    subgraph Ownership["👑 Parent vs Child"]
+        Parent["Parent Orchestrator"]
+        Child["Child Orchestrator"]
+        
+        Parent -->|"Create/Delete"| Child
+        Parent -->|"List"| Child
+        Child -->|"Update Self"| Child
+    end
+    
+    style Ownership fill:#e0f2f1,stroke:#334155,color:#1e293b
+    style Parent fill:#fef3c7,stroke:#334155,color:#1e293b
+    style Child fill:#f1f5f9,stroke:#334155,color:#1e293b
+```
+
+1.  **Parent Manages Lifecycle:** Chỉ Parent mới có quyền tạo và xóa Child. Child không được "tự sát".
+2.  **Child Manages State:** Child chỉ chịu trách nhiệm update các field nội tại của nó.
+3.  **Parent Manages Query:** Chỉ Parent mới có quyền list danh sách các con.
+
+#### Quyền Hạn (Worker vs. Orchestrator Capabilities)
+*   **Worker:** Có full quyền CRUD + List. "Thợ" phải biết làm đủ thứ.
+*   **Orchestrator:** Bị giới hạn. Parent được List/Delete. Child chỉ được Update/Get.
+
+#### Đối Xứng Dữ Liệu (DB-State Symmetry)
+*   State của Orchestrator là **tấm gương phản chiếu** DB Entity.
+*   Không thêm "Magic Fields" (tính toán lịch sử phức tạp) vào State nếu DB không có.
+*   Update State thông qua Event Listener (Observer Pattern), không watch trực tiếp DB Stream.
+
+#### Chiến lược Payload (Smart Events)
+Event phải mang theo **Dữ liệu thay đổi (Full Object)** để Orchestrator update state ngay lập tức, tránh round-trip refetch lại từ DB.
+
+#### Saga Patterns (Macro & Micro)
+*   **Macro-Saga (Orchestrator):** Cross-domain rollback (nhiều workers). Xử lý trong Scripts extension.
+*   **Micro-Saga (Worker):** Single-domain rollback (trong 1 hàm process).
 
 ---
 
@@ -444,53 +489,6 @@ flowchart TD
 
 ---
 
-## Tổng kết
-
-```mermaid
-graph LR
-    Root((Hướng dẫn))
-    
-    Root --> Str["Cấu trúc"]
-    Str --> Str1["Thư mục feature-first"]
-    Str --> Str2["Đặt tên nhất quán"]
-    Str --> Str3["Phân tách rõ ràng"]
-    
-    Root --> Test["Testing"]
-    Test --> Test1["Unit test executors"]
-    Test --> Test2["Integration test orchestrators"]
-    Test --> Test3["Ít E2E tests"]
-    
-    Root --> Ops["Vận hành"]
-    Ops --> Ops1["Xử lý mọi lỗi"]
-    Ops --> Ops2["Log phù hợp"]
-    Ops --> Ops3["Monitor circuit breakers"]
-    
-    Root --> Perf["Hiệu năng"]
-    Perf --> Perf1["Deduplicate"]
-    Perf --> Perf2["Cache"]
-    Perf --> Perf3["Stream"]
-    
-    style Root fill:#0d9488,stroke:#334155,stroke-width:2px,color:#ffffff
-    style Str fill:#e0f2f1,stroke:#334155,color:#1e293b
-    style Test fill:#fef3c7,stroke:#334155,color:#1e293b
-    style Ops fill:#fee2e2,stroke:#334155,color:#1e293b
-    style Perf fill:#e0f2f1,stroke:#334155,color:#1e293b
-    
-    style Str1 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Str2 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Str3 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    
-    style Test1 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Test2 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Test3 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    
-    style Ops1 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Ops2 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Ops3 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    
-    style Perf1 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Perf2 fill:#f1f5f9,stroke:#334155,color:#1e293b
-    style Perf3 fill:#f1f5f9,stroke:#334155,color:#1e293b
-```
+## Tổng kết Chương 7
 
 **Lời kết**: Kiến trúc Flutter Orchestrator cung cấp các rào chắn (quy tắc, mẫu, cấu trúc). Nhưng sự an toàn và tốc độ của chiếc xe phụ thuộc vào việc người lái (bạn) tuân thủ các biển báo (thực hành tốt nhất).

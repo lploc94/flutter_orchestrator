@@ -175,6 +175,34 @@ void onActiveSuccess(JobSuccessEvent event) {
 }
 ```
 
+
+### Saga Pattern - Complex Workflows (v0.5.2+)
+
+```dart
+final saga = SagaFlow(name: 'TransferAsset');
+
+try {
+  // Step 1: Deduct from Source
+  await saga.run(
+    action: () => dispatch(DeductJob(sourceId, amount)),
+    compensate: (_) => dispatch(RefundJob(sourceId, amount)),
+  );
+
+  // Step 2: Add to Target
+  await saga.run(
+    action: () => dispatch(AddJob(targetId, amount)),
+    compensate: (_) => dispatch(DeductJob(targetId, amount)),
+  );
+
+  // Success: Clear compensations
+  saga.commit(); 
+} catch (e) {
+  // Failure: Rollback all successful steps (LIFO)
+  await saga.rollback();
+  rethrow;
+}
+```
+
 ## Documentation
 
 See the full [documentation](https://github.com/lploc94/flutter_orchestrator/blob/main/docs/en/README.md).

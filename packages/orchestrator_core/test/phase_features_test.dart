@@ -143,7 +143,8 @@ class MockDispatcher implements Dispatcher {
   int get maxRetries => _realDispatcher.maxRetries;
 
   @override
-  Map<String, String> get registeredExecutors => _realDispatcher.registeredExecutors;
+  Map<String, String> get registeredExecutors =>
+      _realDispatcher.registeredExecutors;
 
   @override
   void register<T extends BaseJob>(BaseExecutor<T> executor) {
@@ -397,8 +398,10 @@ void main() {
 
     group('Cross-feature Event Filtering', () {
       test('Orchestrator can filter passive events by jobType', () async {
-        final orchestrator1 = TestOrchestrator(bus: bus, dispatcher: dispatcher);
-        final orchestrator2 = TestOrchestrator(bus: bus, dispatcher: dispatcher);
+        final orchestrator1 =
+            TestOrchestrator(bus: bus, dispatcher: dispatcher);
+        final orchestrator2 =
+            TestOrchestrator(bus: bus, dispatcher: dispatcher);
 
         // Orchestrator1 dispatches AnotherJob
         orchestrator1.runAnotherJob();
@@ -440,7 +443,8 @@ void main() {
       expect(annotation.interfaceSuffix, equals('Interface'));
     });
 
-    test('@OrchestratorProvider annotation exists and has correct properties', () {
+    test('@OrchestratorProvider annotation exists and has correct properties',
+        () {
       const annotation = OrchestratorProvider(
         name: 'myProvider',
         withRef: true,

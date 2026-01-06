@@ -498,6 +498,77 @@ flowchart TB
 
 ---
 
+## 5.9. The Saga Pattern
+
+**Problem**: How to maintain consistency in multi-step workflows where steps cannot be atomic?
+
+**Solution**: Execute a sequence of transactions, where each step has a compensating action to undo it if a later step fails.
+
+```mermaid
+sequenceDiagram
+    participant Orch as 🎭 Orchestrator
+    participant Wallet as 💰 Wallet
+    participant History as 📜 History
+    participant Server as ☁️ Server
+    
+    Note over Orch: Start Saga
+    
+    rect rgb(224, 242, 241)
+        Orch->>Wallet: Deduct $100
+        Wallet-->>Orch: Success
+        Note right of Orch: Stack: [Refund Wallet]
+    end
+    
+    rect rgb(224, 242, 241)
+        Orch->>History: Add Record
+        History-->>Orch: Success
+        Note right of Orch: Stack: [Refund Wallet, Delete Record]
+    end
+    
+    rect rgb(254, 226, 226)
+        Orch->>Server: Sync
+        Server-->>Orch: Failed!
+    end
+    
+    Note over Orch: Rollback Triggered
+    
+    rect rgb(254, 243, 199)
+        Orch->>History: (Compensate) Delete Record
+        Orch->>Wallet: (Compensate) Refund $100
+    end
+    
+    Note over Orch: System Consistent
+```
+
+### Implementation with `SagaFlow`
+
+The core library provides a `SagaFlow` utility to manage this stack naturally:
+
+```dart
+final saga = SagaFlow();
+
+try {
+  // Step 1
+  await saga.run(
+    action: () => dispatch(Step1Job()),
+    compensate: (_) => dispatch(UndoStep1Job()),
+  );
+
+  // Step 2
+  await saga.run(
+    action: () => dispatch(Step2Job()),
+    compensate: (_) => dispatch(UndoStep2Job()),
+  );
+  
+  // ... more steps
+  
+} catch (e) {
+  await saga.rollback(); // Undoes Step 2, then Step 1
+}
+```
+
+---
+
 ## Summary
 
 | Pattern | Solves | Key Mechanism |

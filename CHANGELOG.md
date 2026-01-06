@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2026-01-06
+
+### orchestrator_core
+- **Added**: Saga Pattern (SagaFlow) for orchestrated workflows with rollback support.
+
+## [0.5.1] - 2025-12-30
+
+### orchestrator_core
+- **Fixed**: Re-published with complete code generation annotations.
+
+## [0.5.0] - 2025-12-29
+
+### orchestrator_core
+- **Added**: Type Safety features (jobType field, TypedExecutor).
+- **Added**: New Code Generation Annotations (@TypedJob, @OrchestratorProvider).
+
 ## [0.4.0] - 2025-12-29
 
 ### Testing Infrastructure Improvements

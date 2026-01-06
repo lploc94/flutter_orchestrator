@@ -5,9 +5,8 @@ void main() {
   group('JobBuilder', () {
     test('creates configured job with timeout', () {
       final job = TestJob('test-1');
-      final configured = JobBuilder(job)
-          .withTimeout(const Duration(seconds: 30))
-          .build();
+      final configured =
+          JobBuilder(job).withTimeout(const Duration(seconds: 30)).build();
 
       expect(configured.id, equals('test-1'));
       expect(configured.timeout, equals(const Duration(seconds: 30)));
@@ -42,8 +41,7 @@ void main() {
           .withRetry(maxRetries: 3)
           .withCache(key: 'data_key')
           .withPlaceholder('Loading...')
-          .withMetadata({'source': 'test'})
-          .build();
+          .withMetadata({'source': 'test'}).build();
 
       expect(configured.timeout, isNotNull);
       expect(configured.retryPolicy, isNotNull);
@@ -182,4 +180,3 @@ class TestJob extends BaseJob {
   final String name;
   TestJob(this.name) : super(id: name);
 }
-

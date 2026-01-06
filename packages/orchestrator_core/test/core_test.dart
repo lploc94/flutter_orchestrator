@@ -12,14 +12,14 @@ class TestJob extends BaseJob {
     super.cancellationToken,
     super.retryPolicy,
   }) : super(
-         id: 'job-${DateTime.now().millisecondsSinceEpoch}-${value.hashCode}',
-       );
+          id: 'job-${DateTime.now().millisecondsSinceEpoch}-${value.hashCode}',
+        );
 }
 
 class FailingJob extends BaseJob {
   final int failCount;
   FailingJob({this.failCount = 999})
-    : super(id: 'fail-job-${DateTime.now().millisecondsSinceEpoch}');
+      : super(id: 'fail-job-${DateTime.now().millisecondsSinceEpoch}');
 }
 
 class TestExecutor extends BaseExecutor<TestJob> {
@@ -126,14 +126,15 @@ class TestOrchestrator extends BaseOrchestrator<String> {
     Duration? timeout,
     CancellationToken? cancelToken,
     RetryPolicy? retry,
-  }) => dispatch(
-    TestJob(
-      val,
-      timeout: timeout,
-      cancellationToken: cancelToken,
-      retryPolicy: retry,
-    ),
-  );
+  }) =>
+      dispatch(
+        TestJob(
+          val,
+          timeout: timeout,
+          cancellationToken: cancelToken,
+          retryPolicy: retry,
+        ),
+      );
 
   String runFailingJob({int failCount = 999, RetryPolicy? retry}) =>
       dispatch(FailingJob(failCount: failCount)..metadata);

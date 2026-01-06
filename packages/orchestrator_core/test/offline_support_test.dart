@@ -4,7 +4,7 @@
 // Tests for the offline support feature including:
 // - NetworkAction interface
 // - NetworkQueueStorage
-// - NetworkQueueManager  
+// - NetworkQueueManager
 // - NetworkJobRegistry
 // - ConnectivityProvider
 // - Bug fix verification tests (all 13 issues)
@@ -21,7 +21,8 @@ void main() {
   // ===========================================================================
   group('NetworkAction Interface', () {
     test('toJson serializes job data correctly', () {
-      final job = SendMessageNetworkJob(message: 'Hello', filePath: '/tmp/img.jpg');
+      final job =
+          SendMessageNetworkJob(message: 'Hello', filePath: '/tmp/img.jpg');
       final json = job.toJson();
 
       expect(json['message'], equals('Hello'));
@@ -69,7 +70,8 @@ void main() {
         fileDelegate: mockFileSafety,
       );
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
     });
 
     test('queueAction stores job in pending status', () async {
@@ -77,7 +79,7 @@ void main() {
       await queueManager.queueAction(job);
 
       expect(mockStorage.jobCount, equals(1));
-      
+
       final storedJob = mockStorage.getRawJob(job.deduplicationKey!);
       expect(storedJob, isNotNull);
       expect(storedJob!['status'], equals('pending'));
@@ -122,7 +124,8 @@ void main() {
     });
 
     test('removeJob removes job from queue', () async {
-      final job = SendMessageNetworkJob(message: 'Complete Test', filePath: null);
+      final job =
+          SendMessageNetworkJob(message: 'Complete Test', filePath: null);
       await queueManager.queueAction(job);
 
       await queueManager.removeJob(job.deduplicationKey!);
@@ -141,8 +144,9 @@ void main() {
     });
 
     test('register adds factory to registry', () {
-      NetworkJobRegistry.register('TestNetworkJob', TestNetworkJob.fromJsonToBase);
-      
+      NetworkJobRegistry.register(
+          'TestNetworkJob', TestNetworkJob.fromJsonToBase);
+
       expect(NetworkJobRegistry.isRegistered('TestNetworkJob'), isTrue);
     });
 
@@ -151,10 +155,11 @@ void main() {
     });
 
     test('restore recreates job from stored data', () {
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
-      
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+
       final json = {'message': 'Restored', 'filePath': '/tmp/file.jpg'};
-      
+
       final baseJob = NetworkJobRegistry.restore('SendMessageNetworkJob', json);
       expect(baseJob, isNotNull);
       // The returned job is a wrapper, verify it was created successfully
@@ -169,9 +174,9 @@ void main() {
     test('clear removes all registered factories', () {
       NetworkJobRegistry.register('Job1', TestNetworkJob.fromJsonToBase);
       NetworkJobRegistry.register('Job2', TestNetworkJob.fromJsonToBase);
-      
+
       NetworkJobRegistry.clear();
-      
+
       expect(NetworkJobRegistry.isRegistered('Job1'), isFalse);
       expect(NetworkJobRegistry.isRegistered('Job2'), isFalse);
     });
@@ -248,7 +253,8 @@ void main() {
         fileDelegate: mockFileSafety,
       );
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
     });
 
     test('empty queue returns null for claimNextPendingJob', () async {
@@ -283,9 +289,9 @@ void main() {
     test('markJobPoisoned updates status correctly', () async {
       final job = SendMessageNetworkJob(message: 'Fail Test', filePath: null);
       await queueManager.queueAction(job);
-      
+
       await queueManager.markJobPoisoned(job.deduplicationKey!);
-      
+
       final stored = await mockStorage.getJob(job.deduplicationKey!);
       expect(stored!['status'], equals('poisoned'));
     });
@@ -293,10 +299,10 @@ void main() {
     test('incrementRetryCount increases count', () async {
       final job = SendMessageNetworkJob(message: 'Retry Test', filePath: null);
       await queueManager.queueAction(job);
-      
+
       await queueManager.incrementRetryCount(job.deduplicationKey!);
       await queueManager.incrementRetryCount(job.deduplicationKey!);
-      
+
       final stored = await mockStorage.getJob(job.deduplicationKey!);
       expect(stored!['retryCount'], equals(2));
     });
@@ -314,7 +320,8 @@ void main() {
       final storage = TestableStorage();
       final manager = NetworkQueueManager(storage: storage);
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('VerifyNetworkJob', VerifyNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'VerifyNetworkJob', VerifyNetworkJob.fromJsonToBase);
 
       final job1 = VerifyNetworkJob(
         path: '/data/user/0/app/cache/file.txt',
@@ -356,8 +363,10 @@ void main() {
 
     test('getAllJobs works normally when jobs exist', () async {
       final storage = TestableStorage();
-      await storage.saveJob('job1', {'data': 'test1', 'timestamp': '2024-01-01T00:00:00Z'});
-      await storage.saveJob('job2', {'data': 'test2', 'timestamp': '2024-01-01T00:00:01Z'});
+      await storage.saveJob(
+          'job1', {'data': 'test1', 'timestamp': '2024-01-01T00:00:00Z'});
+      await storage.saveJob(
+          'job2', {'data': 'test2', 'timestamp': '2024-01-01T00:00:01Z'});
 
       final jobs = await storage.getAllJobs();
 
@@ -373,14 +382,17 @@ void main() {
       final storage = FailingUpdateStorage();
       final manager = NetworkQueueManager(storage: storage);
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
 
-      final job = SendMessageNetworkJob(message: 'Test', filePath: '/tmp/file.jpg');
+      final job =
+          SendMessageNetworkJob(message: 'Test', filePath: '/tmp/file.jpg');
       await manager.queueAction(job);
 
       // Try to update (should fail)
       try {
-        await storage.updateJob(job.deduplicationKey!, {'status': 'processing'});
+        await storage
+            .updateJob(job.deduplicationKey!, {'status': 'processing'});
       } catch (_) {
         // Expected failure - in real code, this would trigger cleanup
       }
@@ -399,7 +411,8 @@ void main() {
     test('path traversal attempts are sanitized', () {
       // Paths with traversal should be handled safely
       final dangerousPath = '/data/../../../etc/passwd';
-      final job = VerifyNetworkJob(path: dangerousPath, uniqueId: 'security-test');
+      final job =
+          VerifyNetworkJob(path: dangerousPath, uniqueId: 'security-test');
 
       // The job should still be created (ID uses base64, not raw path)
       expect(job.deduplicationKey, isNotNull);
@@ -408,7 +421,8 @@ void main() {
 
     test('special characters in path are handled', () {
       final specialPath = '/data/file with spaces & special!@#\$.txt';
-      final job = VerifyNetworkJob(path: specialPath, uniqueId: 'special-chars');
+      final job =
+          VerifyNetworkJob(path: specialPath, uniqueId: 'special-chars');
 
       expect(job.deduplicationKey, isNotNull);
       // Should not throw or produce invalid ID
@@ -421,18 +435,18 @@ void main() {
   group('Bug 5 Fix - Deep Copy in SecureFiles', () {
     test('secureFiles creates independent copy', () async {
       final fileSafety = DeepCopyVerifyingFileSafety();
-      
+
       final original = {
         'nested': {'value': 1},
         'list': [1, 2, 3],
       };
-      
+
       final secured = await fileSafety.secureFiles(original);
-      
+
       // Modify original
       (original['nested'] as Map)['value'] = 999;
       (original['list'] as List).add(999);
-      
+
       // Secured copy should be unchanged
       expect((secured['nested'] as Map)['value'], equals(1));
       expect(secured['list'], equals([1, 2, 3]));
@@ -447,7 +461,8 @@ void main() {
       final storage = TestableStorage();
       final manager = NetworkQueueManager(storage: storage);
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
 
       // Create jobs as fast as possible
       final jobs = <SendMessageNetworkJob>[];
@@ -473,7 +488,7 @@ void main() {
   group('Bug 8 Fix - Nested List Processing', () {
     test('nested lists are processed recursively', () async {
       final fileSafety = NestedListFileSafety();
-      
+
       final jobData = {
         'files': [
           '/path/to/file1.jpg',
@@ -481,9 +496,9 @@ void main() {
           {'nested': '/path/to/deep.gif'},
         ],
       };
-      
+
       final secured = await fileSafety.secureFiles(jobData);
-      
+
       // Verify nested structures are preserved
       expect(secured['files'], isA<List>());
       final files = secured['files'] as List;
@@ -499,22 +514,24 @@ void main() {
   group('Warning 9 Fix - Broadcast Stream', () {
     test('connectivity stream supports multiple listeners', () async {
       final connectivity = MockConnectivity();
-      
+
       final listener1Results = <bool>[];
       final listener2Results = <bool>[];
-      
-      final sub1 = connectivity.onConnectivityChanged.listen(listener1Results.add);
-      final sub2 = connectivity.onConnectivityChanged.listen(listener2Results.add);
-      
+
+      final sub1 =
+          connectivity.onConnectivityChanged.listen(listener1Results.add);
+      final sub2 =
+          connectivity.onConnectivityChanged.listen(listener2Results.add);
+
       connectivity.setConnected(true);
       connectivity.setConnected(false);
-      
+
       await Future.delayed(Duration(milliseconds: 50));
-      
+
       await sub1.cancel();
       await sub2.cancel();
       connectivity.dispose();
-      
+
       // Both listeners should receive all events
       expect(listener1Results, equals([true, false]));
       expect(listener2Results, equals([true, false]));
@@ -522,15 +539,15 @@ void main() {
 
     test('second listener does not cause error', () async {
       final connectivity = MockConnectivity();
-      
+
       final sub1 = connectivity.onConnectivityChanged.listen((_) {});
-      
+
       // This should not throw "Stream has already been listened to"
       expect(
         () => connectivity.onConnectivityChanged.listen((_) {}),
         returnsNormally,
       );
-      
+
       await sub1.cancel();
       connectivity.dispose();
     });
@@ -542,10 +559,10 @@ void main() {
   group('Warning 10 Fix - Dispose Method', () {
     test('dispose closes stream controller', () async {
       final connectivity = MockConnectivity();
-      
+
       connectivity.setConnected(true);
       connectivity.dispose();
-      
+
       // After dispose, stream should be closed
       // New listeners should receive done event
       var receivedDone = false;
@@ -553,7 +570,7 @@ void main() {
         (_) {},
         onDone: () => receivedDone = true,
       );
-      
+
       await Future.delayed(Duration(milliseconds: 50));
       expect(receivedDone, isTrue);
     });
@@ -567,11 +584,13 @@ void main() {
       final storage = TestableStorage();
       final manager = NetworkQueueManager(storage: storage);
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
 
       // Add multiple jobs
       for (var i = 0; i < 5; i++) {
-        await manager.queueAction(SendMessageNetworkJob(message: 'Job $i', filePath: null));
+        await manager.queueAction(
+            SendMessageNetworkJob(message: 'Job $i', filePath: null));
       }
 
       // Claim all jobs concurrently
@@ -590,9 +609,11 @@ void main() {
       final storage = TestableStorage();
       final manager = NetworkQueueManager(storage: storage);
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
 
-      final job = SendMessageNetworkJob(message: 'Concurrent Test', filePath: null);
+      final job =
+          SendMessageNetworkJob(message: 'Concurrent Test', filePath: null);
       await manager.queueAction(job);
       final jobId = job.deduplicationKey!;
 
@@ -621,7 +642,8 @@ void main() {
       fileSafety = MockFileSafety();
       connectivity = MockConnectivity();
       NetworkJobRegistry.clear();
-      NetworkJobRegistry.register('SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
+      NetworkJobRegistry.register(
+          'SendMessageNetworkJob', SendMessageNetworkJob.fromJsonToBase);
       manager = NetworkQueueManager(
         storage: storage,
         fileDelegate: fileSafety,
@@ -637,8 +659,10 @@ void main() {
       connectivity.setConnected(false);
 
       // 2. Queue messages while offline
-      final job1 = SendMessageNetworkJob(message: 'Offline Message 1', filePath: null);
-      final job2 = SendMessageNetworkJob(message: 'Offline Message 2', filePath: null);
+      final job1 =
+          SendMessageNetworkJob(message: 'Offline Message 1', filePath: null);
+      final job2 =
+          SendMessageNetworkJob(message: 'Offline Message 2', filePath: null);
       await manager.queueAction(job1);
       await manager.queueAction(job2);
 
@@ -671,7 +695,8 @@ void main() {
 
       // Simulate max retries (e.g., 5)
       for (var i = 0; i < 5; i++) {
-        await manager.incrementRetryCount(jobId, errorMessage: 'Attempt ${i + 1}');
+        await manager.incrementRetryCount(jobId,
+            errorMessage: 'Attempt ${i + 1}');
       }
 
       // After max retries, mark as poisoned
@@ -709,10 +734,13 @@ class MockStorage implements NetworkQueueStorage {
 
   @override
   Future<List<Map<String, dynamic>>> getAllJobs() async {
-    final jobs = _store.values.map((e) => Map<String, dynamic>.from(e)).toList();
+    final jobs =
+        _store.values.map((e) => Map<String, dynamic>.from(e)).toList();
     jobs.sort((a, b) {
-      final tsA = DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(0);
-      final tsB = DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(0);
+      final tsA =
+          DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(0);
+      final tsB =
+          DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(0);
       return tsA.compareTo(tsB);
     });
     return jobs;
@@ -831,11 +859,14 @@ class TestableStorage implements NetworkQueueStorage {
   Future<List<Map<String, dynamic>>> getAllJobs() async {
     getAllJobsCallCount++;
     if (!directoryExists) return [];
-    
-    final jobs = _store.values.map((e) => Map<String, dynamic>.from(e)).toList();
+
+    final jobs =
+        _store.values.map((e) => Map<String, dynamic>.from(e)).toList();
     jobs.sort((a, b) {
-      final tsA = DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(0);
-      final tsB = DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(0);
+      final tsA =
+          DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(0);
+      final tsB =
+          DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(0);
       return tsA.compareTo(tsB);
     });
     return jobs;
@@ -913,9 +944,9 @@ class SendMessageNetworkJob implements NetworkAction<String> {
 
   @override
   Map<String, dynamic> toJson() => {
-    'message': message,
-    'filePath': filePath,
-  };
+        'message': message,
+        'filePath': filePath,
+      };
 
   @override
   String createOptimisticResult() => 'MESSAGE_SENT: $message';
@@ -936,9 +967,12 @@ class SendMessageNetworkJob implements NetworkAction<String> {
 /// Wrapper to make SendMessageNetworkJob compatible with NetworkJobRegistry
 class _SendMessageNetworkJobWrapper extends BaseJob {
   final SendMessageNetworkJob inner;
-  
-  _SendMessageNetworkJobWrapper(this.inner) : super(id: inner.deduplicationKey ?? 'auto-${DateTime.now().millisecondsSinceEpoch}');
-  
+
+  _SendMessageNetworkJobWrapper(this.inner)
+      : super(
+            id: inner.deduplicationKey ??
+                'auto-${DateTime.now().millisecondsSinceEpoch}');
+
   String get message => inner.message;
   String? get filePath => inner.filePath;
 }
@@ -970,8 +1004,9 @@ class TestNetworkJob implements NetworkAction<void> {
 
 class _TestNetworkJobWrapper extends BaseJob {
   final TestNetworkJob inner;
-  
-  _TestNetworkJobWrapper(this.inner) : super(id: 'test-${DateTime.now().millisecondsSinceEpoch}');
+
+  _TestNetworkJobWrapper(this.inner)
+      : super(id: 'test-${DateTime.now().millisecondsSinceEpoch}');
 }
 
 /// VerifyNetworkJob - For testing ID collision prevention
@@ -990,9 +1025,9 @@ class VerifyNetworkJob implements NetworkAction<String> {
 
   @override
   Map<String, dynamic> toJson() => {
-    'path': path,
-    'uniqueId': uniqueId,
-  };
+        'path': path,
+        'uniqueId': uniqueId,
+      };
 
   @override
   String createOptimisticResult() => 'VERIFIED: $path';
@@ -1012,6 +1047,9 @@ class VerifyNetworkJob implements NetworkAction<String> {
 
 class _VerifyNetworkJobWrapper extends BaseJob {
   final VerifyNetworkJob inner;
-  
-  _VerifyNetworkJobWrapper(this.inner) : super(id: inner.deduplicationKey ?? 'verify-${DateTime.now().millisecondsSinceEpoch}');
+
+  _VerifyNetworkJobWrapper(this.inner)
+      : super(
+            id: inner.deduplicationKey ??
+                'verify-${DateTime.now().millisecondsSinceEpoch}');
 }

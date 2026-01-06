@@ -1,3 +1,13 @@
+## 0.5.2 - 2026-01-06
+
+### Added
+- **Saga Pattern**: New `SagaFlow` class for orchestrated workflows with rollback support.
+  - Execute steps with `run(action, compensate)`.
+  - LIFO rollback with `rollback()`.
+  - Clear compensations on success with `commit()`.
+  - Named sagas for debugging: `SagaFlow(name: 'TransferAsset')`.
+  - Integrated with `OrchestratorConfig.logger`.
+
 ## 0.5.1 - 2025-12-30
 
 ### Fixed
