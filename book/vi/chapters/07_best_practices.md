@@ -108,6 +108,26 @@ Event phải mang theo **Dữ liệu thay đổi (Full Object)** để Orchestra
 *   **Macro-Saga (Orchestrator):** Cross-domain rollback (nhiều workers). Xử lý trong Scripts extension.
 *   **Micro-Saga (Worker):** Single-domain rollback (trong 1 hàm process).
 
+
+### 7.1.3. Phân loại State & Logic (State Classification)
+
+Đừng dùng dao mổ trâu để giết gà. Hãy phân biệt rõ hai loại state:
+
+#### Ephemeral State (Show/Hide, Animation, Scroll)
+*   **Đặc điểm**: Chỉ để hiển thị, mất đi khi đóng widget.
+*   **Xử lý**: Dùng **StatefulWidget** hoặc **Hooks**. Không cần Orchestrator.
+*   **Ví dụ**: Toggle show password, Expand/Collapse item.
+
+#### App/Business State (User, Cart, Data)
+*   **Đặc điểm**: Ảnh hưởng nghiệp vụ, cần gọi API/DB, cần lưu lại.
+*   **Xử lý**: Dùng **Orchestrator + Job**.
+*   **Ví dụ**: Login, Checkout, Fetch Data, "Agree Terms" (nếu trigger logic khác).
+
+> **Quy tắc "Của Caesar trả cho Caesar"**:
+> *   Cái gì của UI (hiển thị) -> Trả về Widget.
+> *   Cái gì của Business (nghiệp vụ) -> Trả về Orchestrator.
+> *   Provider chỉ là cầu nối (binding), không chứa logic.
+
 ---
 
 ## 7.2. Cấu trúc Thư mục

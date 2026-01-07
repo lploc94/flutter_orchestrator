@@ -63,6 +63,26 @@ graph TB
 2.  **No God Events**: Avoid `GenericSuccessEvent` or `DataLoadedEvent`. Be specific: `UserLoginSuccessEvent`, `ProductDetailsLoadedEvent`.
 3.  **Check Cancellation**: An executor that runs for 5 seconds but never checks `isCancelled` is a battery drainer.
 
+
+### 7.1.3. State & Logic Classification
+
+Do not use a sledgehammer to crack a nut. Distinguish clearly between two types of state:
+
+#### Ephemeral State (Show/Hide, Animation, Scroll)
+*   **Characteristics**: Visual only, lost when widget closes.
+*   **Handling**: Use **StatefulWidget** or **Hooks**. Orchestrator is NOT needed.
+*   **Example**: Toggle show password, Expand/Collapse item.
+
+#### App/Business State (User, Cart, Data)
+*   **Characteristics**: Affects business logic, IO/API calls, needs persistence.
+*   **Handling**: Use **Orchestrator + Job**.
+*   **Example**: Login, Checkout, Fetch Data, "Agree Terms" (if triggers logic).
+
+> **The "Render Unto Caesar" Rule**:
+> *   UI things (Visuals) -> Widget.
+> *   Business things (Logic) -> Orchestrator.
+> *   Provider is just a bridge (binding), no logic.
+
 ---
 
 ## 7.2. Folder Structure

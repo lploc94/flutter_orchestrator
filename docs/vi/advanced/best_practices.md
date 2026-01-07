@@ -36,6 +36,26 @@ Tài liệu này tổng hợp các nguyên tắc cốt lõi để duy trì kiế
 *   **Passive Listening:** Orchestrator không được watch trực tiếp Stream của DB (trừ trường hợp đặc biệt). Nó phải update state thông qua việc lắng nghe **Events** được emit từ Worker.
 *   *Luồng:* User Action -> Orchestrator -> Job -> Worker (Write DB) -> Emit Event -> Orchestrator (Listen & Update State).
 
+
+### 2.3. Phân loại State & Logic (State Classification)
+
+Đừng dùng dao mổ trâu để giết gà. Hãy phân biệt rõ hai loại state:
+
+#### Ephemeral State (Show/Hide, Animation, Scroll)
+*   **Đặc điểm:** Chỉ để hiển thị, mất đi khi đóng widget.
+*   **Xử lý:** Dùng **StatefulWidget** hoặc **Hooks**. Không cần Orchestrator.
+*   **Ví dụ:** Toggle show password, Expand/Collapse item.
+
+#### App/Business State (User, Cart, Data)
+*   **Đặc điểm:** Ảnh hưởng nghiệp vụ, cần gọi API/DB, cần lưu lại.
+*   **Xử lý:** Dùng **Orchestrator + Job**.
+*   **Ví dụ:** Login, Checkout, Fetch Data, "Agree Terms" (nếu trigger logic khác).
+
+> **Quy tắc "Của Caesar trả cho Caesar":**
+> *   Cái gì của UI (hiển thị) -> Trả về Widget.
+> *   Cái gì của Business (nghiệp vụ) -> Trả về Orchestrator.
+> *   Provider chỉ là cầu nối (binding), không chứa logic.
+
 ---
 
 ## 3. Phân Cấp Orchestrator (Hierarchical Orchestration)
