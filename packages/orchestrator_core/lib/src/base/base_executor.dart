@@ -73,6 +73,13 @@ abstract class BaseExecutor<T extends BaseJob> {
       } else {
         await _executeLegacyJob(job, handle);
       }
+    } on CancelledException catch (e, stack) {
+      // Handle cancellation separately - it's not a failure, it's an expected state
+      log.info('Job ${job.id} was cancelled');
+      OrchestratorObserver.instance?.onJobError(job, e, stack);
+      handle?.completeError(e, stack);
+      // Note: JobCancelledEvent is already emitted by the cancellation listener
+      // in _executeWithFeatures when token.cancel() was called.
     } catch (e, stack) {
       log.error('Job ${job.id} failed', e, stack);
       OrchestratorObserver.instance?.onJobError(job, e, stack);
@@ -281,11 +288,13 @@ abstract class BaseExecutor<T extends BaseJob> {
     }
 
     // Setup cancellation listener
+    // Emit cancelled event immediately when cancel() is called, even if the worker
+    // hasn't checked for cancellation yet. This provides immediate feedback to listeners.
     void Function()? cancelListenerCleanup;
     if (job.cancellationToken != null) {
       cancelListenerCleanup = job.cancellationToken!.onCancel(() {
         OrchestratorConfig.logger.info('Job ${job.id} was cancelled');
-        // For legacy jobs, emit cancelled event
+        // For legacy jobs, emit cancelled event immediately
         if (job is! EventJob) {
           final b = _activeBus[job.id] ?? _globalBus;
           final jt = _activeJobTypes[job.id];
