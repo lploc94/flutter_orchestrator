@@ -201,13 +201,18 @@ abstract class BaseExecutor<T extends BaseJob> {
     final jobType = job.runtimeType.toString();
 
     // Emit started event (legacy)
-    bus.emit(JobStartedEvent(job.id, jobType: jobType));
+    final startedEvent = JobStartedEvent(job.id, jobType: jobType);
+    bus.emit(startedEvent);
+    OrchestratorObserver.instance?.onEvent(startedEvent);
 
     // --- Unified Data Flow: 1. Placeholder ---
     if (job.strategy?.placeholder != null) {
       log.debug('Job ${job.id} emitting placeholder');
-      bus.emit(JobPlaceholderEvent(job.id, job.strategy!.placeholder,
-          jobType: jobType));
+      final placeholderEvent = JobPlaceholderEvent(
+          job.id, job.strategy!.placeholder,
+          jobType: jobType);
+      bus.emit(placeholderEvent);
+      OrchestratorObserver.instance?.onEvent(placeholderEvent);
     }
 
     // Check cancellation before starting
@@ -221,7 +226,10 @@ abstract class BaseExecutor<T extends BaseJob> {
       final cachedData = await cacheProvider.read(cachePolicy.key);
       if (cachedData != null) {
         log.debug('Job ${job.id} cache hit: ${cachePolicy.key}');
-        bus.emit(JobCacheHitEvent(job.id, cachedData, jobType: jobType));
+        final cacheHitEvent =
+            JobCacheHitEvent(job.id, cachedData, jobType: jobType);
+        bus.emit(cacheHitEvent);
+        OrchestratorObserver.instance?.onEvent(cacheHitEvent);
 
         // Complete handle with cached data immediately
         handle?.complete(cachedData, DataSource.cached);
@@ -229,7 +237,10 @@ abstract class BaseExecutor<T extends BaseJob> {
         // If NOT revalidating (Cache-First), return immediately
         if (!cachePolicy.revalidate) {
           log.debug('Job ${job.id} cache-first strategy. Stopping execution.');
-          bus.emit(JobSuccessEvent(job.id, cachedData, jobType: jobType));
+          final successEvent =
+              JobSuccessEvent(job.id, cachedData, jobType: jobType);
+          bus.emit(successEvent);
+          OrchestratorObserver.instance?.onEvent(successEvent);
           OrchestratorObserver.instance
               ?.onJobSuccess(job, cachedData, DataSource.cached);
           return;
@@ -371,15 +382,19 @@ abstract class BaseExecutor<T extends BaseJob> {
   void emitResult<R>(String correlationId, R data) {
     final bus = _activeBus[correlationId] ?? _globalBus;
     final jobType = _activeJobTypes[correlationId];
-    bus.emit(JobSuccessEvent<R>(correlationId, data, jobType: jobType));
+    final event = JobSuccessEvent<R>(correlationId, data, jobType: jobType);
+    bus.emit(event);
+    OrchestratorObserver.instance?.onEvent(event);
   }
 
   /// Emit failure (legacy - for BaseJob).
   void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
     final bus = _activeBus[correlationId] ?? _globalBus;
     final jobType = _activeJobTypes[correlationId];
-    bus.emit(JobFailureEvent(correlationId, error,
-        stackTrace: stack, jobType: jobType));
+    final event = JobFailureEvent(correlationId, error,
+        stackTrace: stack, jobType: jobType);
+    bus.emit(event);
+    OrchestratorObserver.instance?.onEvent(event);
   }
 
   /// Emit progress update (for long-running tasks).
