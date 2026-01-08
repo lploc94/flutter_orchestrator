@@ -6,10 +6,10 @@
 /// Example demonstrating the core Orchestrator pattern.
 ///
 /// This example shows how to:
-/// 1. Define a Job (EventJob for domain events)
-/// 2. Create an Executor
-/// 3. Set up an Orchestrator with unified event handling
-/// 4. Dispatch jobs and handle results
+/// 1. Define domain events and jobs (using EventJob)
+/// 2. Create executors
+/// 3. Set up an orchestrator with unified `onEvent()` + `isJobRunning()` pattern
+/// 4. Handle success, failure, and cross-orchestrator events
 library;
 
 import 'dart:async';
@@ -17,7 +17,7 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 
 // ============ 1. Define Domain Events ============
 
-/// Event emitted when a user is loaded.
+/// Event emitted when a user is successfully loaded.
 class UserLoadedEvent extends BaseEvent {
   /// The loaded user data.
   final Map<String, dynamic> user;
@@ -26,18 +26,20 @@ class UserLoadedEvent extends BaseEvent {
   UserLoadedEvent(super.correlationId, this.user);
 }
 
-/// Event emitted when a user is updated.
+/// Event emitted when a user is updated (from another orchestrator).
 class UserUpdatedEvent extends BaseEvent {
-  /// The updated user ID.
-  final String userId;
+  /// The updated user data.
+  final Map<String, dynamic> user;
 
   /// Creates a [UserUpdatedEvent].
-  UserUpdatedEvent(super.correlationId, this.userId);
+  UserUpdatedEvent(super.correlationId, this.user);
 }
 
-// ============ 2. Define Jobs ============
+// ============ 2. Define Jobs (using EventJob) ============
 
 /// A job to fetch user data by ID.
+///
+/// Uses [EventJob] to automatically emit [UserLoadedEvent] on success.
 class FetchUserJob extends EventJob<Map<String, dynamic>, UserLoadedEvent> {
   /// The user ID to fetch.
   final String userId;
@@ -51,22 +53,13 @@ class FetchUserJob extends EventJob<Map<String, dynamic>, UserLoadedEvent> {
   }
 }
 
-/// A job to update a user's name.
-class UpdateUserNameJob extends EventJob<bool, UserUpdatedEvent> {
-  /// The user ID to update.
+/// A simple job without domain event (uses JobSuccessEvent/JobFailureEvent).
+class DeleteUserJob extends BaseJob {
+  /// The user ID to delete.
   final String userId;
 
-  /// The new name for the user.
-  final String newName;
-
-  /// Creates an [UpdateUserNameJob].
-  UpdateUserNameJob(this.userId, this.newName)
-      : super(id: generateJobId('update-user'));
-
-  @override
-  UserUpdatedEvent createEventTyped(bool result) {
-    return UserUpdatedEvent(id, userId);
-  }
+  /// Creates a [DeleteUserJob].
+  DeleteUserJob(this.userId) : super(id: generateJobId('delete-user'));
 }
 
 // ============ 3. Create Executors ============
@@ -78,6 +71,11 @@ class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
     // Simulate API call
     await Future.delayed(Duration(milliseconds: 500));
 
+    // Simulate error for user ID "error"
+    if (job.userId == 'error') {
+      throw Exception('User not found: ${job.userId}');
+    }
+
     return {
       'id': job.userId,
       'name': 'John Doe',
@@ -86,17 +84,16 @@ class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
   }
 }
 
-/// Executor that handles [UpdateUserNameJob].
-class UpdateUserNameExecutor extends BaseExecutor<UpdateUserNameJob> {
+/// Executor that handles [DeleteUserJob].
+class DeleteUserExecutor extends BaseExecutor<DeleteUserJob> {
   @override
-  Future<bool> process(UpdateUserNameJob job) async {
-    // Simulate API call
+  Future<bool> process(DeleteUserJob job) async {
     await Future.delayed(Duration(milliseconds: 300));
     return true;
   }
 }
 
-// ============ 4. Create Orchestrator ============
+// ============ 4. Define State ============
 
 /// State for the user feature.
 class UserState {
@@ -123,43 +120,91 @@ class UserState {
         user: user ?? this.user,
         error: error,
       );
+
+  @override
+  String toString() =>
+      'UserState(isLoading: $isLoading, user: $user, error: $error)';
 }
+
+// ============ 5. Create Orchestrator ============
 
 /// Orchestrator for the user feature.
 ///
-/// Uses the unified `onEvent` handler for all domain events.
+/// Demonstrates the v0.6.0 unified `onEvent()` pattern with `isJobRunning()`.
 class UserOrchestrator extends BaseOrchestrator<UserState> {
   /// Creates a [UserOrchestrator].
   UserOrchestrator() : super(const UserState());
 
   /// Load user by ID.
-  ///
-  /// Returns a [JobHandle] that can be used to await the result directly.
   JobHandle<Map<String, dynamic>> loadUser(String userId) {
-    emit(state.copyWith(isLoading: true));
+    emit(state.copyWith(isLoading: true, error: null));
     return dispatch(FetchUserJob(userId));
   }
 
-  /// Update user's name.
-  JobHandle<bool> updateName(String userId, String newName) {
-    emit(state.copyWith(isLoading: true));
-    return dispatch(UpdateUserNameJob(userId, newName));
+  /// Delete user by ID.
+  JobHandle<bool> deleteUser(String userId) {
+    emit(state.copyWith(isLoading: true, error: null));
+    return dispatch(DeleteUserJob(userId));
   }
 
   /// Unified event handler for all domain events.
   ///
-  /// This replaces the old onActiveSuccess/onActiveFailure pattern.
+  /// Key patterns:
+  /// - Use `isJobRunning(correlationId)` to check if event is from OUR job
+  /// - Use pattern matching with `when` clause for filtering
+  /// - Handle both domain events (UserLoadedEvent) and generic events (JobFailureEvent)
   @override
   void onEvent(BaseEvent event) {
     switch (event) {
-      case UserLoadedEvent e:
+      // ========== OUR JOBS: Domain Events ==========
+      // Handle UserLoadedEvent from our FetchUserJob
+      case UserLoadedEvent e when isJobRunning(e.correlationId):
         emit(state.copyWith(user: e.user, isLoading: false));
-      case UserUpdatedEvent _:
+
+      // ========== OUR JOBS: Generic Success (for BaseJob) ==========
+      // Handle success from DeleteUserJob (which uses BaseJob, not EventJob)
+      case JobSuccessEvent e when isJobRunning(e.correlationId):
+        // For BaseJob, success data is in e.data
         emit(state.copyWith(isLoading: false));
+
+      // ========== OUR JOBS: Failure ==========
+      // Handle any failure from our jobs
+      case JobFailureEvent e when isJobRunning(e.correlationId):
+        emit(state.copyWith(
+          isLoading: false,
+          error: e.error.toString(),
+        ));
+
+      // ========== CROSS-ORCHESTRATOR: Domain Events ==========
+      // Handle UserUpdatedEvent from OTHER orchestrators
+      // (no isJobRunning check - we want ALL updates)
+      case UserUpdatedEvent e:
+        emit(state.copyWith(user: e.user));
+
+      // Ignore all other events
       default:
-        // Ignore other events
         break;
     }
+  }
+}
+
+// ============ 6. Simulating Cross-Orchestrator Communication ============
+
+/// Another orchestrator that updates users.
+///
+/// When this updates a user, UserOrchestrator will receive the event.
+class AdminOrchestrator extends BaseOrchestrator<String> {
+  AdminOrchestrator() : super('idle');
+
+  /// Simulate admin updating a user (emits UserUpdatedEvent).
+  void updateUser(String userId, String newName) {
+    final event = UserUpdatedEvent(
+      generateJobId('admin'),
+      {'id': userId, 'name': newName, 'email': 'updated@example.com'},
+    );
+    // Emit directly to global bus (simulating another service updating user)
+    SignalBus.instance.emit(event);
+    emit('Updated user: $userId');
   }
 }
 
@@ -167,39 +212,46 @@ class UserOrchestrator extends BaseOrchestrator<UserState> {
 
 /// Entry point for the example.
 void main() async {
+  print('=== Orchestrator Core v0.6.0 Example ===\n');
+
   // 1. Register Executors
   final dispatcher = Dispatcher();
   dispatcher.register<FetchUserJob>(FetchUserExecutor());
-  dispatcher.register<UpdateUserNameJob>(UpdateUserNameExecutor());
+  dispatcher.register<DeleteUserJob>(DeleteUserExecutor());
 
-  // 2. Create Orchestrator
-  final orchestrator = UserOrchestrator();
+  // 2. Create Orchestrators
+  final userOrchestrator = UserOrchestrator();
+  final adminOrchestrator = AdminOrchestrator();
 
   // 3. Listen to state changes
-  orchestrator.stream.listen((state) {
-    if (state.isLoading) {
-      print('Loading...');
-    } else if (state.error != null) {
-      print('Error: ${state.error}');
-    } else if (state.user != null) {
-      print('User loaded: ${state.user}');
-    }
+  userOrchestrator.stream.listen((state) {
+    print('[UserOrchestrator] State: $state');
   });
 
-  // 4. Dispatch a job and await result directly
-  print('Fetching user...');
-  final handle = orchestrator.loadUser('123');
+  // ========== SCENARIO 1: Successful Load ==========
+  print('\n--- Scenario 1: Load User (Success) ---');
+  final handle1 = userOrchestrator.loadUser('123');
+  await handle1.future;
+  await Future.delayed(Duration(milliseconds: 100));
 
-  // Option A: Await result directly via JobHandle
+  // ========== SCENARIO 2: Failed Load ==========
+  print('\n--- Scenario 2: Load User (Failure) ---');
+  final handle2 = userOrchestrator.loadUser('error');
   try {
-    final result = await handle.future;
-    print('Direct result: ${result.data} (source: ${result.source})');
+    await handle2.future;
   } catch (e) {
-    print('Error: $e');
+    print('[Main] Caught error: $e');
   }
+  await Future.delayed(Duration(milliseconds: 100));
 
-  // 5. Cleanup
-  orchestrator.dispose();
+  // ========== SCENARIO 3: Cross-Orchestrator Event ==========
+  print('\n--- Scenario 3: Admin Updates User (Cross-Orchestrator) ---');
+  adminOrchestrator.updateUser('123', 'Jane Doe');
+  await Future.delayed(Duration(milliseconds: 100));
 
-  print('Done!');
+  // 4. Cleanup
+  userOrchestrator.dispose();
+  adminOrchestrator.dispose();
+
+  print('\n=== Done! ===');
 }

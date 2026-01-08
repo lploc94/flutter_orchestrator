@@ -84,16 +84,15 @@ abstract class BaseExecutor<T extends BaseJob> {
       log.error('Job ${job.id} failed', e, stack);
       OrchestratorObserver.instance?.onJobError(job, e, stack);
       handle?.completeError(e, stack);
-      // For legacy jobs, emit failure event
-      if (job is! EventJob) {
-        // Set wasRetried flag if job had a retry policy (meaning retries were attempted)
-        final wasRetried = job.retryPolicy != null;
-        final jt = _activeJobTypes[job.id];
-        final failureEvent = JobFailureEvent(job.id, e,
-            stackTrace: stack, wasRetried: wasRetried, jobType: jt);
-        bus.emit(failureEvent);
-        OrchestratorObserver.instance?.onEvent(failureEvent);
-      }
+
+      // Emit JobFailureEvent for ALL jobs (including EventJob)
+      // This ensures orchestrators can handle failures via onEvent()
+      final wasRetried = job.retryPolicy != null;
+      final jt = _activeJobTypes[job.id];
+      final failureEvent = JobFailureEvent(job.id, e,
+          stackTrace: stack, wasRetried: wasRetried, jobType: jt);
+      bus.emit(failureEvent);
+      OrchestratorObserver.instance?.onEvent(failureEvent);
     } finally {
       // Cleanup
       job.cancellationToken?.clearListeners();
