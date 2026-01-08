@@ -7,9 +7,10 @@
 ///
 /// This example shows how to:
 /// 1. Define domain events and jobs (using EventJob)
-/// 2. Create executors
+/// 2. Create executors with progress reporting
 /// 3. Set up an orchestrator with unified `onEvent()` + `isJobRunning()` pattern
-/// 4. Handle success, failure, and cross-orchestrator events
+/// 4. Handle success, failure, progress, and cross-orchestrator events
+/// 5. Use RetryPolicy for transient failures
 library;
 
 import 'dart:async';
@@ -19,32 +20,30 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 
 /// Event emitted when a user is successfully loaded.
 class UserLoadedEvent extends BaseEvent {
-  /// The loaded user data.
   final Map<String, dynamic> user;
-
-  /// Creates a [UserLoadedEvent].
   UserLoadedEvent(super.correlationId, this.user);
 }
 
 /// Event emitted when a user is updated (from another orchestrator).
 class UserUpdatedEvent extends BaseEvent {
-  /// The updated user data.
   final Map<String, dynamic> user;
-
-  /// Creates a [UserUpdatedEvent].
   UserUpdatedEvent(super.correlationId, this.user);
 }
 
-// ============ 2. Define Jobs (using EventJob) ============
+/// Event emitted when file upload completes.
+class FileUploadedEvent extends BaseEvent {
+  final String fileUrl;
+  FileUploadedEvent(super.correlationId, this.fileUrl);
+}
+
+// ============ 2. Define Jobs ============
 
 /// A job to fetch user data by ID.
 ///
 /// Uses [EventJob] to automatically emit [UserLoadedEvent] on success.
 class FetchUserJob extends EventJob<Map<String, dynamic>, UserLoadedEvent> {
-  /// The user ID to fetch.
   final String userId;
 
-  /// Creates a [FetchUserJob] for the given [userId].
   FetchUserJob(this.userId) : super(id: generateJobId('user'));
 
   @override
@@ -53,13 +52,28 @@ class FetchUserJob extends EventJob<Map<String, dynamic>, UserLoadedEvent> {
   }
 }
 
-/// A simple job without domain event (uses JobSuccessEvent/JobFailureEvent).
-class DeleteUserJob extends BaseJob {
-  /// The user ID to delete.
-  final String userId;
+/// A job that simulates file upload with progress reporting.
+class UploadFileJob extends EventJob<String, FileUploadedEvent> {
+  final String fileName;
+  final int fileSizeKb;
 
-  /// Creates a [DeleteUserJob].
-  DeleteUserJob(this.userId) : super(id: generateJobId('delete-user'));
+  UploadFileJob(this.fileName, {this.fileSizeKb = 100})
+      : super(id: generateJobId('upload'));
+
+  @override
+  FileUploadedEvent createEventTyped(String result) {
+    return FileUploadedEvent(id, result);
+  }
+}
+
+/// A job that may fail transiently (for retry demo).
+class FlakyApiJob extends BaseJob {
+  final int failCount;
+
+  FlakyApiJob({
+    this.failCount = 2,
+    super.retryPolicy,
+  }) : super(id: generateJobId('flaky'));
 }
 
 // ============ 3. Create Executors ============
@@ -68,10 +82,8 @@ class DeleteUserJob extends BaseJob {
 class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
   @override
   Future<Map<String, dynamic>> process(FetchUserJob job) async {
-    // Simulate API call
     await Future.delayed(Duration(milliseconds: 500));
 
-    // Simulate error for user ID "error"
     if (job.userId == 'error') {
       throw Exception('User not found: ${job.userId}');
     }
@@ -84,125 +96,238 @@ class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
   }
 }
 
-/// Executor that handles [DeleteUserJob].
-class DeleteUserExecutor extends BaseExecutor<DeleteUserJob> {
+/// Executor that handles [UploadFileJob] with progress reporting.
+///
+/// Demonstrates how to use [emitProgress] to report upload progress.
+class UploadFileExecutor extends BaseExecutor<UploadFileJob> {
   @override
-  Future<bool> process(DeleteUserJob job) async {
-    await Future.delayed(Duration(milliseconds: 300));
-    return true;
+  Future<String> process(UploadFileJob job) async {
+    final totalChunks = 5;
+
+    for (int i = 1; i <= totalChunks; i++) {
+      // Simulate chunk upload
+      await Future.delayed(Duration(milliseconds: 200));
+
+      // Report progress (0.0 to 1.0)
+      emitProgress(
+        job.id,
+        progress: i / totalChunks,
+        message: 'Uploading chunk $i/$totalChunks',
+        currentStep: i,
+        totalSteps: totalChunks,
+      );
+    }
+
+    return 'https://cdn.example.com/${job.fileName}';
+  }
+}
+
+/// Executor that simulates transient failures (for retry demo).
+///
+/// Will fail [job.failCount] times before succeeding.
+class FlakyApiExecutor extends BaseExecutor<FlakyApiJob> {
+  final Map<String, int> _attempts = {};
+
+  @override
+  Future<String> process(FlakyApiJob job) async {
+    await Future.delayed(Duration(milliseconds: 100));
+
+    final attempt = (_attempts[job.id] ?? 0) + 1;
+    _attempts[job.id] = attempt;
+
+    if (attempt <= job.failCount) {
+      throw Exception('Transient failure (attempt $attempt)');
+    }
+
+    return 'Success after $attempt attempts';
   }
 }
 
 // ============ 4. Define State ============
 
-/// State for the user feature.
-class UserState {
-  /// Whether data is loading.
-  final bool isLoading;
-
-  /// The user data, if loaded.
-  final Map<String, dynamic>? user;
-
-  /// Error message, if any.
+/// State for the upload feature.
+class UploadState {
+  final bool isUploading;
+  final double progress;
+  final String? progressMessage;
+  final String? fileUrl;
   final String? error;
+  final int retryAttempt;
 
-  /// Creates a [UserState].
-  const UserState({this.isLoading = false, this.user, this.error});
+  const UploadState({
+    this.isUploading = false,
+    this.progress = 0.0,
+    this.progressMessage,
+    this.fileUrl,
+    this.error,
+    this.retryAttempt = 0,
+  });
 
-  /// Creates a copy with updated values.
-  UserState copyWith({
-    bool? isLoading,
-    Map<String, dynamic>? user,
+  UploadState copyWith({
+    bool? isUploading,
+    double? progress,
+    String? progressMessage,
+    String? fileUrl,
     String? error,
+    int? retryAttempt,
   }) =>
-      UserState(
-        isLoading: isLoading ?? this.isLoading,
-        user: user ?? this.user,
+      UploadState(
+        isUploading: isUploading ?? this.isUploading,
+        progress: progress ?? this.progress,
+        progressMessage: progressMessage ?? this.progressMessage,
+        fileUrl: fileUrl ?? this.fileUrl,
         error: error,
+        retryAttempt: retryAttempt ?? this.retryAttempt,
       );
 
   @override
-  String toString() =>
-      'UserState(isLoading: $isLoading, user: $user, error: $error)';
+  String toString() {
+    if (isUploading) {
+      return 'UploadState(uploading: ${(progress * 100).toInt()}% - $progressMessage)';
+    }
+    if (error != null) return 'UploadState(error: $error)';
+    if (fileUrl != null) return 'UploadState(done: $fileUrl)';
+    return 'UploadState(idle)';
+  }
 }
 
 // ============ 5. Create Orchestrator ============
 
-/// Orchestrator for the user feature.
-///
-/// Demonstrates the v0.6.0 unified `onEvent()` pattern with `isJobRunning()`.
-class UserOrchestrator extends BaseOrchestrator<UserState> {
-  /// Creates a [UserOrchestrator].
-  UserOrchestrator() : super(const UserState());
+/// Orchestrator demonstrating progress tracking and retry handling.
+class UploadOrchestrator extends BaseOrchestrator<UploadState> {
+  UploadOrchestrator() : super(const UploadState());
 
-  /// Load user by ID.
-  JobHandle<Map<String, dynamic>> loadUser(String userId) {
-    emit(state.copyWith(isLoading: true, error: null));
-    return dispatch(FetchUserJob(userId));
+  /// Upload a file with progress tracking.
+  JobHandle<String> uploadFile(String fileName) {
+    emit(state.copyWith(
+      isUploading: true,
+      progress: 0.0,
+      progressMessage: 'Starting upload...',
+      error: null,
+    ));
+    return dispatch(UploadFileJob(fileName));
   }
 
-  /// Delete user by ID.
-  JobHandle<bool> deleteUser(String userId) {
-    emit(state.copyWith(isLoading: true, error: null));
-    return dispatch(DeleteUserJob(userId));
-  }
-
-  /// Unified event handler for all domain events.
+  /// Call a flaky API with retry policy.
   ///
-  /// Key patterns:
-  /// - Use `isJobRunning(correlationId)` to check if event is from OUR job
-  /// - Use pattern matching with `when` clause for filtering
-  /// - Handle both domain events (UserLoadedEvent) and generic events (JobFailureEvent)
+  /// The job will fail [failCount] times before succeeding.
+  /// RetryPolicy will automatically retry with exponential backoff.
+  JobHandle<String> callFlakyApi({int failCount = 2}) {
+    emit(state.copyWith(
+      isUploading: true,
+      progress: 0.0,
+      error: null,
+      retryAttempt: 0,
+    ));
+
+    // Configure retry policy: 3 retries with exponential backoff
+    final job = FlakyApiJob(
+      failCount: failCount,
+      retryPolicy: RetryPolicy(
+        maxRetries: 3,
+        baseDelay: Duration(milliseconds: 100),
+        maxDelay: Duration(seconds: 1),
+        exponentialBackoff: true,
+      ),
+    );
+
+    return dispatch(job);
+  }
+
+  /// Unified event handler with progress and retry support.
   @override
   void onEvent(BaseEvent event) {
     switch (event) {
-      // ========== OUR JOBS: Domain Events ==========
-      // Handle UserLoadedEvent from our FetchUserJob
-      case UserLoadedEvent e when isJobRunning(e.correlationId):
-        emit(state.copyWith(user: e.user, isLoading: false));
+      // ========== Progress Events ==========
+      case JobProgressEvent e when isJobRunning(e.correlationId):
+        emit(state.copyWith(
+          progress: e.progress,
+          progressMessage: e.message,
+        ));
 
-      // ========== OUR JOBS: Generic Success (for BaseJob) ==========
-      // Handle success from DeleteUserJob (which uses BaseJob, not EventJob)
+      // ========== Domain Events ==========
+      case FileUploadedEvent e when isJobRunning(e.correlationId):
+        emit(state.copyWith(
+          isUploading: false,
+          progress: 1.0,
+          fileUrl: e.fileUrl,
+        ));
+
+      // ========== Generic Success (for BaseJob like FlakyApiJob) ==========
       case JobSuccessEvent e when isJobRunning(e.correlationId):
-        // For BaseJob, success data is in e.data
-        emit(state.copyWith(isLoading: false));
+        emit(state.copyWith(
+          isUploading: false,
+          progress: 1.0,
+          progressMessage: 'Completed: ${e.data}',
+        ));
 
-      // ========== OUR JOBS: Failure ==========
-      // Handle any failure from our jobs
+      // ========== Retry Events ==========
+      case JobRetryingEvent e when isJobRunning(e.correlationId):
+        emit(state.copyWith(
+          retryAttempt: e.attempt,
+          progressMessage: 'Retrying (${e.attempt}/${e.maxRetries})...',
+        ));
+
+      // ========== Failure ==========
       case JobFailureEvent e when isJobRunning(e.correlationId):
         emit(state.copyWith(
-          isLoading: false,
+          isUploading: false,
           error: e.error.toString(),
         ));
 
-      // ========== CROSS-ORCHESTRATOR: Domain Events ==========
-      // Handle UserUpdatedEvent from OTHER orchestrators
-      // (no isJobRunning check - we want ALL updates)
-      case UserUpdatedEvent e:
-        emit(state.copyWith(user: e.user));
+      default:
+        break;
+    }
+  }
 
-      // Ignore all other events
+  /// Optional: Dedicated progress handler (alternative to handling in onEvent).
+  ///
+  /// This is called for ALL progress events from our jobs.
+  /// Useful if you want to separate progress handling logic.
+  @override
+  void onProgress(JobProgressEvent event) {
+    // Already handled in onEvent, but you could handle here instead
+    // print('Progress: ${(event.progress * 100).toInt()}%');
+  }
+
+  /// Optional: Called when a job is retrying.
+  @override
+  void onJobRetrying(JobRetryingEvent event) {
+    // Already handled in onEvent, but you could handle here instead
+    // print('Retrying: attempt ${event.attempt}');
+  }
+}
+
+/// Simple user orchestrator (from previous example).
+class UserOrchestrator extends BaseOrchestrator<Map<String, dynamic>?> {
+  UserOrchestrator() : super(null);
+
+  JobHandle<Map<String, dynamic>> loadUser(String userId) {
+    return dispatch(FetchUserJob(userId));
+  }
+
+  @override
+  void onEvent(BaseEvent event) {
+    switch (event) {
+      case UserLoadedEvent e when isJobRunning(e.correlationId):
+        emit(e.user);
+      case UserUpdatedEvent e:
+        emit(e.user);
       default:
         break;
     }
   }
 }
 
-// ============ 6. Simulating Cross-Orchestrator Communication ============
-
-/// Another orchestrator that updates users.
-///
-/// When this updates a user, UserOrchestrator will receive the event.
+/// Admin orchestrator for cross-orchestrator demo.
 class AdminOrchestrator extends BaseOrchestrator<String> {
   AdminOrchestrator() : super('idle');
 
-  /// Simulate admin updating a user (emits UserUpdatedEvent).
   void updateUser(String userId, String newName) {
     final event = UserUpdatedEvent(
       generateJobId('admin'),
       {'id': userId, 'name': newName, 'email': 'updated@example.com'},
     );
-    // Emit directly to global bus (simulating another service updating user)
     SignalBus.instance.emit(event);
     emit('Updated user: $userId');
   }
@@ -210,47 +335,59 @@ class AdminOrchestrator extends BaseOrchestrator<String> {
 
 // ============ Main ============
 
-/// Entry point for the example.
 void main() async {
   print('=== Orchestrator Core v0.6.0 Example ===\n');
 
   // 1. Register Executors
   final dispatcher = Dispatcher();
   dispatcher.register<FetchUserJob>(FetchUserExecutor());
-  dispatcher.register<DeleteUserJob>(DeleteUserExecutor());
+  dispatcher.register<UploadFileJob>(UploadFileExecutor());
+  dispatcher.register<FlakyApiJob>(FlakyApiExecutor());
 
-  // 2. Create Orchestrators
+  // ========== SCENARIO 1: Basic Load (Success/Failure) ==========
+  print('--- Scenario 1: Basic Load ---');
   final userOrchestrator = UserOrchestrator();
-  final adminOrchestrator = AdminOrchestrator();
-
-  // 3. Listen to state changes
-  userOrchestrator.stream.listen((state) {
-    print('[UserOrchestrator] State: $state');
+  userOrchestrator.stream.listen((user) {
+    print('[User] ${user ?? "null"}');
   });
 
-  // ========== SCENARIO 1: Successful Load ==========
-  print('\n--- Scenario 1: Load User (Success) ---');
-  final handle1 = userOrchestrator.loadUser('123');
-  await handle1.future;
-  await Future.delayed(Duration(milliseconds: 100));
+  await userOrchestrator.loadUser('123').future;
+  await Future.delayed(Duration(milliseconds: 50));
 
-  // ========== SCENARIO 2: Failed Load ==========
-  print('\n--- Scenario 2: Load User (Failure) ---');
-  final handle2 = userOrchestrator.loadUser('error');
+  // ========== SCENARIO 2: Progress Tracking ==========
+  print('\n--- Scenario 2: Upload with Progress ---');
+  final uploadOrchestrator = UploadOrchestrator();
+  uploadOrchestrator.stream.listen((state) {
+    print('[Upload] $state');
+  });
+
+  await uploadOrchestrator.uploadFile('photo.jpg').future;
+  await Future.delayed(Duration(milliseconds: 50));
+
+  // ========== SCENARIO 3: Retry with Exponential Backoff ==========
+  print('\n--- Scenario 3: Retry (fails 2x, succeeds on 3rd) ---');
+  final retryOrchestrator = UploadOrchestrator();
+  retryOrchestrator.stream.listen((state) {
+    print('[Retry] $state');
+  });
+
   try {
-    await handle2.future;
+    await retryOrchestrator.callFlakyApi(failCount: 2).future;
   } catch (e) {
-    print('[Main] Caught error: $e');
+    print('[Retry] Final error: $e');
   }
-  await Future.delayed(Duration(milliseconds: 100));
+  await Future.delayed(Duration(milliseconds: 50));
 
-  // ========== SCENARIO 3: Cross-Orchestrator Event ==========
-  print('\n--- Scenario 3: Admin Updates User (Cross-Orchestrator) ---');
+  // ========== SCENARIO 4: Cross-Orchestrator Events ==========
+  print('\n--- Scenario 4: Cross-Orchestrator ---');
+  final adminOrchestrator = AdminOrchestrator();
   adminOrchestrator.updateUser('123', 'Jane Doe');
-  await Future.delayed(Duration(milliseconds: 100));
+  await Future.delayed(Duration(milliseconds: 50));
 
-  // 4. Cleanup
+  // Cleanup
   userOrchestrator.dispose();
+  uploadOrchestrator.dispose();
+  retryOrchestrator.dispose();
   adminOrchestrator.dispose();
 
   print('\n=== Done! ===');
