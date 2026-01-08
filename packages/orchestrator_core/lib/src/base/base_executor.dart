@@ -89,8 +89,10 @@ abstract class BaseExecutor<T extends BaseJob> {
         // Set wasRetried flag if job had a retry policy (meaning retries were attempted)
         final wasRetried = job.retryPolicy != null;
         final jt = _activeJobTypes[job.id];
-        bus.emit(JobFailureEvent(job.id, e,
-            stackTrace: stack, wasRetried: wasRetried, jobType: jt));
+        final failureEvent = JobFailureEvent(job.id, e,
+            stackTrace: stack, wasRetried: wasRetried, jobType: jt);
+        bus.emit(failureEvent);
+        OrchestratorObserver.instance?.onEvent(failureEvent);
       }
     } finally {
       // Cleanup
