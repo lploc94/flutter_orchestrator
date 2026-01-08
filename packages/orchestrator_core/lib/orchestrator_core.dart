@@ -14,6 +14,8 @@ library;
 // Models
 export 'src/models/event.dart';
 export 'src/models/job.dart';
+export 'src/models/job_handle.dart';
+export 'src/models/data_source.dart';
 export 'src/models/network_action.dart';
 export 'src/models/data_strategy.dart';
 
@@ -31,6 +33,7 @@ export 'src/annotations/orchestrator_provider.dart';
 // Infrastructure
 export 'src/infra/signal_bus.dart';
 export 'src/infra/dispatcher.dart';
+export 'src/infra/orchestrator_observer.dart';
 export 'src/infra/offline/offline_manager.dart';
 export 'src/infra/offline/connectivity_provider.dart';
 

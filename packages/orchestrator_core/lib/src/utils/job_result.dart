@@ -35,11 +35,26 @@ sealed class JobResult<T> {
   /// Listens to the bus for the job's terminal event (success, failure,
   /// cancelled, or timeout) and returns the appropriate [JobResult].
   ///
-  /// Example:
+  /// @Deprecated: Use [JobHandle.future] instead. This method relies on
+  /// legacy framework events (JobSuccessEvent, JobFailureEvent, etc.)
+  /// which are deprecated.
+  ///
+  /// **Migration:**
   /// ```dart
+  /// // Before:
   /// final jobId = orchestrator.dispatch(MyJob());
-  /// final result = await JobResult.fromBus<User>(SignalBus.instance, jobId);
+  /// final result = await JobResult.fromBus<User>(bus, jobId);
+  ///
+  /// // After:
+  /// final handle = orchestrator.dispatch<User>(MyJob());
+  /// try {
+  ///   final result = await handle.future;
+  ///   // result.data is User, result.source is DataSource
+  /// } catch (e) {
+  ///   // Handle error
+  /// }
   /// ```
+  @Deprecated('Use JobHandle.future instead. Will be removed in v2.0.0')
   static Future<JobResult<T>> fromBus<T>(
     SignalBus bus,
     String jobId, {

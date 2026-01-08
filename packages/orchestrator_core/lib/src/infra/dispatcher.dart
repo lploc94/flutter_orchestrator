@@ -1,5 +1,7 @@
 import 'dart:async';
 import '../models/job.dart';
+import '../models/job_handle.dart';
+import '../models/data_source.dart';
 import '../base/base_executor.dart';
 import '../models/network_action.dart';
 import '../models/event.dart';
@@ -88,20 +90,24 @@ class Dispatcher {
   }
 
   /// Dispatch a job to the subscribed executor.
+  ///
   /// Returns the Job ID (Correlation ID) immediately.
-  String dispatch(BaseJob job) {
+  /// Optionally accepts a [handle] that will be completed when the job
+  /// produces its first result (cached or fresh).
+  String dispatch(BaseJob job, {JobHandle? handle}) {
     final executor = _registry[job.runtimeType];
 
     if (executor == null) {
+      handle?.completeError(ExecutorNotFoundException(job.runtimeType));
       throw ExecutorNotFoundException(job.runtimeType);
     }
 
     // Offline Support Logic
     if (job is NetworkAction) {
-      _handleNetworkJob(job as NetworkAction, executor);
+      _handleNetworkJob(job as NetworkAction, executor, handle: handle);
     } else {
       // Standard Fire-and-forget execution
-      executor.execute(job);
+      executor.execute(job, handle: handle);
     }
 
     return job.id;
@@ -110,8 +116,9 @@ class Dispatcher {
   /// Handle NetworkAction jobs (online/offline logic)
   Future<void> _handleNetworkJob(
     NetworkAction action,
-    BaseExecutor executor,
-  ) async {
+    BaseExecutor executor, {
+    JobHandle? handle,
+  }) async {
     final job = action as BaseJob;
     final log = OrchestratorConfig.logger;
 
@@ -140,6 +147,9 @@ class Dispatcher {
           bus.emit(
               JobSuccessEvent(job.id, optimisticResult, isOptimistic: true));
 
+          // 4. Complete handle with optimistic result
+          handle?.complete(optimisticResult, DataSource.optimistic);
+
           return; // Stop here, do not execute real worker
         } else {
           log.warning(
@@ -149,11 +159,11 @@ class Dispatcher {
       }
 
       // Online: Execute normally
-      executor.execute(job);
+      executor.execute(job, handle: handle);
     } catch (e, stack) {
       log.error('Error in Offline Dispatch Logic for ${job.id}', e, stack);
       // Fallback: just execute
-      executor.execute(job);
+      executor.execute(job, handle: handle);
     }
   }
 
