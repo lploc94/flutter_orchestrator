@@ -341,6 +341,8 @@ void main() {
             },
           );
 
+          // If we reach here, all steps succeeded - commit
+          // ignore: dead_code
           saga.commit();
         } catch (e) {
           await saga.rollback();

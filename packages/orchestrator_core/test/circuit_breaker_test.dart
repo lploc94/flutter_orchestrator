@@ -28,11 +28,10 @@ class CircuitBreakerOrchestrator extends BaseOrchestrator<int> {
 void main() {
   group('Circuit Breaker (Loop Protection)', () {
     late CircuitBreakerOrchestrator orchestrator;
-    late SignalBus bus;
 
     setUp(() {
       // Use scoped bus for test isolation
-      bus = SignalBus.scoped();
+      SignalBus.scoped();
       orchestrator = CircuitBreakerOrchestrator();
       // Reset config to default
       OrchestratorConfig.maxEventsPerSecond = 50;

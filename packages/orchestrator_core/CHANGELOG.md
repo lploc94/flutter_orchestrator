@@ -1,3 +1,41 @@
+## 0.6.0 - 2026-01-08
+
+### Breaking Changes
+- **Unified Event Handler**: Replaced `onActiveSuccess`/`onActiveFailure`/`onPassive*` methods with single `onEvent(BaseEvent)` using Dart 3 pattern matching.
+  - Old: `@override void onActiveSuccess(JobSuccessEvent e) { ... }`
+  - New: `@override void onEvent(BaseEvent e) { switch(e) { case MyEvent e: ... } }`
+- **Example Updated**: `orchestrator_core_example.dart` now demonstrates `EventJob` with domain events and `onEvent` pattern.
+
+### Fixed (v1.0.0 Audit)
+- **Audit #1 - EventJob + Cache Flow**: Fixed cache key generation and SWR revalidation timing.
+- **Audit #2 - Cancellation Token**: `CancelledException` now handled separately from failures (no double event emission).
+- **Audit #3 - Retry Policy**: Prevented double `JobFailureEvent` emission on retry exhaustion.
+- **Audit #4 - Offline/NetworkAction Flow**:
+  - Fixed race condition with atomic `claimNextPendingJob()`.
+  - Fixed job ID mismatch between restored job and storage wrapper.
+  - Added fallback to normal execution when queue fails.
+- **Audit #6 - OrchestratorObserver**: All legacy events now properly call `onEvent()` for consistency.
+- **Executor catch block**: `JobFailureEvent` now calls `OrchestratorObserver.instance?.onEvent()`.
+
+### Added
+- **Comprehensive Test Suite**: Added 56 new tests (111 → 167 total):
+  - Circuit Breaker: 7 tests for loop protection and event rate limiting.
+  - SagaFlow: 17 tests for saga pattern with LIFO rollback.
+  - OrchestratorObserver: 12 tests for job lifecycle hooks and event notifications.
+  - RetryPolicy: 20 tests for exponential backoff and retry decisions.
+
+### Audited & Verified
+All 9 critical flows audited and verified for v1.0.0 release:
+1. ✅ EventJob + Cache Flow
+2. ✅ Cancellation Token Flow
+3. ✅ Retry Policy Flow
+4. ✅ Offline/NetworkAction Flow
+5. ✅ SignalBus Scoped vs Global
+6. ✅ OrchestratorObserver Flow
+7. ✅ Circuit Breaker (Loop Protection)
+8. ✅ SagaFlow Pattern
+9. ✅ JobHandle Progress Flow
+
 ## 0.5.2 - 2026-01-06
 
 ### Added

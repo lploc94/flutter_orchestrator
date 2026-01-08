@@ -139,11 +139,9 @@ void main() {
       });
 
       test('maxRetries checked before shouldRetry', () {
-        var predicateCalled = false;
         final policy = RetryPolicy(
           maxRetries: 1,
           shouldRetry: (e) {
-            predicateCalled = true;
             return true;
           },
         );
@@ -151,7 +149,6 @@ void main() {
         // At maxRetries, shouldRetry should not be called
         final result = policy.canRetry(Exception('test'), 1);
         expect(result, isFalse);
-        // Note: The predicate might still be called depending on implementation
         // The important thing is the final result is false
       });
     });
@@ -291,14 +288,12 @@ void main() {
     });
 
     test('delays between retries with exponential backoff', () async {
-      var attempts = 0;
       final timestamps = <int>[];
 
       try {
         await executeWithRetry<String>(
           () async {
             timestamps.add(DateTime.now().millisecondsSinceEpoch);
-            attempts++;
             throw Exception('Fail');
           },
           RetryPolicy(

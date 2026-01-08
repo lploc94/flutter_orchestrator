@@ -217,9 +217,6 @@ void main() {
 
         // Progress events may not call onEvent directly (only emit to bus)
         // Check that progress events were at least logged via onJobStart/Success
-        final progressCount = observer.log.where((e) => e.startsWith('event:JobProgressEvent:')).length;
-
-        // If no direct onEvent calls, this is expected - emitProgress doesn't call observer.onEvent
         // The test passes if we got at least start and success
         expect(
           observer.log.any((e) => e.startsWith('start:ProgressJob:')),
