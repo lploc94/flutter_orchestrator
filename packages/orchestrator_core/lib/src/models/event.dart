@@ -1,7 +1,24 @@
 import 'package:meta/meta.dart';
 
 /// Base class for all events in the system.
-/// Events are "Fire-and-Forget" messages broadcasted by Executors.
+///
+/// Events are domain messages broadcasted via the [SignalBus].
+/// All events have a [correlationId] linking them to the originating job.
+///
+/// ## Creating Domain Events
+///
+/// ```dart
+/// class UsersLoadedEvent extends BaseEvent {
+///   final List<User> users;
+///   final DataSource source;
+///
+///   UsersLoadedEvent({
+///     required String correlationId,
+///     required this.users,
+///     this.source = DataSource.fresh,
+///   }) : super(correlationId);
+/// }
+/// ```
 @immutable
 abstract class BaseEvent {
   /// ID of the Job that generated this event (Correlation ID).
@@ -16,9 +33,24 @@ abstract class BaseEvent {
   String toString() => '$runtimeType(id: $correlationId)';
 }
 
-// ============ Result Events ============
+// ============================================================================
+// LEGACY FRAMEWORK EVENTS
+// ============================================================================
+//
+// The following events are deprecated and will be removed in v2.0.0.
+// Use EventJob with custom domain events instead.
+//
+// Migration: Instead of listening to JobSuccessEvent, define your own
+// domain event and use EventJob<TResult, TEvent> to emit it.
+// ============================================================================
+
+// ============ Result Events (Legacy) ============
 
 /// Emitted when a Job completes successfully.
+///
+/// @Deprecated: Use [EventJob] with custom domain events instead.
+/// This event is only emitted for legacy [BaseJob] jobs, not [EventJob].
+@Deprecated('Use EventJob with custom domain events. Will be removed in v2.0.0')
 class JobSuccessEvent<T> extends BaseEvent {
   final T data;
   final bool isOptimistic;
@@ -58,6 +90,11 @@ class JobSuccessEvent<T> extends BaseEvent {
 }
 
 /// Emitted when a Job fails.
+///
+/// @Deprecated: Use [JobHandle.future] to catch errors instead.
+/// For global error logging, use [OrchestratorObserver.onJobError].
+@Deprecated(
+    'Use JobHandle.future for error handling. Will be removed in v2.0.0')
 class JobFailureEvent extends BaseEvent {
   final Object error;
   final StackTrace? stackTrace;
@@ -84,6 +121,9 @@ class JobFailureEvent extends BaseEvent {
 }
 
 /// Emitted when a Job is cancelled.
+///
+/// @Deprecated: Use [CancellationToken] and [JobHandle.future] instead.
+@Deprecated('Use CancellationToken with JobHandle. Will be removed in v2.0.0')
 class JobCancelledEvent extends BaseEvent {
   final String? reason;
 
@@ -101,6 +141,9 @@ class JobCancelledEvent extends BaseEvent {
 }
 
 /// Emitted when a Job times out.
+///
+/// @Deprecated: Use [JobHandle.future] timeout handling instead.
+@Deprecated('Use JobHandle.future for timeout handling. Will be removed in v2.0.0')
 class JobTimeoutEvent extends BaseEvent {
   final Duration timeout;
 
@@ -118,6 +161,10 @@ class JobTimeoutEvent extends BaseEvent {
 }
 
 /// Emitted when data is found in cache (Unified Data Flow).
+///
+/// @Deprecated: Use [EventJob] which emits domain events for both cache and fresh data.
+/// The event's [DataSource] field indicates the data origin.
+@Deprecated('Use EventJob with DataSource in your domain event. Will be removed in v2.0.0')
 class JobCacheHitEvent<T> extends BaseEvent {
   final T data;
 
@@ -135,6 +182,10 @@ class JobCacheHitEvent<T> extends BaseEvent {
 }
 
 /// Emitted when placeholder data is available (Unified Data Flow).
+///
+/// @Deprecated: Use [DataStrategy.placeholder] with legacy jobs,
+/// or handle loading states via [JobHandle] for EventJob.
+@Deprecated('Use DataStrategy.placeholder or JobHandle. Will be removed in v2.0.0')
 class JobPlaceholderEvent<T> extends BaseEvent {
   final T data;
 
@@ -151,9 +202,12 @@ class JobPlaceholderEvent<T> extends BaseEvent {
       'JobPlaceholderEvent(id: $correlationId, type: $jobType, data: $data)';
 }
 
-// ============ Progress Events ============
+// ============ Progress Events (Legacy) ============
 
 /// Emitted to report progress of a long-running job.
+///
+/// @Deprecated: Use [JobHandle.progress] stream instead.
+@Deprecated('Use JobHandle.progress stream. Will be removed in v2.0.0')
 class JobProgressEvent extends BaseEvent {
   /// Progress value (0.0 to 1.0).
   ///
@@ -185,9 +239,12 @@ class JobProgressEvent extends BaseEvent {
       'JobProgressEvent(id: $correlationId, progress: ${(progress * 100).toStringAsFixed(1)}%)';
 }
 
-// ============ Lifecycle Events ============
+// ============ Lifecycle Events (Legacy) ============
 
 /// Emitted when a Job starts executing.
+///
+/// @Deprecated: Use [OrchestratorObserver.onJobStart] for logging.
+@Deprecated('Use OrchestratorObserver.onJobStart. Will be removed in v2.0.0')
 class JobStartedEvent extends BaseEvent {
   final String jobType;
   JobStartedEvent(super.correlationId, {required this.jobType});
@@ -197,6 +254,10 @@ class JobStartedEvent extends BaseEvent {
 }
 
 /// Emitted when a Job is retrying after failure.
+///
+/// @Deprecated: Retry events are internal implementation details.
+/// Use [OrchestratorObserver] for retry logging if needed.
+@Deprecated('Use OrchestratorObserver for retry logging. Will be removed in v2.0.0')
 class JobRetryingEvent extends BaseEvent {
   final int attempt;
   final int maxRetries;
@@ -224,6 +285,9 @@ class JobRetryingEvent extends BaseEvent {
 /// - Rollback optimistic UI updates
 /// - Show error notifications to user
 /// - Log sync failures
+///
+/// Note: This event is kept as it's useful for offline-first apps.
+/// Consider defining your own domain event for more specific handling.
 class NetworkSyncFailureEvent extends BaseEvent {
   /// The error that caused the sync failure.
   final Object error;
