@@ -6,14 +6,14 @@
 
 | # | Flow | Status | Issues Found | Commit |
 |---|------|--------|--------------|--------|
-| 1 | EventJob + Cache Flow | 🔄 In Progress | - | - |
-| 2 | Cancellation Token Flow | ⏳ Pending | - | - |
-| 3 | Retry Policy Flow | ⏳ Pending | - | - |
-| 4 | Offline/NetworkAction Flow | ⏳ Pending | - | - |
-| 5 | SignalBus Scoped vs Global | ⏳ Pending | - | - |
-| 6 | OrchestratorObserver Flow | ⏳ Pending | - | - |
-| 7 | Circuit Breaker (Loop Protection) | ⏳ Pending | - | - |
-| 8 | SagaFlow Pattern | ⏳ Pending | - | - |
+| 1 | EventJob + Cache Flow | ✅ Done | 3 issues | `0cd565c` |
+| 2 | Cancellation Token Flow | ✅ Done | 2 issues | `e862540` |
+| 3 | Retry Policy Flow | ✅ Done | 1 issue | `ca195c1` |
+| 4 | Offline/NetworkAction Flow | ✅ Done | 3 issues | `9407ebf` |
+| 5 | SignalBus Scoped vs Global | ✅ Done | 0 issues | - |
+| 6 | OrchestratorObserver Flow | ✅ Done | 2 issues | `61060c4` |
+| 7 | Circuit Breaker (Loop Protection) | ✅ Done | 0 issues | - |
+| 8 | SagaFlow Pattern | ✅ Done | 0 issues | - |
 | 9 | JobHandle Progress Flow | ✅ Done | 3 issues | `dd8287a` |
 
 ---
@@ -184,6 +184,73 @@
 ---
 
 ## Completed Audits
+
+### Audit #4: Offline/NetworkAction Flow ✅
+
+**Date:** 2026-01-08
+**Commit:** `9407ebf`
+
+**Issues Found:**
+1. Race condition với `getNextPendingJob` - không atomic, có thể 2 sync loop lấy cùng job
+2. Job ID mismatch - restored job có ID mới từ constructor, không match storage wrapper ID
+3. Silent data loss khi queue fail - optimistic result trả về nhưng action mất
+
+**Fixes Applied:**
+- Changed from `getNextPendingJob()` to `claimNextPendingJob()` for atomic claiming
+- Added `_currentSyncWrapperId` field to track storage ID separately from job ID
+- Added try-catch around `queueAction()` with fallback to normal execution
+
+---
+
+### Audit #5: SignalBus Scoped vs Global ✅
+
+**Date:** 2026-01-08
+**Commit:** N/A (no issues found)
+
+**Result:** PASSED - Flow hoạt động đúng như thiết kế.
+
+---
+
+### Audit #6: OrchestratorObserver Flow ✅
+
+**Date:** 2026-01-08
+**Commit:** `61060c4`
+
+**Issues Found:**
+1. `emitResult()` và `emitFailure()` không gọi `onEvent()` - observer không thấy events này
+2. Legacy events (JobStartedEvent, JobPlaceholderEvent, JobCacheHitEvent) thiếu `onEvent()` calls
+
+**Fixes Applied:**
+- Updated `emitResult()` and `emitFailure()` to call `OrchestratorObserver.instance?.onEvent()`
+- Added `onEvent()` calls for all legacy events in `_executeLegacyJob()`
+
+---
+
+### Audit #7: Circuit Breaker ✅
+
+**Date:** 2026-01-08
+**Commit:** N/A (no issues found)
+
+**Result:** PASSED - Implementation hoạt động đúng:
+- Per-type event counting với configurable limits
+- 1-second sliding window với auto-reset
+- Only blocks specific type, không ảnh hưởng events khác
+- Proper error logging và isolation
+
+---
+
+### Audit #8: SagaFlow Pattern ✅
+
+**Date:** 2026-01-08
+**Commit:** N/A (no issues found)
+
+**Result:** PASSED - Implementation đúng Saga pattern:
+- LIFO rollback order
+- Capture result for compensation
+- Best-effort rollback (continue on partial failure)
+- No compensation registered for failed actions
+
+---
 
 ### Audit #9: JobHandle Progress Flow ✅
 
