@@ -76,58 +76,55 @@ class TestOrchestrator extends BaseOrchestrator<String> {
   TestOrchestrator() : super('Init');
 
   @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    eventLog.add('Active:Success:${event.data}');
-    emit('Active Success: ${event.data}');
-  }
+  void onEvent(BaseEvent event) {
+    // Check if this is our job (active) or from another orchestrator (passive)
+    final isActive = isJobRunning(event.correlationId);
 
-  @override
-  void onActiveFailure(JobFailureEvent event) {
-    eventLog.add('Active:Failure:${event.error}');
-    emit('Active Failure: ${event.error}');
-  }
-
-  @override
-  void onActiveCancelled(JobCancelledEvent event) {
-    eventLog.add('Active:Cancelled');
-    emit('Active Cancelled');
-  }
-
-  @override
-  void onActiveTimeout(JobTimeoutEvent event) {
-    eventLog.add('Active:Timeout:${event.timeout.inMilliseconds}ms');
-    emit('Active Timeout');
-  }
-
-  @override
-  void onProgress(JobProgressEvent event) {
-    lastProgress = event.progress;
-    eventLog.add('Progress:${(event.progress * 100).toInt()}%');
-  }
-
-  @override
-  void onJobRetrying(JobRetryingEvent event) {
-    eventLog.add('Retrying:${event.attempt}/${event.maxRetries}');
-  }
-
-  @override
-  void onPassiveEvent(BaseEvent event) {
-    if (event is JobSuccessEvent) {
-      eventLog.add('Passive:Success:${event.data}');
-      emit('Passive Received: ${event.data}');
-    } else if (event is CustomDataEvent) {
-      eventLog.add('Passive:Custom:${event.payload}');
-      emit('Passive Custom: ${event.payload}');
+    switch (event) {
+      case JobSuccessEvent e:
+        if (isActive) {
+          eventLog.add('Active:Success:${e.data}');
+          emit('Active Success: ${e.data}');
+        } else {
+          eventLog.add('Passive:Success:${e.data}');
+          emit('Passive Received: ${e.data}');
+        }
+      case JobFailureEvent e:
+        if (isActive) {
+          eventLog.add('Active:Failure:${e.error}');
+          emit('Active Failure: ${e.error}');
+        }
+      case JobCancelledEvent _:
+        if (isActive) {
+          eventLog.add('Active:Cancelled');
+          emit('Active Cancelled');
+        }
+      case JobTimeoutEvent e:
+        if (isActive) {
+          eventLog.add('Active:Timeout:${e.timeout.inMilliseconds}ms');
+          emit('Active Timeout');
+        }
+      case JobProgressEvent e:
+        lastProgress = e.progress;
+        eventLog.add('Progress:${(e.progress * 100).toInt()}%');
+      case JobRetryingEvent e:
+        eventLog.add('Retrying:${e.attempt}/${e.maxRetries}');
+      case CustomDataEvent e:
+        eventLog.add('Passive:Custom:${e.payload}');
+        emit('Passive Custom: ${e.payload}');
+      default:
+        // Unknown event type, ignore
+        break;
     }
   }
 
-  String runJob(
+  JobHandle<int> runJob(
     int val, {
     Duration? timeout,
     CancellationToken? cancelToken,
     RetryPolicy? retry,
   }) =>
-      dispatch(
+      dispatch<int>(
         TestJob(
           val,
           timeout: timeout,
@@ -136,8 +133,8 @@ class TestOrchestrator extends BaseOrchestrator<String> {
         ),
       );
 
-  String runFailingJob({int failCount = 999, RetryPolicy? retry}) =>
-      dispatch(FailingJob(failCount: failCount)..metadata);
+  JobHandle<int> runFailingJob({int failCount = 999, RetryPolicy? retry}) =>
+      dispatch<int>(FailingJob(failCount: failCount)..metadata);
 }
 
 // --- TEST SUITE ---
@@ -372,6 +369,79 @@ void main() {
       expect(retryExecutor.attempts, greaterThan(0));
 
       orchestrator.dispose();
+    });
+  });
+
+  group('JobHandle', () {
+    test('JobHandle completes with result on success', () async {
+      final orchestrator = TestOrchestrator();
+
+      final handle = orchestrator.runJob(42);
+
+      final result = await handle.future;
+
+      expect(result.data, equals(84)); // 42 * 2
+      expect(result.source, equals(DataSource.fresh));
+      expect(handle.isCompleted, isTrue);
+      expect(handle.jobId, isNotEmpty);
+
+      orchestrator.dispose();
+    });
+
+    test('JobHandle completes with error on failure', () async {
+      final orchestrator = TestOrchestrator();
+      dispatcher.register(FailingExecutor());
+
+      final handle = orchestrator.runFailingJob();
+
+      expect(handle.future, throwsA(isA<Exception>()));
+
+      orchestrator.dispose();
+    });
+
+    test('JobHandle fire-and-forget does not throw', () async {
+      final orchestrator = TestOrchestrator();
+      dispatcher.register(FailingExecutor());
+
+      // Fire and forget - should not throw uncaught async error
+      orchestrator.runFailingJob();
+
+      // Wait for the job to complete
+      await Future.delayed(Duration(milliseconds: 100));
+
+      // If we get here without async error, test passes
+      expect(orchestrator.eventLog.any((e) => e.contains('Failure')), isTrue);
+
+      orchestrator.dispose();
+    });
+
+    test('JobHandle.complete is idempotent', () {
+      final handle = JobHandle<String>('test-id');
+
+      handle.complete('first', DataSource.fresh);
+      handle.complete('second', DataSource.fresh); // Should be ignored
+
+      expect(handle.isCompleted, isTrue);
+    });
+
+    test('JobHandle.completeError is idempotent', () {
+      final handle = JobHandle<String>('test-id');
+
+      handle.completeError(Exception('first'));
+      handle.completeError(Exception('second')); // Should be ignored
+
+      expect(handle.isCompleted, isTrue);
+    });
+
+    test('JobHandle toString shows completion status', () {
+      final handle = JobHandle<String>('test-123');
+
+      expect(handle.toString(), contains('test-123'));
+      expect(handle.toString(), contains('completed: false'));
+
+      handle.complete('done', DataSource.fresh);
+
+      expect(handle.toString(), contains('completed: true'));
     });
   });
 }

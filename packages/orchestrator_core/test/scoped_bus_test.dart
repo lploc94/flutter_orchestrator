@@ -23,12 +23,15 @@ class TestOrchestrator extends BaseOrchestrator<String> {
   TestOrchestrator({SignalBus? bus}) : super('Init', bus: bus);
 
   @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    eventLog.add('Success:${event.data}');
-    emit('Success: ${event.data}');
+  void onEvent(BaseEvent event) {
+    // Handle legacy JobSuccessEvent for backward compatibility tests
+    if (event is JobSuccessEvent) {
+      eventLog.add('Success:${event.data}');
+      emit('Success: ${event.data}');
+    }
   }
 
-  String run(int val) => dispatch(TestJob(val));
+  JobHandle<int> run(int val) => dispatch<int>(TestJob(val));
 }
 
 void main() {

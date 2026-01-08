@@ -102,25 +102,29 @@ class TestOrchestrator extends BaseOrchestrator<TestState> {
   }) : super(TestState(), bus: bus, dispatcher: dispatcher);
 
   void runTestJob() {
-    dispatch(TestJob());
+    dispatch<String>(TestJob());
   }
 
   void runAnotherJob() {
-    dispatch(AnotherJob());
+    dispatch<int>(AnotherJob());
   }
 
   @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    emit(state.copyWith(
-      data: event.data?.toString(),
-      lastJobType: event.jobType != null ? _parseJobType(event.jobType!) : null,
-    ));
-  }
+  void onEvent(BaseEvent event) {
+    if (event is JobSuccessEvent) {
+      // Check if this is our job (active) or from another orchestrator (passive)
+      final isActive = isJobRunning(event.correlationId);
 
-  @override
-  void onPassiveEvent(BaseEvent event) {
-    if (event is JobSuccessEvent && event.isFromJobType<AnotherJob>()) {
-      emit(state.copyWith(count: state.count + 1));
+      if (isActive) {
+        // Active success - update data
+        emit(state.copyWith(
+          data: event.data?.toString(),
+          lastJobType: event.jobType != null ? _parseJobType(event.jobType!) : null,
+        ));
+      } else if (event.isFromJobType<AnotherJob>()) {
+        // Passive event from AnotherJob - increment count
+        emit(state.copyWith(count: state.count + 1));
+      }
     }
   }
 
@@ -157,9 +161,9 @@ class MockDispatcher implements Dispatcher {
   }
 
   @override
-  String dispatch(BaseJob job) {
+  String dispatch(BaseJob job, {JobHandle? handle}) {
     dispatchedJobs.add(job);
-    return _realDispatcher.dispatch(job);
+    return _realDispatcher.dispatch(job, handle: handle);
   }
 
   @override
