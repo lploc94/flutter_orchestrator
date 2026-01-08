@@ -43,6 +43,11 @@ class Dispatcher {
   bool _isProcessingQueue = false;
   String? _currentSyncJobId;
 
+  /// FIX Issue #2: Track wrapper ID separately from job ID
+  /// - _currentSyncJobId: ID of restored job (for event matching)
+  /// - _currentSyncWrapperId: ID in storage (for cleanup)
+  String? _currentSyncWrapperId;
+
   // Singleton
   static final Dispatcher _instance = Dispatcher._internal();
   factory Dispatcher() => _instance;
@@ -131,8 +136,21 @@ class Dispatcher {
         final manager = OrchestratorConfig.networkQueueManager;
 
         if (manager != null) {
-          // 1. Queue it
-          await manager.queueAction(action);
+          // 1. Queue it (with error handling)
+          try {
+            await manager.queueAction(action);
+          } catch (queueError, queueStack) {
+            // FIX Issue #3: Queue failed - don't return optimistic result
+            // since job won't actually be synced later
+            log.error(
+              'NetworkAction ${job.id} failed to queue. Falling back to normal execution.',
+              queueError,
+              queueStack,
+            );
+            // Try to execute online (might fail, but better than silent data loss)
+            executor.execute(job, handle: handle);
+            return;
+          }
 
           // 2. Create Optimistic Result
           final optimisticResult = action.createOptimisticResult();
@@ -181,7 +199,9 @@ class Dispatcher {
     _isProcessingQueue = true;
 
     try {
-      final jobWrapper = await manager.getNextPendingJob();
+      // FIX Issue #1: Use claimNextPendingJob for atomic claim
+      // This prevents race conditions where multiple processes could claim the same job
+      final jobWrapper = await manager.claimNextPendingJob();
       if (jobWrapper == null) {
         _isProcessingQueue = false;
         return;
@@ -193,8 +213,10 @@ class Dispatcher {
         return;
       }
 
-      // Mark as processing
-      await manager.markJobProcessing(jobId);
+      // Job is already marked as processing by claimNextPendingJob
+
+      // FIX Issue #2: Store wrapper ID for later cleanup
+      _currentSyncWrapperId = jobId;
 
       // Restore job from registry
       final type = jobWrapper['type'] as String?;
@@ -254,34 +276,30 @@ class Dispatcher {
 
   Future<void> _handleSyncSuccess() async {
     final manager = OrchestratorConfig.networkQueueManager;
-    if (manager == null || _currentSyncJobId == null) {
+    // FIX Issue #2: Use _currentSyncWrapperId for cleanup
+    if (manager == null || _currentSyncWrapperId == null) {
       _finishSyncJob();
       return;
     }
 
     final log = OrchestratorConfig.logger;
+    final wrapperId = _currentSyncWrapperId!;
 
     try {
-      // Find wrapper by looking up all jobs (we need wrapper ID, not job ID)
-      final jobs = await manager.getAllJobs();
-      for (final jobWrapper in jobs) {
-        if (jobWrapper['status'] == NetworkJobStatus.processing.name) {
-          final wrapperId = jobWrapper['id'] as String?;
-          if (wrapperId != null) {
-            // Cleanup files
-            final payload = jobWrapper['payload'];
-            if (payload is Map && manager.fileDelegate != null) {
-              await manager.fileDelegate!.cleanupFiles(
-                Map<String, dynamic>.from(payload),
-              );
-            }
-
-            // Remove from queue
-            await manager.removeJob(wrapperId);
-            log.debug('Sync success, removed: $wrapperId');
-            break;
-          }
+      // Get the job wrapper directly by ID (no need to loop)
+      final jobWrapper = await manager.getJob(wrapperId);
+      if (jobWrapper != null) {
+        // Cleanup files
+        final payload = jobWrapper['payload'];
+        if (payload is Map && manager.fileDelegate != null) {
+          await manager.fileDelegate!.cleanupFiles(
+            Map<String, dynamic>.from(payload),
+          );
         }
+
+        // Remove from queue
+        await manager.removeJob(wrapperId);
+        log.debug('Sync success, removed: $wrapperId');
       }
     } finally {
       _finishSyncJob();
@@ -291,59 +309,51 @@ class Dispatcher {
 
   Future<void> _handleSyncFailure(Object error, StackTrace? stackTrace) async {
     final manager = OrchestratorConfig.networkQueueManager;
-    if (manager == null) {
+    // FIX Issue #2: Use _currentSyncWrapperId for cleanup
+    if (manager == null || _currentSyncWrapperId == null) {
       _finishSyncJob();
       return;
     }
 
     final log = OrchestratorConfig.logger;
+    final wrapperId = _currentSyncWrapperId!;
 
     try {
-      // Find the processing job
-      final jobs = await manager.getAllJobs();
-      for (final jobWrapper in jobs) {
-        if (jobWrapper['status'] == NetworkJobStatus.processing.name) {
-          final wrapperId = jobWrapper['id'] as String?;
-          if (wrapperId != null) {
-            final retryCount = await manager.incrementRetryCount(
-              wrapperId,
-              errorMessage: error.toString(),
-            );
+      final retryCount = await manager.incrementRetryCount(
+        wrapperId,
+        errorMessage: error.toString(),
+      );
 
-            if (retryCount >= maxRetries) {
-              // POISON PILL: Abandon this job
-              await manager.markJobPoisoned(wrapperId);
+      if (retryCount >= maxRetries) {
+        // POISON PILL: Abandon this job
+        await manager.markJobPoisoned(wrapperId);
 
-              log.warning(
-                  'Poison pill: abandoning job after $retryCount retries: $wrapperId');
+        log.warning(
+            'Poison pill: abandoning job after $retryCount retries: $wrapperId');
 
-              SignalBus.instance.emit(NetworkSyncFailureEvent(
-                wrapperId,
-                error: error,
-                stackTrace: stackTrace,
-                retryCount: retryCount,
-                isPoisoned: true,
-              ));
+        SignalBus.instance.emit(NetworkSyncFailureEvent(
+          wrapperId,
+          error: error,
+          stackTrace: stackTrace,
+          retryCount: retryCount,
+          isPoisoned: true,
+        ));
 
-              await manager.removeJob(wrapperId);
-            } else {
-              // Will retry later
-              await manager.markJobPending(wrapperId);
+        await manager.removeJob(wrapperId);
+      } else {
+        // Will retry later
+        await manager.markJobPending(wrapperId);
 
-              log.debug(
-                  'Sync failed, will retry ($retryCount/$maxRetries): $wrapperId');
+        log.debug(
+            'Sync failed, will retry ($retryCount/$maxRetries): $wrapperId');
 
-              SignalBus.instance.emit(NetworkSyncFailureEvent(
-                wrapperId,
-                error: error,
-                stackTrace: stackTrace,
-                retryCount: retryCount,
-                isPoisoned: false,
-              ));
-            }
-            break;
-          }
-        }
+        SignalBus.instance.emit(NetworkSyncFailureEvent(
+          wrapperId,
+          error: error,
+          stackTrace: stackTrace,
+          retryCount: retryCount,
+          isPoisoned: false,
+        ));
       }
     } finally {
       _finishSyncJob();
@@ -355,6 +365,7 @@ class Dispatcher {
 
   void _finishSyncJob() {
     _currentSyncJobId = null;
+    _currentSyncWrapperId = null;
     _isProcessingQueue = false;
   }
 
@@ -369,6 +380,7 @@ class Dispatcher {
     _eventSub = null;
     _isProcessingQueue = false;
     _currentSyncJobId = null;
+    _currentSyncWrapperId = null;
   }
 
   /// For testing cleanup - clears registry only.
