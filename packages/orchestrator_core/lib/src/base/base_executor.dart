@@ -86,7 +86,11 @@ abstract class BaseExecutor<T extends BaseJob> {
       handle?.completeError(e, stack);
       // For legacy jobs, emit failure event
       if (job is! EventJob) {
-        emitFailure(job.id, e, stack);
+        // Set wasRetried flag if job had a retry policy (meaning retries were attempted)
+        final wasRetried = job.retryPolicy != null;
+        final jt = _activeJobTypes[job.id];
+        bus.emit(JobFailureEvent(job.id, e,
+            stackTrace: stack, wasRetried: wasRetried, jobType: jt));
       }
     } finally {
       // Cleanup
@@ -332,13 +336,9 @@ abstract class BaseExecutor<T extends BaseJob> {
 
         if (!policy.canRetry(e, attempt)) {
           log.warning('Job ${job.id} failed after ${attempt + 1} attempts');
-          // For legacy jobs, emit failure with retry flag
-          if (job is! EventJob) {
-            final bus = _activeBus[job.id] ?? _globalBus;
-            final jt = _activeJobTypes[job.id];
-            bus.emit(
-                JobFailureEvent(job.id, e, wasRetried: true, jobType: jt));
-          }
+          // Don't emit JobFailureEvent here - let execute() catch block handle it
+          // to avoid double emission. The wasRetried flag will be set based on
+          // whether retryPolicy was configured.
           rethrow;
         }
 
