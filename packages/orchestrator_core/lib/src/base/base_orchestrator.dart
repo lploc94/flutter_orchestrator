@@ -3,28 +3,55 @@ import 'package:meta/meta.dart';
 import '../infra/signal_bus.dart';
 import '../infra/dispatcher.dart';
 import '../models/job.dart';
+import '../models/job_handle.dart';
 import '../models/event.dart';
 import '../utils/logger.dart';
 
 /// The Reactive Brain.
 ///
 /// Manages State [S] and orchestration logic with full production features:
-/// - Active/Passive event routing
-/// - Progress tracking
+/// - Unified event handling via [onEvent]
+/// - Job tracking with auto-cleanup
+/// - Progress tracking via [JobHandle.progress]
 /// - Cancellation support
-/// - Typed event filtering
+///
+/// ## Usage
+///
+/// ```dart
+/// class UserOrchestrator extends BaseOrchestrator<UserState> {
+///   UserOrchestrator() : super(UserState.initial());
+///
+///   @override
+///   void onEvent(BaseEvent event) {
+///     switch (event) {
+///       case UsersLoadedEvent e:
+///         emit(state.copyWith(users: e.users));
+///       case UserCreatedEvent e:
+///         emit(state.copyWith(users: [...state.users, e.user]));
+///     }
+///   }
+///
+///   // Fire and forget
+///   void loadUsers() {
+///     dispatch<List<User>>(LoadUsersJob());
+///   }
+///
+///   // Await result
+///   Future<User> createUser(String name) async {
+///     final handle = dispatch<User>(CreateUserJob(name: name));
+///     final result = await handle.future;
+///     return result.data;
+///   }
+/// }
+/// ```
 abstract class BaseOrchestrator<S> {
   S _state;
   final StreamController<S> _stateController = StreamController<S>.broadcast();
   final SignalBus _bus;
   final Dispatcher _dispatcher;
 
-  /// Active transactions tracking (Jobs this orchestrator owns).
+  /// Active jobs tracking (Jobs this orchestrator dispatched).
   final Set<String> _activeJobIds = {};
-  final Map<String, Type> _activeJobTypes = {};
-
-  /// Progress tracking for active jobs.
-  final Map<String, double> _jobProgress = {};
 
   /// Bus subscription.
   StreamSubscription? _busSubscription;
@@ -54,15 +81,6 @@ abstract class BaseOrchestrator<S> {
   /// Check if a specific job ID is running.
   bool isJobRunning(String jobId) => _activeJobIds.contains(jobId);
 
-  /// Check if any job of type [T] is running.
-  /// Useful for UI to show specific loading indicators.
-  bool isJobTypeRunning<T extends BaseJob>() {
-    return _activeJobTypes.values.contains(T);
-  }
-
-  /// Get progress for a specific job (0.0 to 1.0).
-  double? getJobProgress(String jobId) => _jobProgress[jobId];
-
   /// Emit new state.
   @protected
   void emit(S newState) {
@@ -72,8 +90,53 @@ abstract class BaseOrchestrator<S> {
   }
 
   /// Dispatch a job and start tracking it.
+  ///
+  /// Returns a [JobHandle] that allows the caller to:
+  /// - Await the job's first result via [JobHandle.future]
+  /// - Track progress via [JobHandle.progress]
+  /// - Check completion status via [JobHandle.isCompleted]
+  /// - Access the job ID via [JobHandle.jobId]
+  ///
+  /// ## Usage Patterns
+  ///
+  /// ### Fire and Forget
+  /// ```dart
+  /// void loadUsers() {
+  ///   dispatch<List<User>>(LoadUsersJob());
+  ///   // State updates via onEvent when job completes
+  /// }
+  /// ```
+  ///
+  /// ### Await Result
+  /// ```dart
+  /// Future<User> createUser(String name) async {
+  ///   final handle = dispatch<User>(CreateUserJob(name: name));
+  ///   final result = await handle.future;
+  ///   return result.data; // User
+  /// }
+  /// ```
+  ///
+  /// ### With Progress Tracking
+  /// ```dart
+  /// Future<void> uploadFiles(List<File> files) async {
+  ///   final handle = dispatch<void>(UploadFilesJob(files));
+  ///
+  ///   handle.progress.listen((p) {
+  ///     emit(state.copyWith(uploadProgress: p.value));
+  ///   });
+  ///
+  ///   await handle.future;
+  /// }
+  /// ```
+  ///
+  /// ## SWR (Stale-While-Revalidate) Behavior
+  ///
+  /// When the job has cache with revalidate enabled:
+  /// 1. Handle completes immediately with cached data
+  /// 2. Worker continues in background
+  /// 3. Fresh data emits via domain events → [onEvent] receives it
   @protected
-  String dispatch(BaseJob job) {
+  JobHandle<T> dispatch<T>(BaseJob job) {
     final log = OrchestratorConfig.logger;
     log.debug(
         'Orchestrator dispatching job: ${job.id} (Bus: ${_bus == SignalBus.instance ? "Global" : "Scoped"})');
@@ -81,22 +144,24 @@ abstract class BaseOrchestrator<S> {
     // Attach current bus to job context for Executor to use
     job.bus = _bus;
 
-    final id = _dispatcher.dispatch(job);
-    _activeJobIds.add(id);
-    _activeJobTypes[id] = job.runtimeType;
-    _jobProgress[id] = 0.0;
+    // Create handle for this job
+    final handle = JobHandle<T>(job.id);
 
-    return id;
+    // Track job - cleanup will happen when terminal event is received in _routeEvent
+    _activeJobIds.add(job.id);
+
+    _dispatcher.dispatch(job, handle: handle);
+
+    return handle;
   }
 
-  /// Cancel a running job.
+  /// Cancel tracking for a running job.
+  ///
+  /// Note: This only removes the job from tracking on the orchestrator side.
+  /// For actual cancellation, the job should have a [CancellationToken].
   @protected
   void cancelJob(String jobId) {
-    // Note: Actual cancellation depends on the job having a CancellationToken.
-    // This just cleans up tracking on the orchestrator side.
     _activeJobIds.remove(jobId);
-    _activeJobTypes.remove(jobId);
-    _jobProgress.remove(jobId);
     OrchestratorConfig.logger.info(
       'Orchestrator cancelled tracking for job: $jobId',
     );
@@ -109,6 +174,14 @@ abstract class BaseOrchestrator<S> {
   // Safety: Loop Detection
   final Map<Type, int> _eventTypeCounts = {};
   DateTime _lastEventTime = DateTime.now();
+
+  /// Check if event is a terminal event (job completion).
+  bool _isTerminalEvent(BaseEvent event) {
+    return event is JobSuccessEvent ||
+        event is JobFailureEvent ||
+        event is JobCancelledEvent ||
+        event is JobTimeoutEvent;
+  }
 
   void _routeEvent(BaseEvent event) {
     // 1. Smart Circuit Breaker (Loop Protection by Type)
@@ -139,44 +212,15 @@ abstract class BaseOrchestrator<S> {
     }
 
     try {
-      // Re-use existing logic inside try-catch block for Type Safety
-      final isActive = _activeJobIds.contains(event.correlationId);
+      // 2. Route to unified event handler
+      onEvent(event);
 
-      // Handle progress updates
-      if (event is JobProgressEvent) {
-        _jobProgress[event.correlationId] = event.progress;
-        if (isActive) {
-          onProgress(event);
-        }
-        return;
-      }
-
-      // Handle job lifecycle events
-      if (event is JobStartedEvent) {
-        if (isActive) onJobStarted(event);
-        return;
-      }
-
-      if (event is JobRetryingEvent) {
-        if (isActive) onJobRetrying(event);
-        return;
-      }
-
-      // Route result events
-      if (isActive) {
-        _handleActiveEvent(event);
-
-        // Clean up tracking for terminal events
-        if (_isTerminalEvent(event)) {
-          _activeJobIds.remove(event.correlationId);
-          _activeJobTypes.remove(event.correlationId);
-          _jobProgress.remove(event.correlationId);
-        }
-      } else {
-        _handlePassiveEvent(event);
+      // 3. Cleanup tracking for terminal events (for active jobs)
+      if (_activeJobIds.contains(event.correlationId) && _isTerminalEvent(event)) {
+        _activeJobIds.remove(event.correlationId);
       }
     } catch (e, stack) {
-      // 2. Safety Type Check & Error Isolation
+      // 3. Safety: Isolate errors to prevent app crash
       OrchestratorConfig.logger.error(
         'Error handling event ${event.runtimeType} in $runtimeType. '
         'This prevents the app from crashing due to logical errors in subscribers.',
@@ -186,69 +230,41 @@ abstract class BaseOrchestrator<S> {
     }
   }
 
-  bool _isTerminalEvent(BaseEvent event) {
-    return event is JobSuccessEvent ||
-        event is JobFailureEvent ||
-        event is JobCancelledEvent ||
-        event is JobTimeoutEvent;
-  }
+  // ============ Event Handler ============
 
-  void _handleActiveEvent(BaseEvent event) {
-    if (event is JobSuccessEvent) {
-      onActiveSuccess(event);
-    } else if (event is JobFailureEvent) {
-      onActiveFailure(event);
-    } else if (event is JobCancelledEvent) {
-      onActiveCancelled(event);
-    } else if (event is JobTimeoutEvent) {
-      onActiveTimeout(event);
-    }
-
-    // Also call generic handler
-    onActiveEvent(event);
-  }
-
-  void _handlePassiveEvent(BaseEvent event) {
-    onPassiveEvent(event);
-  }
-
-  // ============ Hooks for subclasses ============
-
-  /// Called when one of OUR jobs succeeds.
+  /// Override to handle ALL domain events.
+  ///
+  /// This is the single entry point for all events from the [SignalBus].
+  /// Use pattern matching to handle different event types:
+  ///
+  /// ```dart
+  /// @override
+  /// void onEvent(BaseEvent event) {
+  ///   switch (event) {
+  ///     case UsersLoadedEvent e:
+  ///       emit(state.copyWith(users: e.users));
+  ///     case UserCreatedEvent e:
+  ///       emit(state.copyWith(users: [...state.users, e.user]));
+  ///     case UserDeletedEvent e:
+  ///       emit(state.copyWith(
+  ///         users: state.users.where((u) => u.id != e.userId).toList()
+  ///       ));
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// ## Design Rationale
+  ///
+  /// Unlike the previous Active/Passive pattern, this unified approach:
+  /// - Treats all events equally (no distinction between "own" and "other" jobs)
+  /// - Uses Dart 3 pattern matching for clean type handling
+  /// - Simplifies mental model: "React to domain state changes"
+  ///
+  /// If you need to know "is this MY job?":
+  /// - Use [JobHandle.future] to track specific job completion
+  /// - Check [isJobRunning] with the event's correlationId
   @protected
-  void onActiveSuccess(JobSuccessEvent event) {}
-
-  /// Called when one of OUR jobs fails.
-  @protected
-  void onActiveFailure(JobFailureEvent event) {}
-
-  /// Called when one of OUR jobs is cancelled.
-  @protected
-  void onActiveCancelled(JobCancelledEvent event) {}
-
-  /// Called when one of OUR jobs times out.
-  @protected
-  void onActiveTimeout(JobTimeoutEvent event) {}
-
-  /// Called when one of OUR jobs reports progress.
-  @protected
-  void onProgress(JobProgressEvent event) {}
-
-  /// Called when one of OUR jobs starts.
-  @protected
-  void onJobStarted(JobStartedEvent event) {}
-
-  /// Called when one of OUR jobs is retrying.
-  @protected
-  void onJobRetrying(JobRetryingEvent event) {}
-
-  /// Generic handler for ALL active events (after specific handlers).
-  @protected
-  void onActiveEvent(BaseEvent event) {}
-
-  /// Handler for passive events (events from other orchestrators).
-  @protected
-  void onPassiveEvent(BaseEvent event) {}
+  void onEvent(BaseEvent event) {}
 
   /// Cleanup resources.
   @mustCallSuper
@@ -257,8 +273,6 @@ abstract class BaseOrchestrator<S> {
     _busSubscription = null;
     _stateController.close();
     _activeJobIds.clear();
-    _activeJobTypes.clear();
-    _jobProgress.clear();
     _eventTypeCounts.clear();
   }
 }
