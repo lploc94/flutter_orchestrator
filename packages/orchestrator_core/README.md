@@ -7,9 +7,11 @@ Event-Driven Orchestrator architecture for Dart/Flutter applications. Separate U
 - **SignalBus**: Broadcast stream for event communication (Global or Scoped)
 - **Dispatcher**: Type-based job routing with O(1) lookup
 - **BaseExecutor**: Abstract executor with error boundary, timeout, retry, cancellation
-- **BaseOrchestrator**: State machine with Active/Passive event routing
+- **BaseOrchestrator**: State machine with unified `onEvent()` pattern (v0.6.0+)
+- **EventJob**: Job that creates domain events with type-safe results
 - **CancellationToken**: Token-based task cancellation
 - **RetryPolicy**: Configurable retry with exponential backoff
+- **SagaFlow**: Complex workflow orchestration with rollback support
 - **JobBuilder**: Fluent API for configuring jobs
 - **JobResult**: Sealed class for type-safe result handling
 - **AsyncState**: Common state patterns for async operations
@@ -18,7 +20,7 @@ Event-Driven Orchestrator architecture for Dart/Flutter applications. Separate U
 
 ```yaml
 dependencies:
-  orchestrator_core: ^0.0.3
+  orchestrator_core: ^0.6.0
 ```
 
 ## Quick Start
@@ -26,9 +28,21 @@ dependencies:
 ### 1. Define a Job
 
 ```dart
+// Simple job
 class FetchUserJob extends BaseJob {
   final String userId;
   FetchUserJob(this.userId) : super(id: generateJobId('user'));
+}
+
+// Or use EventJob for domain events (recommended)
+class FetchUserJob extends EventJob<User, UserLoadedEvent> {
+  final String userId;
+  FetchUserJob(this.userId) : super(id: generateJobId('user'));
+
+  @override
+  UserLoadedEvent createEventTyped(User result) {
+    return UserLoadedEvent(id, result);
+  }
 }
 ```
 
@@ -37,7 +51,7 @@ class FetchUserJob extends BaseJob {
 ```dart
 class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
   @override
-  Future<dynamic> process(FetchUserJob job) async {
+  Future<User> process(FetchUserJob job) async {
     return await api.getUser(job.userId);
   }
 }
@@ -46,54 +60,79 @@ class FetchUserExecutor extends BaseExecutor<FetchUserJob> {
 ### 3. Create an Orchestrator
 
 ```dart
-class UserOrchestrator extends BaseOrchestrator<UserState> with _$UserOrchestratorEventRouting {
+class UserOrchestrator extends BaseOrchestrator<UserState> {
   UserOrchestrator() : super(const UserState());
 
   void loadUser(String id) {
-    emit(state.toLoading());
+    emit(state.copyWith(isLoading: true));
     dispatch(FetchUserJob(id));
   }
 
   @override
-  @OnEvent(JobSuccessEvent)
-  void onActiveSuccess(JobSuccessEvent event) {
-    emit(state.toSuccess(event.data as User));
+  void onEvent(BaseEvent event) {
+    switch (event) {
+      // Handle domain event from our job
+      case UserLoadedEvent e when isJobRunning(e.correlationId):
+        emit(state.copyWith(user: e.user, isLoading: false));
+
+      // Handle failure from our job
+      case JobFailureEvent e when isJobRunning(e.correlationId):
+        emit(state.copyWith(error: e.error.toString(), isLoading: false));
+
+      // Handle events from other orchestrators
+      case UserUpdatedEvent e:
+        emit(state.copyWith(user: e.user));
+    }
   }
 }
 ```
 
-> **Note**: The `@Orchestrator` annotation and `_$UserOrchestratorEventRouting` mixin enable declarative event routing without manual type checks.
-
-### 4. Code Generation Features (v0.3.0+)
-
-#### Declare Async State
+### 4. Register and Use
 
 ```dart
-@GenerateAsyncState()
-class UserState {
-  final AsyncStatus status;
-  final User? data;
-  final Object? error;
+void main() {
+  // Register executor
+  Dispatcher().register<FetchUserJob>(FetchUserExecutor());
 
-  const UserState({
-    this.status = AsyncStatus.initial,
-    this.data,
-    this.error,
-  });
-}
-```
-
-#### Declare Job
-
-```dart
-@GenerateJob()
-class FetchUserJob extends BaseJob {
-  final String userId;
-  FetchUserJob(this.userId);
+  // Use orchestrator
+  final orchestrator = UserOrchestrator();
+  orchestrator.loadUser('123');
 }
 ```
 
 ## Advanced Usage
+
+### EventJob - Domain Events (Recommended)
+
+Instead of generic `JobSuccessEvent`, use `EventJob` to emit domain-specific events:
+
+```dart
+// Define domain event
+class UserLoadedEvent extends BaseEvent {
+  final User user;
+  UserLoadedEvent(super.correlationId, this.user);
+}
+
+// Define job with typed result
+class FetchUserJob extends EventJob<User, UserLoadedEvent> {
+  final String userId;
+  FetchUserJob(this.userId) : super(id: generateJobId('user'));
+
+  @override
+  UserLoadedEvent createEventTyped(User result) {
+    return UserLoadedEvent(id, result);
+  }
+}
+
+// Handle in orchestrator
+@override
+void onEvent(BaseEvent event) {
+  switch (event) {
+    case UserLoadedEvent e when isJobRunning(e.correlationId):
+      emit(state.copyWith(user: e.user, isLoading: false));
+  }
+}
+```
 
 ### JobBuilder - Fluent Configuration
 
@@ -126,27 +165,29 @@ result.when(
 ### AsyncState - Common State Patterns
 
 ```dart
-// Using @GenerateAsyncState
+// Define state with async helpers
 @GenerateAsyncState()
 class UserState {
   final AsyncStatus status;
   final User? data;
   final Object? error;
-  
+
   const UserState({
-     this.status = AsyncStatus.initial,
-     this.data,
-     this.error,
+    this.status = AsyncStatus.initial,
+    this.data,
+    this.error,
   });
 }
 
-// Generated methods usage
-void onActiveSuccess(JobSuccessEvent event) {
-  emit(state.toSuccess(event.data as User));
-}
-
-void onActiveFailure(JobFailureEvent event) {
-  emit(state.toFailure(event.error));
+// Use in orchestrator
+@override
+void onEvent(BaseEvent event) {
+  switch (event) {
+    case JobSuccessEvent e when isJobRunning(e.correlationId):
+      emit(state.toSuccess(e.data as User));
+    case JobFailureEvent e when isJobRunning(e.correlationId):
+      emit(state.toFailure(e.error));
+  }
 }
 
 // View usage
@@ -163,18 +204,20 @@ Widget build(BuildContext context) {
 ### Event Extensions - Easy Data Extraction
 
 ```dart
-void onActiveSuccess(JobSuccessEvent event) {
-  // Safe type casting with fallback
-  final user = event.dataOrNull<User>();
-  if (user != null) {
-    emit(state.copyWith(user: user));
-  }
+@override
+void onEvent(BaseEvent event) {
+  if (event is JobSuccessEvent && isJobRunning(event.correlationId)) {
+    // Safe type casting with fallback
+    final user = event.dataOrNull<User>();
+    if (user != null) {
+      emit(state.copyWith(user: user));
+    }
 
-  // Or use pattern with default
-  final count = event.dataOr<int>(0);
+    // Or use pattern with default
+    final count = event.dataOr<int>(0);
+  }
 }
 ```
-
 
 ### Saga Pattern - Complex Workflows (v0.5.2+)
 
@@ -195,13 +238,63 @@ try {
   );
 
   // Success: Clear compensations
-  saga.commit(); 
+  saga.commit();
 } catch (e) {
   // Failure: Rollback all successful steps (LIFO)
   await saga.rollback();
   rethrow;
 }
 ```
+
+## Migration from v0.5.x
+
+### Before (v0.5.x)
+```dart
+@override
+void onActiveSuccess(JobSuccessEvent event) {
+  emit(state.copyWith(data: event.data, isLoading: false));
+}
+
+@override
+void onActiveFailure(JobFailureEvent event) {
+  emit(state.copyWith(error: event.error.toString(), isLoading: false));
+}
+
+@override
+void onPassiveEvent(BaseEvent event) {
+  if (event is SomeEvent) { ... }
+}
+```
+
+### After (v0.6.0+)
+```dart
+@override
+void onEvent(BaseEvent event) {
+  switch (event) {
+    case JobSuccessEvent e when isJobRunning(e.correlationId):
+      emit(state.copyWith(data: e.data, isLoading: false));
+    case JobFailureEvent e when isJobRunning(e.correlationId):
+      emit(state.copyWith(error: e.error.toString(), isLoading: false));
+    case SomeEvent e:
+      // Handle domain events (no active/passive distinction)
+  }
+}
+```
+
+## API Reference
+
+### BaseOrchestrator
+
+| Method | Description |
+|--------|-------------|
+| `emit(state)` | Update state and notify listeners |
+| `dispatch(job)` | Dispatch a job and track it |
+| `isJobRunning(id)` | Check if a job is tracked by this orchestrator |
+| `hasActiveJobs` | Check if any jobs are active |
+| `onEvent(event)` | Unified handler for all events |
+| `onProgress(event)` | Optional: Called on progress updates |
+| `onJobStarted(event)` | Optional: Called when job starts |
+| `onJobRetrying(event)` | Optional: Called on retry |
 
 ## Documentation
 
