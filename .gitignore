@@ -27,3 +27,4 @@ Thumbs.db
 .flutter-plugins-dependencies
 analysis_options.yaml
 CLAUDE.md
+.agent/
