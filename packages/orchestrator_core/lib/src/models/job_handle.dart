@@ -100,6 +100,7 @@ class JobProgress {
 /// - Track progress via [progress] stream
 /// - Check completion status via [isCompleted]
 /// - Access the job ID via [jobId]
+/// - Query current progress via [currentProgress] or [progressValue]
 ///
 /// ## Basic Usage
 ///
@@ -123,9 +124,13 @@ class JobProgress {
 /// ```dart
 /// final handle = orchestrator.dispatch<void>(UploadFilesJob(files));
 ///
+/// // Subscribe to progress - late subscribers get the last progress immediately
 /// handle.progress.listen((p) {
 ///   print('Upload: ${p.percentage}% - ${p.message}');
 /// });
+///
+/// // Or query current progress synchronously
+/// print('Current: ${handle.progressValue * 100}%');
 ///
 /// await handle.future;
 /// ```
@@ -153,6 +158,9 @@ class JobHandle<T> {
   final StreamController<JobProgress> _progressController =
       StreamController<JobProgress>.broadcast();
 
+  /// Last reported progress (for late subscribers and synchronous queries).
+  JobProgress? _lastProgress;
+
   /// Creates a new job handle for the given job ID.
   ///
   /// Automatically installs an error handler to prevent uncaught async errors
@@ -178,7 +186,32 @@ class JobHandle<T> {
   ///
   /// This stream is broadcast (multiple listeners allowed) and will
   /// close automatically when the job completes or is disposed.
-  Stream<JobProgress> get progress => _progressController.stream;
+  ///
+  /// **Late Subscriber Support**: When you subscribe after progress has
+  /// already been reported, you'll immediately receive the last progress
+  /// value. This ensures you always know the current state even if you
+  /// subscribe late.
+  Stream<JobProgress> get progress async* {
+    // Emit last progress immediately for late subscribers
+    if (_lastProgress != null) {
+      yield _lastProgress!;
+    }
+    // Then yield all future progress updates
+    await for (final p in _progressController.stream) {
+      yield p;
+    }
+  }
+
+  /// Current progress value (null if no progress has been reported yet).
+  ///
+  /// Use this to synchronously query the current progress without subscribing
+  /// to the stream.
+  JobProgress? get currentProgress => _lastProgress;
+
+  /// Current progress as a double value (0.0 to 1.0).
+  ///
+  /// Returns 0.0 if no progress has been reported yet.
+  double get progressValue => _lastProgress?.value ?? 0.0;
 
   /// Whether this handle has already been completed.
   bool get isCompleted => _completer.isCompleted;
@@ -211,19 +244,27 @@ class JobHandle<T> {
   ///
   /// Called by Executor during job processing to report progress.
   /// Progress values should be between 0.0 and 1.0.
+  ///
+  /// The progress is stored internally so that:
+  /// - Late subscribers can receive the last progress immediately
+  /// - Callers can query [currentProgress] or [progressValue] synchronously
   void reportProgress(
     double value, {
     String? message,
     int? currentStep,
     int? totalSteps,
   }) {
+    final progress = JobProgress(
+      value.clamp(0.0, 1.0),
+      message: message,
+      currentStep: currentStep,
+      totalSteps: totalSteps,
+    );
+    // Store for late subscribers and synchronous queries
+    _lastProgress = progress;
+
     if (!_progressController.isClosed) {
-      _progressController.add(JobProgress(
-        value.clamp(0.0, 1.0),
-        message: message,
-        currentStep: currentStep,
-        totalSteps: totalSteps,
-      ));
+      _progressController.add(progress);
     }
   }
 

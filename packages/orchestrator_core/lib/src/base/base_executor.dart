@@ -87,6 +87,11 @@ abstract class BaseExecutor<T extends BaseJob> {
       _activeBus.remove(job.id);
       _activeJobTypes.remove(job.id);
       _activeHandles.remove(job.id);
+
+      // Small delay to allow progress events to be delivered to late subscribers
+      // before closing the stream. This fixes the race condition where the last
+      // progress update (100%) might not reach the caller.
+      await Future.delayed(Duration(milliseconds: 10));
       handle?.dispose();
     }
   }
