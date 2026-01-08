@@ -1,3 +1,48 @@
+## 0.6.0-beta.1 - 2026-01-08
+
+### ⚠️ BREAKING CHANGES
+
+- **Unified Event Handler**: Replaced granular hooks with single `onEvent(BaseEvent)` method.
+  - **Removed**: `onActiveSuccess()`, `onActiveFailure()`, `onActiveCancelled()`, `onActiveTimeout()`, `onActiveEvent()`, `onPassiveEvent()`
+  - **Added**: `onEvent(BaseEvent event)` - single entry point for all events
+  - **Added**: `isJobRunning(String correlationId)` - helper to check if event is from your job
+
+### Migration
+
+```dart
+// Before (v0.5.x)
+@override
+void onActiveSuccess(JobSuccessEvent event) {
+  state = state.copyWith(data: event.data, isLoading: false);
+}
+
+@override
+void onPassiveEvent(BaseEvent event) {
+  if (event is MyEvent) { ... }
+}
+
+// After (v0.6.0)
+@override
+void onEvent(BaseEvent event) {
+  switch (event) {
+    case JobSuccessEvent e when isJobRunning(e.correlationId):
+      state = state.copyWith(data: e.data, isLoading: false);
+    case MyEvent e:
+      // Handle domain events
+  }
+}
+```
+
+### Changed
+- Updated dependency to `orchestrator_core: ^0.6.0`.
+- Updated example to use `EventJob` with domain events.
+- Updated README with new API documentation.
+
+### Kept (Convenience Hooks)
+- `onProgress(JobProgressEvent)` - still available for progress UI
+- `onJobStarted(JobStartedEvent)` - still available for loading state
+- `onJobRetrying(JobRetryingEvent)` - still available for retry UI
+
 ## 0.5.0 - 2025-12-29
 
 ### Changed

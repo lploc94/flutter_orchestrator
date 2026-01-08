@@ -7,7 +7,7 @@ import 'package:orchestrator_riverpod/orchestrator_riverpod.dart';
 class TestJob extends BaseJob {
   final int value;
   TestJob(this.value)
-    : super(id: 'job-${DateTime.now().millisecondsSinceEpoch}');
+      : super(id: 'job-${DateTime.now().millisecondsSinceEpoch}');
 }
 
 class TestExecutor extends BaseExecutor<TestJob> {
@@ -34,6 +34,7 @@ class CounterState {
   }
 }
 
+/// Test notifier using the new unified onEvent pattern
 class TestNotifier extends OrchestratorNotifier<CounterState> {
   @override
   CounterState buildState() => const CounterState();
@@ -44,13 +45,16 @@ class TestNotifier extends OrchestratorNotifier<CounterState> {
   }
 
   @override
-  void onActiveSuccess(JobSuccessEvent event) {
-    state = state.copyWith(count: event.data as int, isLoading: false);
-  }
-
-  @override
-  void onActiveFailure(JobFailureEvent event) {
-    state = state.copyWith(isLoading: false, error: event.error.toString());
+  void onEvent(BaseEvent event) {
+    switch (event) {
+      case JobSuccessEvent e when isJobRunning(e.correlationId):
+        state = state.copyWith(count: e.data as int, isLoading: false);
+      case JobFailureEvent e when isJobRunning(e.correlationId):
+        state = state.copyWith(isLoading: false, error: e.error.toString());
+      default:
+        // Ignore other events
+        break;
+    }
   }
 }
 
@@ -115,6 +119,26 @@ void main() {
 
       // Should be notified at least twice (loading -> success)
       expect(changeCount, greaterThanOrEqualTo(2));
+    });
+
+    test('isJobRunning correctly identifies active jobs', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final notifier = container.read(testProvider.notifier);
+
+      // No jobs initially
+      expect(notifier.hasActiveJobs, isFalse);
+
+      notifier.calculate(10);
+
+      // Should have active job now
+      expect(notifier.hasActiveJobs, isTrue);
+
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Job should be cleaned up after completion
+      expect(notifier.hasActiveJobs, isFalse);
     });
   });
 }

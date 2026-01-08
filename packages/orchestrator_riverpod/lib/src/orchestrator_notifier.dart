@@ -7,11 +7,12 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// This provides seamless integration between the Orchestrator pattern
 /// and Flutter's Riverpod ecosystem.
 ///
-/// Usage with NotifierProvider:
+/// ## Usage with NotifierProvider
+///
 /// ```dart
 /// class CounterNotifier extends OrchestratorNotifier<CounterState> {
 ///   @override
-///   CounterState build() => const CounterState();
+///   CounterState buildState() => const CounterState();
 ///
 ///   void calculate(int value) {
 ///     state = state.copyWith(isLoading: true);
@@ -19,8 +20,13 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 ///   }
 ///
 ///   @override
-///   void onActiveSuccess(JobSuccessEvent event) {
-///     state = state.copyWith(count: event.data as int, isLoading: false);
+///   void onEvent(BaseEvent event) {
+///     switch (event) {
+///       case CalculationResultEvent e when isJobRunning(e.correlationId):
+///         state = state.copyWith(count: e.result, isLoading: false);
+///       case JobFailureEvent e when isJobRunning(e.correlationId):
+///         state = state.copyWith(error: e.error.toString(), isLoading: false);
+///     }
 ///   }
 /// }
 ///
@@ -29,9 +35,10 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// );
 /// ```
 ///
-/// For testing, you can override the bus and dispatcher:
+/// ## Testing
+///
+/// You can override the bus and dispatcher for testing:
 /// ```dart
-/// // In your notifier, expose a way to inject dependencies
 /// class TestableNotifier extends OrchestratorNotifier<MyState> {
 ///   @override
 ///   MyState buildState() => MyState.initial();
@@ -46,7 +53,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   SignalBus _bus = SignalBus.instance;
   Dispatcher _dispatcher = Dispatcher();
 
-  /// Active job IDs being tracked
+  /// Active job IDs being tracked by this notifier
   final Set<String> _activeJobIds = {};
 
   /// Progress tracking for active jobs
@@ -102,13 +109,38 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
     _subscribeToBus();
   }
 
+  // ============ Job Tracking ============
+
   /// Check if any job is currently running
   bool get hasActiveJobs => _activeJobIds.isNotEmpty;
+
+  /// Check if a specific job is being tracked by this notifier.
+  ///
+  /// Use this in [onEvent] to distinguish between events from your own
+  /// jobs vs events from other orchestrators:
+  ///
+  /// ```dart
+  /// @override
+  /// void onEvent(BaseEvent event) {
+  ///   switch (event) {
+  ///     case JobSuccessEvent e when isJobRunning(e.correlationId):
+  ///       // This is OUR job's success
+  ///       state = state.copyWith(data: e.data, isLoading: false);
+  ///     case UserUpdatedEvent e:
+  ///       // Domain event (could be from anywhere)
+  ///       state = state.copyWith(user: e.user);
+  ///   }
+  /// }
+  /// ```
+  bool isJobRunning(String correlationId) =>
+      _activeJobIds.contains(correlationId);
 
   /// Get progress for a specific job (0.0 to 1.0)
   double? getJobProgress(String jobId) => _jobProgress[jobId];
 
-  /// Dispatch a job and start tracking it
+  /// Dispatch a job and start tracking it.
+  ///
+  /// Returns the job ID for reference.
   String dispatch(BaseJob job) {
     _ensureSubscribed();
     final id = dispatcher.dispatch(job);
@@ -123,7 +155,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
     }
   }
 
-  /// Cancel tracking for a job
+  /// Cancel tracking for a job (does not cancel the job itself).
   void cancelJob(String jobId) {
     _activeJobIds.remove(jobId);
     _jobProgress.remove(jobId);
@@ -137,37 +169,27 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   void _routeEvent(BaseEvent event) {
     if (_isDisposed) return;
 
-    final isActive = _activeJobIds.contains(event.correlationId);
+    final isActive = isJobRunning(event.correlationId);
 
-    // Handle progress updates
-    if (event is JobProgressEvent) {
+    // Track progress for active jobs
+    if (event is JobProgressEvent && isActive) {
       _jobProgress[event.correlationId] = event.progress;
-      if (isActive) onProgress(event);
-      return;
+      onProgress(event);
     }
 
-    // Handle lifecycle events
-    if (event is JobStartedEvent) {
-      if (isActive) onJobStarted(event);
-      return;
-    }
-
-    if (event is JobRetryingEvent) {
-      if (isActive) onJobRetrying(event);
-      return;
-    }
-
-    // Route result events
+    // Optional lifecycle hooks for active jobs
     if (isActive) {
-      _handleActiveEvent(event);
+      if (event is JobStartedEvent) onJobStarted(event);
+      if (event is JobRetryingEvent) onJobRetrying(event);
+    }
 
-      // Clean up for terminal events
-      if (_isTerminalEvent(event)) {
-        _activeJobIds.remove(event.correlationId);
-        _jobProgress.remove(event.correlationId);
-      }
-    } else {
-      onPassiveEvent(event);
+    // Unified event handler - ALL events go here
+    onEvent(event);
+
+    // Cleanup for terminal events
+    if (isActive && _isTerminalEvent(event)) {
+      _activeJobIds.remove(event.correlationId);
+      _jobProgress.remove(event.correlationId);
     }
   }
 
@@ -178,48 +200,61 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
         event is JobTimeoutEvent;
   }
 
-  void _handleActiveEvent(BaseEvent event) {
-    if (event is JobSuccessEvent) {
-      onActiveSuccess(event);
-    } else if (event is JobFailureEvent) {
-      onActiveFailure(event);
-    } else if (event is JobCancelledEvent) {
-      onActiveCancelled(event);
-    } else if (event is JobTimeoutEvent) {
-      onActiveTimeout(event);
-    }
+  // ============ Event Handlers ============
 
-    onActiveEvent(event);
-  }
+  /// Unified handler for ALL domain events.
+  ///
+  /// This is the single entry point for all events from the [SignalBus].
+  /// Use Dart 3 pattern matching to handle different event types:
+  ///
+  /// ```dart
+  /// @override
+  /// void onEvent(BaseEvent event) {
+  ///   switch (event) {
+  ///     // Handle success from OUR jobs
+  ///     case JobSuccessEvent e when isJobRunning(e.correlationId):
+  ///       state = state.copyWith(data: e.data, isLoading: false);
+  ///
+  ///     // Handle failure from OUR jobs
+  ///     case JobFailureEvent e when isJobRunning(e.correlationId):
+  ///       state = state.copyWith(error: e.error.toString(), isLoading: false);
+  ///
+  ///     // Handle domain events (from any source)
+  ///     case UserCreatedEvent e:
+  ///       state = state.copyWith(users: [...state.users, e.user]);
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// ## Design Rationale
+  ///
+  /// This unified approach (matching orchestrator_core v0.6.0):
+  /// - Treats all events equally (no implicit active/passive distinction)
+  /// - Uses Dart 3 pattern matching for clean type handling
+  /// - Use [isJobRunning] to check if an event is from your own job
+  void onEvent(BaseEvent event) {}
 
-  // ============ Hooks for subclasses ============
+  // ============ Optional Lifecycle Hooks ============
 
-  /// Called when one of OUR jobs succeeds
-  void onActiveSuccess(JobSuccessEvent event) {}
-
-  /// Called when one of OUR jobs fails
-  void onActiveFailure(JobFailureEvent event) {}
-
-  /// Called when one of OUR jobs is cancelled
-  void onActiveCancelled(JobCancelledEvent event) {}
-
-  /// Called when one of OUR jobs times out
-  void onActiveTimeout(JobTimeoutEvent event) {}
-
-  /// Called when one of OUR jobs reports progress
+  /// Called when one of OUR jobs reports progress.
+  ///
+  /// This is a convenience hook - you can also handle [JobProgressEvent]
+  /// in [onEvent] if preferred.
   void onProgress(JobProgressEvent event) {}
 
-  /// Called when one of OUR jobs starts
+  /// Called when one of OUR jobs starts.
+  ///
+  /// This is a convenience hook - you can also handle [JobStartedEvent]
+  /// in [onEvent] if preferred.
   void onJobStarted(JobStartedEvent event) {}
 
-  /// Called when one of OUR jobs is retrying
+  /// Called when one of OUR jobs is retrying.
+  ///
+  /// This is a convenience hook - you can also handle [JobRetryingEvent]
+  /// in [onEvent] if preferred.
   void onJobRetrying(JobRetryingEvent event) {}
 
-  /// Generic handler for ALL active events
-  void onActiveEvent(BaseEvent event) {}
-
-  /// Handler for passive events (from other orchestrators)
-  void onPassiveEvent(BaseEvent event) {}
+  // ============ Lifecycle ============
 
   /// Dispose resources - call when provider is disposed.
   ///
