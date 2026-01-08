@@ -113,9 +113,18 @@ abstract class BaseExecutor<T extends BaseJob> {
     // Check cancellation before starting
     (job as BaseJob).cancellationToken?.throwIfCancelled();
 
-    // 1. Check cache
+    // 1. Check cache (with error handling - cache failure should not fail the job)
     if (cacheKey != null) {
-      final cached = await cacheProvider.read(cacheKey);
+      dynamic cached;
+      try {
+        cached = await cacheProvider.read(cacheKey);
+      } catch (e, stack) {
+        log.warning('EventJob ${job.id} cache read failed: $e');
+        OrchestratorObserver.instance?.onJobError(job, e, stack);
+        // Continue without cache - treat as cache miss
+        cached = null;
+      }
+
       if (cached != null) {
         log.debug('EventJob ${job.id} cache hit: $cacheKey');
 
@@ -148,10 +157,16 @@ abstract class BaseExecutor<T extends BaseJob> {
       return;
     }
 
-    // 3. Write to cache
-    if (cacheKey != null && result != null) {
-      log.debug('EventJob ${job.id} writing to cache: $cacheKey');
-      await cacheProvider.write(cacheKey, result, ttl: job.cacheTtl);
+    // 3. Write to cache (with error handling - cache failure should not fail the job)
+    if (cacheKey != null) {
+      try {
+        log.debug('EventJob ${job.id} writing to cache: $cacheKey');
+        await cacheProvider.write(cacheKey, result, ttl: job.cacheTtl);
+      } catch (e, stack) {
+        log.warning('EventJob ${job.id} cache write failed: $e');
+        OrchestratorObserver.instance?.onJobError(job, e, stack);
+        // Continue - worker succeeded, just cache write failed
+      }
     }
 
     // 4. Create and emit domain event

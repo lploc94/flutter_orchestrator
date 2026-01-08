@@ -147,8 +147,31 @@ abstract class BaseOrchestrator<S> {
     // Create handle for this job
     final handle = JobHandle<T>(job.id);
 
-    // Track job - cleanup will happen when terminal event is received in _routeEvent
+    // Track job
     _activeJobIds.add(job.id);
+
+    // Auto-cleanup when job completes (success or error)
+    // This ensures EventJob cleanup works correctly since they don't emit
+    // legacy terminal events (JobSuccessEvent, JobFailureEvent, etc.)
+    //
+    // We use a small delay to allow domain events to be processed by onEvent()
+    // before removing from tracking. This ensures isJobRunning() returns true
+    // when the orchestrator receives events from its own jobs.
+    //
+    // Note: We use .then().catchError() instead of .whenComplete() to avoid
+    // propagating errors into the orchestrator's zone when the caller doesn't
+    // await the handle (fire-and-forget pattern).
+    handle.future.then((_) {
+      Future.delayed(Duration(milliseconds: 50), () {
+        _activeJobIds.remove(job.id);
+      });
+    }).catchError((e) {
+      // Errors are already handled by the executor.
+      // Just cleanup tracking after a delay.
+      Future.delayed(Duration(milliseconds: 50), () {
+        _activeJobIds.remove(job.id);
+      });
+    });
 
     _dispatcher.dispatch(job, handle: handle);
 
