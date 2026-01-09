@@ -75,7 +75,7 @@ abstract class OrchestratorAsyncNotifier<S> extends AsyncNotifier<S> {
   /// Dispatch a job and start tracking it.
   ///
   /// Returns a [JobHandle] for awaiting results or tracking progress.
-  JobHandle<T> dispatch<T>(BaseJob job) {
+  JobHandle<T> dispatch<T>(EventJob job) {
     _ensureSubscribed();
 
     job.bus = bus;

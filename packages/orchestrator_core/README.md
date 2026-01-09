@@ -28,13 +28,13 @@ dependencies:
 ### 1. Define a Job
 
 ```dart
-// Simple job
-class FetchUserJob extends BaseJob {
-  final String userId;
-  FetchUserJob(this.userId) : super(id: generateJobId('user'));
+// Define domain event
+class UserLoadedEvent extends BaseEvent {
+  final User user;
+  UserLoadedEvent(super.correlationId, this.user);
 }
 
-// Or use EventJob for domain events (recommended)
+// Define job with typed result and event
 class FetchUserJob extends EventJob<User, UserLoadedEvent> {
   final String userId;
   FetchUserJob(this.userId) : super(id: generateJobId('user'));
@@ -75,10 +75,6 @@ class UserOrchestrator extends BaseOrchestrator<UserState> {
       case UserLoadedEvent e when isJobRunning(e.correlationId):
         emit(state.copyWith(user: e.user, isLoading: false));
 
-      // Handle failure from our job
-      case JobFailureEvent e when isJobRunning(e.correlationId):
-        emit(state.copyWith(error: e.error.toString(), isLoading: false));
-
       // Handle events from other orchestrators
       case UserUpdatedEvent e:
         emit(state.copyWith(user: e.user));
@@ -102,9 +98,9 @@ void main() {
 
 ## Advanced Usage
 
-### EventJob - Domain Events (Recommended)
+### EventJob - Domain Events
 
-Instead of generic `JobSuccessEvent`, use `EventJob` to emit domain-specific events:
+Every job must extend `EventJob<TResult, TEvent>` and define its domain event:
 
 ```dart
 // Define domain event
@@ -183,10 +179,8 @@ class UserState {
 @override
 void onEvent(BaseEvent event) {
   switch (event) {
-    case JobSuccessEvent e when isJobRunning(e.correlationId):
-      emit(state.toSuccess(e.data as User));
-    case JobFailureEvent e when isJobRunning(e.correlationId):
-      emit(state.toFailure(e.error));
+    case UserLoadedEvent e when isJobRunning(e.correlationId):
+      emit(state.toSuccess(e.user));
   }
 }
 
@@ -201,20 +195,19 @@ Widget build(BuildContext context) {
 }
 ```
 
-### Event Extensions - Easy Data Extraction
+### Domain Event Handling
 
 ```dart
 @override
 void onEvent(BaseEvent event) {
-  if (event is JobSuccessEvent && isJobRunning(event.correlationId)) {
-    // Safe type casting with fallback
-    final user = event.dataOrNull<User>();
-    if (user != null) {
-      emit(state.copyWith(user: user));
-    }
-
-    // Or use pattern with default
-    final count = event.dataOr<int>(0);
+  // Handle domain events with pattern matching
+  switch (event) {
+    case UserLoadedEvent e when isJobRunning(e.correlationId):
+      emit(state.copyWith(user: e.user));
+    case UserUpdatedEvent e:
+      emit(state.copyWith(user: e.user));
+    case NotificationEvent e:
+      showNotification(e.message);
   }
 }
 ```
@@ -248,8 +241,13 @@ try {
 
 ## Migration from v0.5.x
 
-### Before (v0.5.x)
+### Before (v0.5.x) - Granular Hooks + BaseJob
 ```dart
+class FetchUserJob extends BaseJob {
+  final String userId;
+  FetchUserJob(this.userId) : super(id: generateJobId('user'));
+}
+
 @override
 void onActiveSuccess(JobSuccessEvent event) {
   emit(state.copyWith(data: event.data, isLoading: false));
@@ -259,24 +257,31 @@ void onActiveSuccess(JobSuccessEvent event) {
 void onActiveFailure(JobFailureEvent event) {
   emit(state.copyWith(error: event.error.toString(), isLoading: false));
 }
-
-@override
-void onPassiveEvent(BaseEvent event) {
-  if (event is SomeEvent) { ... }
-}
 ```
 
-### After (v0.6.0+)
+### After (v0.6.0+) - EventJob + Unified onEvent
 ```dart
+// Define domain event
+class UserLoadedEvent extends BaseEvent {
+  final User user;
+  UserLoadedEvent(super.correlationId, this.user);
+}
+
+// Use EventJob with typed result
+class FetchUserJob extends EventJob<User, UserLoadedEvent> {
+  final String userId;
+  FetchUserJob(this.userId) : super(id: generateJobId('user'));
+
+  @override
+  UserLoadedEvent createEventTyped(User result) => UserLoadedEvent(id, result);
+}
+
+// Handle domain events in unified onEvent
 @override
 void onEvent(BaseEvent event) {
   switch (event) {
-    case JobSuccessEvent e when isJobRunning(e.correlationId):
-      emit(state.copyWith(data: e.data, isLoading: false));
-    case JobFailureEvent e when isJobRunning(e.correlationId):
-      emit(state.copyWith(error: e.error.toString(), isLoading: false));
-    case SomeEvent e:
-      // Handle domain events (no active/passive distinction)
+    case UserLoadedEvent e when isJobRunning(e.correlationId):
+      emit(state.copyWith(user: e.user, isLoading: false));
   }
 }
 ```

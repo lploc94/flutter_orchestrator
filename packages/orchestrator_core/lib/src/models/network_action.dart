@@ -6,9 +6,23 @@
 ///
 /// Example:
 /// ```dart
-/// @NetworkJob()
-/// class SendMessageJob extends BaseJob implements NetworkAction<Message> {
-///   // ...
+/// class SendMessageJob extends EventJob<Message, MessageSentEvent>
+///     implements NetworkAction<Message> {
+///   final String content;
+///
+///   SendMessageJob(this.content) : super(id: generateJobId('send_message'));
+///
+///   @override
+///   MessageSentEvent createEventTyped(Message result) => MessageSentEvent(id, result);
+///
+///   @override
+///   Map<String, dynamic> toJson() => {'content': content, 'id': id};
+///
+///   factory SendMessageJob.fromJson(Map<String, dynamic> json) =>
+///       SendMessageJob(json['content'] as String);
+///
+///   @override
+///   Message createOptimisticResult() => Message.pending(content);
 /// }
 /// ```
 abstract class NetworkAction<T> {

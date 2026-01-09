@@ -57,11 +57,6 @@ abstract class BaseOrchestrator<S> {
   StreamSubscription? _busSubscription;
 
   /// Creates a new orchestrator with the given initial state.
-  ///
-  /// Optionally accepts a [bus] for event communication (defaults to global [SignalBus.instance]).
-  /// Optionally accepts a [dispatcher] for job routing (defaults to global [Dispatcher] singleton).
-  ///
-  /// The [dispatcher] parameter is useful for testing, allowing injection of mock dispatchers.
   BaseOrchestrator(this._state, {SignalBus? bus, Dispatcher? dispatcher})
       : _bus = bus ?? SignalBus.instance,
         _dispatcher = dispatcher ?? Dispatcher() {
@@ -128,15 +123,8 @@ abstract class BaseOrchestrator<S> {
   ///   await handle.future;
   /// }
   /// ```
-  ///
-  /// ## SWR (Stale-While-Revalidate) Behavior
-  ///
-  /// When the job has cache with revalidate enabled:
-  /// 1. Handle completes immediately with cached data
-  /// 2. Worker continues in background
-  /// 3. Fresh data emits via domain events → [onEvent] receives it
   @protected
-  JobHandle<T> dispatch<T>(BaseJob job) {
+  JobHandle<T> dispatch<T>(EventJob job) {
     final log = OrchestratorConfig.logger;
     log.debug(
         'Orchestrator dispatching job: ${job.id} (Bus: ${_bus == SignalBus.instance ? "Global" : "Scoped"})');
@@ -151,24 +139,15 @@ abstract class BaseOrchestrator<S> {
     _activeJobIds.add(job.id);
 
     // Auto-cleanup when job completes (success or error)
-    // This ensures EventJob cleanup works correctly since they don't emit
-    // legacy terminal events (JobSuccessEvent, JobFailureEvent, etc.)
-    //
     // We use a small delay to allow domain events to be processed by onEvent()
     // before removing from tracking. This ensures isJobRunning() returns true
     // when the orchestrator receives events from its own jobs.
-    //
-    // Note: We use .then().catchError() instead of .whenComplete() to avoid
-    // propagating errors into the orchestrator's zone when the caller doesn't
-    // await the handle (fire-and-forget pattern).
     handle.future.then((_) {
-      Future.delayed(Duration(milliseconds: 50), () {
+      Future.delayed(const Duration(milliseconds: 50), () {
         _activeJobIds.remove(job.id);
       });
     }).catchError((e) {
-      // Errors are already handled by the executor.
-      // Just cleanup tracking after a delay.
-      Future.delayed(Duration(milliseconds: 50), () {
+      Future.delayed(const Duration(milliseconds: 50), () {
         _activeJobIds.remove(job.id);
       });
     });
@@ -198,14 +177,6 @@ abstract class BaseOrchestrator<S> {
   final Map<Type, int> _eventTypeCounts = {};
   DateTime _lastEventTime = DateTime.now();
 
-  /// Check if event is a terminal event (job completion).
-  bool _isTerminalEvent(BaseEvent event) {
-    return event is JobSuccessEvent ||
-        event is JobFailureEvent ||
-        event is JobCancelledEvent ||
-        event is JobTimeoutEvent;
-  }
-
   void _routeEvent(BaseEvent event) {
     // 1. Smart Circuit Breaker (Loop Protection by Type)
     final now = DateTime.now();
@@ -221,32 +192,23 @@ abstract class BaseOrchestrator<S> {
     final limit = OrchestratorConfig.getLimit(type);
 
     if (currentCount > limit) {
-      // Only log once per second per type to avoid spamming
       if (currentCount == limit + 1) {
         OrchestratorConfig.logger.error(
           'Circuit Breaker: Event $type exceeded limit ($currentCount/s > $limit). '
-          'Blocking this specific event type to prevent infinite loop. '
-          'Other events are unaffected.',
+          'Blocking this specific event type to prevent infinite loop.',
           Exception('Infinite Loop Detected for $type'),
           StackTrace.current,
         );
       }
-      return; // Block ONLY this specific event type
+      return;
     }
 
     try {
-      // 2. Route to unified event handler
+      // Route to unified event handler
       onEvent(event);
-
-      // 3. Cleanup tracking for terminal events (for active jobs)
-      if (_activeJobIds.contains(event.correlationId) && _isTerminalEvent(event)) {
-        _activeJobIds.remove(event.correlationId);
-      }
     } catch (e, stack) {
-      // 3. Safety: Isolate errors to prevent app crash
       OrchestratorConfig.logger.error(
-        'Error handling event ${event.runtimeType} in $runtimeType. '
-        'This prevents the app from crashing due to logical errors in subscribers.',
+        'Error handling event ${event.runtimeType} in $runtimeType.',
         e,
         stack,
       );
@@ -268,24 +230,9 @@ abstract class BaseOrchestrator<S> {
   ///       emit(state.copyWith(users: e.users));
   ///     case UserCreatedEvent e:
   ///       emit(state.copyWith(users: [...state.users, e.user]));
-  ///     case UserDeletedEvent e:
-  ///       emit(state.copyWith(
-  ///         users: state.users.where((u) => u.id != e.userId).toList()
-  ///       ));
   ///   }
   /// }
   /// ```
-  ///
-  /// ## Design Rationale
-  ///
-  /// Unlike the previous Active/Passive pattern, this unified approach:
-  /// - Treats all events equally (no distinction between "own" and "other" jobs)
-  /// - Uses Dart 3 pattern matching for clean type handling
-  /// - Simplifies mental model: "React to domain state changes"
-  ///
-  /// If you need to know "is this MY job?":
-  /// - Use [JobHandle.future] to track specific job completion
-  /// - Check [isJobRunning] with the event's correlationId
   @protected
   void onEvent(BaseEvent event) {}
 

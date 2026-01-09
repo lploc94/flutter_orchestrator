@@ -1,22 +1,38 @@
 import 'package:test/test.dart';
 import 'package:orchestrator_core/orchestrator_core.dart';
 
+// --- Domain Events ---
+
+class SuccessCompletedEvent extends BaseEvent {
+  final int result;
+  SuccessCompletedEvent(super.correlationId, this.result);
+}
+
+class FailCompletedEvent extends BaseEvent {
+  FailCompletedEvent(super.correlationId);
+}
+
+class ProgressCompletedEvent extends BaseEvent {
+  final String result;
+  ProgressCompletedEvent(super.correlationId, this.result);
+}
+
 // Test observer implementation
 class TestObserver extends OrchestratorObserver {
   final List<String> log = [];
 
   @override
-  void onJobStart(BaseJob job) {
+  void onJobStart(EventJob job) {
     log.add('start:${job.runtimeType}:${job.id}');
   }
 
   @override
-  void onJobSuccess(BaseJob job, dynamic result, DataSource source) {
+  void onJobSuccess(EventJob job, dynamic result, DataSource source) {
     log.add('success:${job.runtimeType}:$result:$source');
   }
 
   @override
-  void onJobError(BaseJob job, Object error, StackTrace stack) {
+  void onJobError(EventJob job, Object error, StackTrace stack) {
     log.add('error:${job.runtimeType}:$error');
   }
 
@@ -27,25 +43,35 @@ class TestObserver extends OrchestratorObserver {
 }
 
 // Test jobs
-class SuccessJob extends BaseJob {
+class SuccessJob extends EventJob<int, SuccessCompletedEvent> {
   final int value;
-  SuccessJob(this.value)
-      : super(id: 'success-${DateTime.now().millisecondsSinceEpoch}-$value');
+  SuccessJob(this.value);
+
+  @override
+  SuccessCompletedEvent createEventTyped(int result) =>
+      SuccessCompletedEvent(id, result);
 }
 
-class FailJob extends BaseJob {
-  FailJob() : super(id: 'fail-${DateTime.now().millisecondsSinceEpoch}');
+class FailJob extends EventJob<void, FailCompletedEvent> {
+  FailJob();
+
+  @override
+  FailCompletedEvent createEventTyped(void _) => FailCompletedEvent(id);
 }
 
-class ProgressJob extends BaseJob {
-  ProgressJob() : super(id: 'progress-${DateTime.now().millisecondsSinceEpoch}');
+class ProgressJob extends EventJob<String, ProgressCompletedEvent> {
+  ProgressJob();
+
+  @override
+  ProgressCompletedEvent createEventTyped(String result) =>
+      ProgressCompletedEvent(id, result);
 }
 
 // Test executors
 class SuccessExecutor extends BaseExecutor<SuccessJob> {
   @override
   Future<dynamic> process(SuccessJob job) async {
-    await Future.delayed(Duration(milliseconds: 10));
+    await Future.delayed(const Duration(milliseconds: 10));
     return job.value * 2;
   }
 }
@@ -53,7 +79,7 @@ class SuccessExecutor extends BaseExecutor<SuccessJob> {
 class FailExecutor extends BaseExecutor<FailJob> {
   @override
   Future<dynamic> process(FailJob job) async {
-    await Future.delayed(Duration(milliseconds: 10));
+    await Future.delayed(const Duration(milliseconds: 10));
     throw Exception('Intentional failure');
   }
 }
@@ -62,8 +88,8 @@ class ProgressExecutor extends BaseExecutor<ProgressJob> {
   @override
   Future<dynamic> process(ProgressJob job) async {
     for (int i = 1; i <= 3; i++) {
-      await Future.delayed(Duration(milliseconds: 10));
-      emitProgress(job.id, progress: i / 3.0, message: 'Step $i');
+      await Future.delayed(const Duration(milliseconds: 10));
+      reportProgress(job.id, progress: i / 3.0, message: 'Step $i');
     }
     return 'completed';
   }
@@ -73,14 +99,17 @@ class ProgressExecutor extends BaseExecutor<ProgressJob> {
 class TestOrchestrator extends BaseOrchestrator<String> {
   TestOrchestrator() : super('init');
 
-  JobHandle<T> dispatchJob<T>(BaseJob job) => dispatch<T>(job);
+  JobHandle<T> dispatchJob<T>(EventJob job) => dispatch<T>(job);
 
   @override
   void onEvent(BaseEvent event) {
-    if (event is JobSuccessEvent) {
-      emit('success: ${event.data}');
-    } else if (event is JobFailureEvent) {
-      emit('failure: ${event.error}');
+    switch (event) {
+      case SuccessCompletedEvent e:
+        emit('success: ${e.result}');
+      case FailCompletedEvent _:
+        emit('failure');
+      default:
+        break;
     }
   }
 }
@@ -142,7 +171,7 @@ void main() {
           // Expected
         }
 
-        await Future.delayed(Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
         orchestrator.dispose();
 
         expect(
@@ -158,7 +187,6 @@ void main() {
         await handle.future;
         orchestrator.dispose();
 
-        // Find indices
         final startIdx =
             observer.log.indexWhere((e) => e.startsWith('start:SuccessJob:'));
         final successIdx =
@@ -166,77 +194,40 @@ void main() {
 
         expect(startIdx, greaterThanOrEqualTo(0));
         expect(successIdx, greaterThanOrEqualTo(0));
-        expect(startIdx, lessThan(successIdx)); // start before success
+        expect(startIdx, lessThan(successIdx));
       });
     });
 
     group('Event Notifications', () {
-      test('onEvent receives JobSuccessEvent', () async {
+      test('onEvent receives domain event on success', () async {
         final orchestrator = TestOrchestrator();
         final handle = orchestrator.dispatchJob<int>(SuccessJob(7));
 
         await handle.future;
-        await Future.delayed(Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
         orchestrator.dispose();
 
-        // JobSuccessEvent has type parameter, so it shows as JobSuccessEvent<dynamic>
         expect(
-          observer.log.any((e) => e.contains('event:JobSuccessEvent')),
+          observer.log.any((e) => e.contains('event:SuccessCompletedEvent')),
           isTrue,
-          reason: 'Expected JobSuccessEvent in log. Got: ${observer.log}',
+          reason: 'Expected SuccessCompletedEvent in log. Got: ${observer.log}',
         );
       });
 
-      test('onEvent receives JobFailureEvent', () async {
-        final orchestrator = TestOrchestrator();
-        final handle = orchestrator.dispatchJob<dynamic>(FailJob());
-
-        try {
-          await handle.future;
-        } catch (_) {}
-
-        await Future.delayed(Duration(milliseconds: 100));
-        orchestrator.dispose();
-
-        // JobFailureEvent is emitted via onEvent - check for it
-        // Note: emitFailure() should call onEvent(event)
-        expect(
-          observer.log.any((e) => e.contains('event:JobFailureEvent')),
-          isTrue,
-          reason: 'Expected JobFailureEvent in log. Got: ${observer.log}',
-        );
-      });
-
-      test('onEvent receives JobProgressEvent', () async {
+      test('onEvent receives progress job completion', () async {
         final orchestrator = TestOrchestrator();
         final handle = orchestrator.dispatchJob<String>(ProgressJob());
 
         await handle.future;
-        await Future.delayed(Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
         orchestrator.dispose();
 
-        // Progress events may not call onEvent directly (only emit to bus)
-        // Check that progress events were at least logged via onJobStart/Success
-        // The test passes if we got at least start and success
         expect(
           observer.log.any((e) => e.startsWith('start:ProgressJob:')),
           isTrue,
         );
         expect(
           observer.log.any((e) => e.contains('success:ProgressJob:')),
-          isTrue,
-        );
-      });
-
-      test('onEvent receives JobStartedEvent', () async {
-        final orchestrator = TestOrchestrator();
-        final handle = orchestrator.dispatchJob<int>(SuccessJob(1));
-
-        await handle.future;
-        orchestrator.dispose();
-
-        expect(
-          observer.log.any((e) => e.startsWith('event:JobStartedEvent:')),
           isTrue,
         );
       });
@@ -249,7 +240,6 @@ void main() {
         final orchestrator = TestOrchestrator();
         final handle = orchestrator.dispatchJob<int>(SuccessJob(99));
 
-        // Should complete without error
         final result = await handle.future;
         expect(result.data, equals(198));
 
@@ -265,19 +255,16 @@ void main() {
         final orchestrator = TestOrchestrator();
         orchestrator.dispatchJob<int>(SuccessJob(1));
 
-        await Future.delayed(Duration(milliseconds: 5));
+        await Future.delayed(const Duration(milliseconds: 5));
 
-        // Switch observer
         OrchestratorObserver.instance = secondObserver;
 
         orchestrator.dispatchJob<int>(SuccessJob(2));
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
         orchestrator.dispose();
 
-        // First observer should have some events
         expect(firstObserver.log.isNotEmpty, isTrue);
-        // Second observer should have events from second job
         expect(secondObserver.log.isNotEmpty, isTrue);
       });
     });
@@ -290,17 +277,15 @@ void main() {
         orchestrator1.dispatchJob<int>(SuccessJob(10));
         orchestrator2.dispatchJob<int>(SuccessJob(20));
 
-        await Future.delayed(Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
 
         orchestrator1.dispose();
         orchestrator2.dispose();
 
-        // Should have 2 start events
         final startEvents =
             observer.log.where((e) => e.startsWith('start:SuccessJob:'));
         expect(startEvents.length, equals(2));
 
-        // Should have 2 success events (with results 20 and 40)
         final successEvents =
             observer.log.where((e) => e.contains('success:SuccessJob:'));
         expect(successEvents.length, equals(2));

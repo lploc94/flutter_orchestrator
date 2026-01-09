@@ -49,8 +49,6 @@ class UserOrchestrator extends BaseOrchestrator<UserState> {
     switch (event) {
       case UserLoadedEvent e when isJobRunning(e.correlationId):
         emit(state.copyWith(user: e.user, isLoading: false));
-      case JobFailureEvent e when isJobRunning(e.correlationId):
-        emit(state.copyWith(error: e.error.toString(), isLoading: false));
     }
   }
 }
@@ -70,10 +68,6 @@ void onEvent(BaseEvent event) {
     case UserLoadedEvent e when isJobRunning(e.correlationId):
       emit(state.copyWith(user: e.user));
 
-    // OUR job's failure - use guard
-    case JobFailureEvent e when isJobRunning(e.correlationId):
-      emit(state.copyWith(error: e.error.toString()));
-
     // Cross-orchestrator event - NO guard (we want all)
     case UserUpdatedEvent e:
       emit(state.copyWith(user: e.user));
@@ -81,12 +75,26 @@ void onEvent(BaseEvent event) {
 }
 ```
 
-### 2. Job Types
+### 2. Job Type
 
-| Type | Use Case | Success Event |
-|------|----------|---------------|
-| `EventJob<T, E>` | Domain events (recommended) | Custom event (e.g., `UserLoadedEvent`) |
-| `BaseJob` | Simple operations | `JobSuccessEvent` with `e.data` |
+All jobs must extend `EventJob<TResult, TEvent>` with their domain event:
+
+```dart
+// Define domain event
+class OrderCreatedEvent extends BaseEvent {
+  final Order order;
+  OrderCreatedEvent(super.correlationId, this.order);
+}
+
+// Define job
+class CreateOrderJob extends EventJob<Order, OrderCreatedEvent> {
+  final List<Item> items;
+  CreateOrderJob(this.items) : super(id: generateJobId('create_order'));
+
+  @override
+  OrderCreatedEvent createEventTyped(Order result) => OrderCreatedEvent(id, result);
+}
+```
 
 ### 3. Progress Reporting (Executor)
 
@@ -110,15 +118,18 @@ class UploadExecutor extends BaseExecutor<UploadJob> {
 ### 4. Retry Policy
 
 ```dart
-class MyJob extends BaseJob {
-  MyJob() : super(
-    id: generateJobId('my'),
+class FetchDataJob extends EventJob<Data, DataLoadedEvent> {
+  FetchDataJob() : super(
+    id: generateJobId('fetch_data'),
     retryPolicy: RetryPolicy(
       maxRetries: 3,
       baseDelay: Duration(seconds: 1),
       exponentialBackoff: true,
     ),
   );
+
+  @override
+  DataLoadedEvent createEventTyped(Data result) => DataLoadedEvent(id, result);
 }
 ```
 
@@ -139,8 +150,6 @@ class UserNotifier extends OrchestratorNotifier<UserState> {
     switch (event) {
       case UserLoadedEvent e when isJobRunning(e.correlationId):
         state = state.copyWith(user: e.user, isLoading: false);
-      case JobFailureEvent e when isJobRunning(e.correlationId):
-        state = state.copyWith(error: e.error.toString(), isLoading: false);
     }
   }
 }
@@ -152,16 +161,12 @@ final userProvider = NotifierProvider<UserNotifier, UserState>(
 
 ## Event Types Reference
 
+In v0.6.0+, all jobs emit domain-specific events via `EventJob.createEventTyped()`. There are no generic `JobSuccessEvent` - every operation defines its own event type.
+
 | Event | When Emitted | Key Fields |
 |-------|--------------|------------|
-| `JobStartedEvent` | Job begins execution | `correlationId` |
-| `JobProgressEvent` | Progress update | `progress`, `message` |
-| `JobSuccessEvent<T>` | BaseJob succeeds | `data` |
-| `JobFailureEvent` | Any job fails | `error`, `stackTrace` |
-| `JobRetryingEvent` | Before retry attempt | `attempt`, `maxRetries` |
-| `JobCancelledEvent` | Job cancelled | - |
-| `JobTimeoutEvent` | Job timed out | `timeout` |
-| Custom `extends BaseEvent` | EventJob succeeds | Custom fields |
+| Custom `extends BaseEvent` | Job succeeds | Custom fields defined by you |
+| `NetworkSyncFailureEvent` | Offline sync fails | `error`, `retryCount`, `isPoisoned` |
 
 ## State Pattern
 
@@ -195,33 +200,28 @@ case UserLoadedEvent e when isJobRunning(e.correlationId):
   emit(state.copyWith(user: e.user));
 ```
 
-### ❌ Wrong: Using old API (v0.5.x)
+### ❌ Wrong: Using old BaseJob pattern (v0.5.x)
 ```dart
+class MyJob extends BaseJob { ... }  // REMOVED in v0.6.0
+
 @override
 void onActiveSuccess(JobSuccessEvent event) { ... }  // REMOVED in v0.6.0
 ```
 
-### ✅ Correct: Using new API (v0.6.0+)
+### ✅ Correct: Using EventJob + onEvent (v0.6.0+)
 ```dart
+class MyJob extends EventJob<Result, MyEvent> {
+  @override
+  MyEvent createEventTyped(Result result) => MyEvent(id, result);
+}
+
 @override
 void onEvent(BaseEvent event) {
-  switch (event) { ... }
+  switch (event) {
+    case MyEvent e when isJobRunning(e.correlationId):
+      emit(state.copyWith(data: e.result));
+  }
 }
-```
-
-### ❌ Wrong: Forgetting to handle JobFailureEvent
-```dart
-// Only handling success - errors will be silently ignored!
-case UserLoadedEvent e when isJobRunning(e.correlationId):
-  emit(state.copyWith(user: e.user));
-```
-
-### ✅ Correct: Always handle failures
-```dart
-case UserLoadedEvent e when isJobRunning(e.correlationId):
-  emit(state.copyWith(user: e.user, isLoading: false));
-case JobFailureEvent e when isJobRunning(e.correlationId):
-  emit(state.copyWith(error: e.error.toString(), isLoading: false));
 ```
 
 ## File Structure

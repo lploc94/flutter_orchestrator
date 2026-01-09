@@ -33,12 +33,7 @@ import '../models/job.dart';
 /// - You want compile-time guarantees on result types
 /// - Building a typed API layer
 /// - Working with strongly-typed state management
-///
-/// Use [BaseExecutor] when:
-/// - Result type varies or is dynamic
-/// - Returning multiple types based on conditions
-/// - Simpler jobs where type safety is less critical
-abstract class TypedExecutor<T extends BaseJob, R> extends BaseExecutor<T> {
+abstract class TypedExecutor<T extends EventJob, R> extends BaseExecutor<T> {
   /// Override this method to implement your typed business logic.
   ///
   /// The return type [R] is enforced at compile time.
@@ -74,7 +69,7 @@ abstract class TypedExecutor<T extends BaseJob, R> extends BaseExecutor<T> {
 ///   }
 /// }
 /// ```
-abstract class SyncTypedExecutor<T extends BaseJob, R> extends BaseExecutor<T> {
+abstract class SyncTypedExecutor<T extends EventJob, R> extends BaseExecutor<T> {
   /// Override this method to implement synchronous business logic.
   ///
   /// For async operations, use [TypedExecutor] instead.

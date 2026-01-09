@@ -39,13 +39,7 @@ class Dispatcher {
   final int maxRetries;
 
   StreamSubscription? _connectivitySub;
-  StreamSubscription? _eventSub;
   bool _isProcessingQueue = false;
-  String? _currentSyncJobId;
-
-  /// FIX Issue #2: Track wrapper ID separately from job ID
-  /// - _currentSyncJobId: ID of restored job (for event matching)
-  /// - _currentSyncWrapperId: ID in storage (for cleanup)
   String? _currentSyncWrapperId;
 
   // Singleton
@@ -58,8 +52,7 @@ class Dispatcher {
 
   /// Initialize connectivity listener for auto-sync
   void _initConnectivityListener() {
-    // Delay to allow OrchestratorConfig to be set up
-    Future.delayed(Duration(milliseconds: 100), () {
+    Future.delayed(const Duration(milliseconds: 100), () {
       try {
         _connectivitySub = OrchestratorConfig
             .connectivityProvider.onConnectivityChanged
@@ -69,27 +62,23 @@ class Dispatcher {
           }
         });
 
-        // Listen for job results to know when sync job completes
-        _eventSub = SignalBus.instance.stream.listen(_onSyncJobResult);
-
-        // Check initial state
         OrchestratorConfig.connectivityProvider.isConnected.then((connected) {
           if (connected && !_isProcessingQueue) {
             _processOfflineQueue();
           }
         });
       } catch (_) {
-        // ConnectivityProvider not configured yet, that's OK
+        // ConnectivityProvider not configured yet
       }
     });
   }
 
   /// Register an executor for a specific Job Type.
-  void register<J extends BaseJob>(BaseExecutor<J> executor) {
+  void register<J extends EventJob>(BaseExecutor<J> executor) {
     _registry[J] = executor;
   }
 
-  /// Register an executor by runtime type (for cases where generic type is not available).
+  /// Register an executor by runtime type.
   void registerByType(Type jobType, BaseExecutor executor) {
     _registry[jobType] = executor;
   }
@@ -97,9 +86,7 @@ class Dispatcher {
   /// Dispatch a job to the subscribed executor.
   ///
   /// Returns the Job ID (Correlation ID) immediately.
-  /// Optionally accepts a [handle] that will be completed when the job
-  /// produces its first result (cached or fresh).
-  String dispatch(BaseJob job, {JobHandle? handle}) {
+  String dispatch(EventJob job, {JobHandle? handle}) {
     final executor = _registry[job.runtimeType];
 
     if (executor == null) {
@@ -109,9 +96,8 @@ class Dispatcher {
 
     // Offline Support Logic
     if (job is NetworkAction) {
-      _handleNetworkJob(job as NetworkAction, executor, handle: handle);
+      _handleNetworkJob(job, executor, handle: handle);
     } else {
-      // Standard Fire-and-forget execution
       executor.execute(job, handle: handle);
     }
 
@@ -120,11 +106,11 @@ class Dispatcher {
 
   /// Handle NetworkAction jobs (online/offline logic)
   Future<void> _handleNetworkJob(
-    NetworkAction action,
+    EventJob job,
     BaseExecutor executor, {
     JobHandle? handle,
   }) async {
-    final job = action as BaseJob;
+    final action = job as NetworkAction;
     final log = OrchestratorConfig.logger;
 
     try {
@@ -136,42 +122,38 @@ class Dispatcher {
         final manager = OrchestratorConfig.networkQueueManager;
 
         if (manager != null) {
-          // 1. Queue it (with error handling)
+          // Create Optimistic Result first (before queueing)
+          final optimisticResult = action.createOptimisticResult();
+
           try {
-            await manager.queueAction(action);
+            await manager.queueAction(
+              action,
+              optimisticResult: optimisticResult,
+            );
           } catch (queueError, queueStack) {
-            // FIX Issue #3: Queue failed - don't return optimistic result
-            // since job won't actually be synced later
             log.error(
               'NetworkAction ${job.id} failed to queue. Falling back to normal execution.',
               queueError,
               queueStack,
             );
-            // Try to execute online (might fail, but better than silent data loss)
             executor.execute(job, handle: handle);
             return;
           }
 
-          // 2. Create Optimistic Result
-          final optimisticResult = action.createOptimisticResult();
           log.info('NetworkAction ${job.id} returning optimistic result.');
 
-          // 3. Emit Events (Started + Fake Success)
-          final bus = job.bus ?? SignalBus.instance;
-          bus.emit(JobStartedEvent(
-            job.id,
-            jobType: job.runtimeType.toString(),
-          ));
-          bus.emit(
-              JobSuccessEvent(job.id, optimisticResult, isOptimistic: true));
-
-          // 4. Complete handle with optimistic result
+          // Complete handle with optimistic result
           handle?.complete(optimisticResult, DataSource.optimistic);
 
-          return; // Stop here, do not execute real worker
+          // Emit domain event for optimistic result with DataSource.optimistic
+          final event = job.createEvent(optimisticResult, DataSource.optimistic);
+          final bus = job.bus ?? SignalBus.instance;
+          bus.emit(event);
+
+          return;
         } else {
           log.warning(
-            'NetworkAction detected but no NetworkQueueManager configured. Executing normally.',
+            'NetworkAction detected but no NetworkQueueManager configured.',
           );
         }
       }
@@ -180,7 +162,6 @@ class Dispatcher {
       executor.execute(job, handle: handle);
     } catch (e, stack) {
       log.error('Error in Offline Dispatch Logic for ${job.id}', e, stack);
-      // Fallback: just execute
       executor.execute(job, handle: handle);
     }
   }
@@ -199,8 +180,6 @@ class Dispatcher {
     _isProcessingQueue = true;
 
     try {
-      // FIX Issue #1: Use claimNextPendingJob for atomic claim
-      // This prevents race conditions where multiple processes could claim the same job
       final jobWrapper = await manager.claimNextPendingJob();
       if (jobWrapper == null) {
         _isProcessingQueue = false;
@@ -213,12 +192,8 @@ class Dispatcher {
         return;
       }
 
-      // Job is already marked as processing by claimNextPendingJob
-
-      // FIX Issue #2: Store wrapper ID for later cleanup
       _currentSyncWrapperId = jobId;
 
-      // Restore job from registry
       final type = jobWrapper['type'] as String?;
       final rawPayload = jobWrapper['payload'];
       final payload =
@@ -241,15 +216,22 @@ class Dispatcher {
         return;
       }
 
-      // Store info for result handling
-      _currentSyncJobId = job.id;
-
-      // Find executor and execute
       final executor = _registry[job.runtimeType];
       if (executor != null) {
         log.debug('Syncing offline job: ${job.id}');
-        executor.execute(job);
-        // Result will come via _onSyncJobResult
+
+        // Create handle to track completion
+        final syncHandle = JobHandle<dynamic>(job.id);
+
+        // Execute and track via handle
+        executor.execute(job, handle: syncHandle);
+
+        // Wait for completion
+        syncHandle.future.then((_) {
+          _handleSyncSuccess();
+        }).catchError((error, stackTrace) {
+          _handleSyncFailure(error, stackTrace);
+        });
       } else {
         log.warning('No executor for queued job: ${job.runtimeType}');
         await manager.removeJob(jobId);
@@ -262,21 +244,8 @@ class Dispatcher {
     }
   }
 
-  /// Handle result of a syncing job
-  void _onSyncJobResult(BaseEvent event) {
-    if (_currentSyncJobId == null) return;
-    if (event.correlationId != _currentSyncJobId) return;
-
-    if (event is JobSuccessEvent) {
-      _handleSyncSuccess();
-    } else if (event is JobFailureEvent) {
-      _handleSyncFailure(event.error, event.stackTrace);
-    }
-  }
-
   Future<void> _handleSyncSuccess() async {
     final manager = OrchestratorConfig.networkQueueManager;
-    // FIX Issue #2: Use _currentSyncWrapperId for cleanup
     if (manager == null || _currentSyncWrapperId == null) {
       _finishSyncJob();
       return;
@@ -286,30 +255,25 @@ class Dispatcher {
     final wrapperId = _currentSyncWrapperId!;
 
     try {
-      // Get the job wrapper directly by ID (no need to loop)
       final jobWrapper = await manager.getJob(wrapperId);
       if (jobWrapper != null) {
-        // Cleanup files
         final payload = jobWrapper['payload'];
         if (payload is Map && manager.fileDelegate != null) {
           await manager.fileDelegate!.cleanupFiles(
             Map<String, dynamic>.from(payload),
           );
         }
-
-        // Remove from queue
         await manager.removeJob(wrapperId);
         log.debug('Sync success, removed: $wrapperId');
       }
     } finally {
       _finishSyncJob();
-      _processOfflineQueue(); // Process next
+      _processOfflineQueue();
     }
   }
 
   Future<void> _handleSyncFailure(Object error, StackTrace? stackTrace) async {
     final manager = OrchestratorConfig.networkQueueManager;
-    // FIX Issue #2: Use _currentSyncWrapperId for cleanup
     if (manager == null || _currentSyncWrapperId == null) {
       _finishSyncJob();
       return;
@@ -319,36 +283,58 @@ class Dispatcher {
     final wrapperId = _currentSyncWrapperId!;
 
     try {
+      // Get job wrapper to extract original job ID and metadata
+      final jobWrapper = await manager.getJob(wrapperId);
+      final originalJobId =
+          jobWrapper?['originalJobId'] as String? ?? wrapperId;
+      final type = jobWrapper?['type'] as String?;
+      final rawPayload = jobWrapper?['payload'];
+      final payload =
+          rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : null;
+      final optimisticResult = jobWrapper?['optimisticResult'];
+
       final retryCount = await manager.incrementRetryCount(
         wrapperId,
         errorMessage: error.toString(),
       );
 
       if (retryCount >= maxRetries) {
-        // POISON PILL: Abandon this job
         await manager.markJobPoisoned(wrapperId);
 
         log.warning(
             'Poison pill: abandoning job after $retryCount retries: $wrapperId');
 
+        // Emit NetworkSyncFailureEvent with ORIGINAL job ID
         SignalBus.instance.emit(NetworkSyncFailureEvent(
-          wrapperId,
+          originalJobId,
           error: error,
           stackTrace: stackTrace,
           retryCount: retryCount,
           isPoisoned: true,
         ));
 
+        // Emit domain failure event if job supports it
+        if (type != null && payload != null) {
+          final job = NetworkJobRegistry.restore(type, payload);
+          if (job != null) {
+            final failureEvent = job.createFailureEvent(error, optimisticResult);
+            if (failureEvent != null) {
+              log.debug('Emitting failure event: ${failureEvent.runtimeType}');
+              SignalBus.instance.emit(failureEvent);
+            }
+          }
+        }
+
         await manager.removeJob(wrapperId);
       } else {
-        // Will retry later
         await manager.markJobPending(wrapperId);
 
         log.debug(
             'Sync failed, will retry ($retryCount/$maxRetries): $wrapperId');
 
+        // Emit NetworkSyncFailureEvent with ORIGINAL job ID
         SignalBus.instance.emit(NetworkSyncFailureEvent(
-          wrapperId,
+          originalJobId,
           error: error,
           stackTrace: stackTrace,
           retryCount: retryCount,
@@ -357,45 +343,56 @@ class Dispatcher {
       }
     } finally {
       _finishSyncJob();
-      // Small delay before retry
-      await Future.delayed(Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 2));
       _processOfflineQueue();
     }
   }
 
   void _finishSyncJob() {
-    _currentSyncJobId = null;
     _currentSyncWrapperId = null;
     _isProcessingQueue = false;
   }
 
-  /// Stop connectivity listener (for cleanup).
+  /// Manually trigger processing of the offline queue.
   ///
-  /// Note: For the singleton instance, this should typically only be called
-  /// during app shutdown or in test teardown.
+  /// Call this on app startup to sync any pending jobs from previous sessions.
+  /// The method is safe to call multiple times - it will not start processing
+  /// if already in progress or if device is offline.
+  ///
+  /// Example:
+  /// ```dart
+  /// void main() async {
+  ///   WidgetsFlutterBinding.ensureInitialized();
+  ///
+  ///   // Configure orchestrator...
+  ///   OrchestratorConfig.setNetworkQueueManager(manager);
+  ///   OrchestratorConfig.setConnectivityProvider(provider);
+  ///
+  ///   // Process any queued jobs from previous session
+  ///   await Dispatcher().processQueuedJobs();
+  ///
+  ///   runApp(MyApp());
+  /// }
+  /// ```
+  Future<void> processQueuedJobs() async {
+    if (_isProcessingQueue) return;
+    await _processOfflineQueue();
+  }
+
   void dispose() {
     _connectivitySub?.cancel();
     _connectivitySub = null;
-    _eventSub?.cancel();
-    _eventSub = null;
     _isProcessingQueue = false;
-    _currentSyncJobId = null;
     _currentSyncWrapperId = null;
   }
 
-  /// For testing cleanup - clears registry only.
   void clear() {
     _registry.clear();
   }
 
-  /// Reset the dispatcher completely for testing.
-  ///
-  /// This clears the registry, disposes listeners, and reinitializes them.
-  /// Useful for test isolation.
   void resetForTesting() {
     clear();
     dispose();
-    // Re-initialize listeners for next test
     _initConnectivityListener();
   }
 }

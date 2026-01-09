@@ -17,12 +17,12 @@ import '../models/data_source.dart';
 ///
 /// class MyAppObserver extends OrchestratorObserver {
 ///   @override
-///   void onJobStart(BaseJob job) {
+///   void onJobStart(EventJob job) {
 ///     print('Job started: ${job.runtimeType}');
 ///   }
 ///
 ///   @override
-///   void onJobError(BaseJob job, Object error, StackTrace stack) {
+///   void onJobError(EventJob job, Object error, StackTrace stack) {
 ///     // Send to Sentry, Crashlytics, etc.
 ///     Sentry.captureException(error, stackTrace: stack);
 ///   }
@@ -58,7 +58,7 @@ abstract class OrchestratorObserver {
   /// - Logging job initiation
   /// - Performance timing start
   /// - Debug tracing
-  void onJobStart(BaseJob job) {}
+  void onJobStart(EventJob job) {}
 
   /// Called when any job completes successfully.
   ///
@@ -66,7 +66,7 @@ abstract class OrchestratorObserver {
   /// - [job]: The completed job
   /// - [result]: The result data
   /// - [source]: Where the data came from (fresh, cached, optimistic)
-  void onJobSuccess(BaseJob job, dynamic result, DataSource source) {}
+  void onJobSuccess(EventJob job, dynamic result, DataSource source) {}
 
   /// Called when any job fails with an error.
   ///
@@ -77,7 +77,7 @@ abstract class OrchestratorObserver {
   /// - Sending errors to crash reporting (Sentry, Crashlytics)
   /// - Analytics tracking
   /// - Debug logging
-  void onJobError(BaseJob job, Object error, StackTrace stack) {}
+  void onJobError(EventJob job, Object error, StackTrace stack) {}
 
   /// Called when any domain event is emitted.
   ///

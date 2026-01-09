@@ -1,6 +1,4 @@
 import 'dart:async';
-import '../models/event.dart';
-import '../infra/signal_bus.dart';
 
 /// Result type for job execution - either success or failure.
 ///
@@ -8,11 +6,13 @@ import '../infra/signal_bus.dart';
 ///
 /// Example:
 /// ```dart
-/// final result = await JobResult.fromBus(bus, jobId);
-/// result.when(
-///   success: (data) => print('Got: $data'),
-///   failure: (error) => print('Failed: $error'),
-/// );
+/// final handle = orchestrator.dispatch<User>(FetchUserJob());
+/// try {
+///   final result = await handle.future;
+///   print('Got: ${result.data}');
+/// } catch (e) {
+///   print('Failed: $e');
+/// }
 /// ```
 sealed class JobResult<T> {
   const JobResult();
@@ -29,79 +29,6 @@ sealed class JobResult<T> {
 
   /// Create a timeout result.
   const factory JobResult.timeout(Duration timeout) = JobTimeout<T>;
-
-  /// Wait for a job to complete and return the result.
-  ///
-  /// Listens to the bus for the job's terminal event (success, failure,
-  /// cancelled, or timeout) and returns the appropriate [JobResult].
-  ///
-  /// @Deprecated: Use [JobHandle.future] instead. This method relies on
-  /// legacy framework events (JobSuccessEvent, JobFailureEvent, etc.)
-  /// which are deprecated.
-  ///
-  /// **Migration:**
-  /// ```dart
-  /// // Before:
-  /// final jobId = orchestrator.dispatch(MyJob());
-  /// final result = await JobResult.fromBus<User>(bus, jobId);
-  ///
-  /// // After:
-  /// final handle = orchestrator.dispatch<User>(MyJob());
-  /// try {
-  ///   final result = await handle.future;
-  ///   // result.data is User, result.source is DataSource
-  /// } catch (e) {
-  ///   // Handle error
-  /// }
-  /// ```
-  @Deprecated('Use JobHandle.future instead. Will be removed in v2.0.0')
-  static Future<JobResult<T>> fromBus<T>(
-    SignalBus bus,
-    String jobId, {
-    Duration? timeout,
-  }) async {
-    final completer = Completer<JobResult<T>>();
-
-    StreamSubscription? subscription;
-    Timer? timeoutTimer;
-
-    void complete(JobResult<T> result) {
-      if (!completer.isCompleted) {
-        timeoutTimer?.cancel();
-        subscription?.cancel();
-        completer.complete(result);
-      }
-    }
-
-    subscription = bus.stream.listen((event) {
-      if (event.correlationId != jobId) return;
-
-      if (event is JobSuccessEvent) {
-        if (event.data is T) {
-          complete(JobResult.success(event.data as T));
-        } else {
-          complete(JobResult.failure(
-            TypeError(),
-            StackTrace.current,
-          ));
-        }
-      } else if (event is JobFailureEvent) {
-        complete(JobResult.failure(event.error, event.stackTrace));
-      } else if (event is JobCancelledEvent) {
-        complete(JobResult.cancelled(event.reason));
-      } else if (event is JobTimeoutEvent) {
-        complete(JobResult.timeout(event.timeout));
-      }
-    });
-
-    if (timeout != null) {
-      timeoutTimer = Timer(timeout, () {
-        complete(JobResult.timeout(timeout));
-      });
-    }
-
-    return completer.future;
-  }
 
   /// Pattern matching for job results.
   R when<R>({

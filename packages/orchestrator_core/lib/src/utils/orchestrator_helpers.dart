@@ -28,7 +28,7 @@ mixin OrchestratorHelpers {
   ///
   /// Calls [onStart] immediately, then dispatches the job.
   String dispatchWithLoading(
-    BaseJob job, {
+    EventJob job, {
     required void Function() onStart,
   }) {
     onStart();
@@ -47,7 +47,7 @@ mixin OrchestratorHelpers {
   ///   FetchCommentsJob(userId),
   /// ]);
   /// ```
-  List<String> dispatchAll(List<BaseJob> jobs) {
+  List<String> dispatchAll(List<EventJob> jobs) {
     return jobs.map((job) => _dispatcher.dispatch(job)).toList();
   }
 
@@ -67,7 +67,7 @@ mixin OrchestratorHelpers {
   /// }
   /// ```
   CancellationToken dispatchReplacingPrevious(
-    BaseJob job, {
+    EventJob job, {
     CancellationToken? previousToken,
   }) {
     // Cancel previous if exists
@@ -76,8 +76,6 @@ mixin OrchestratorHelpers {
     // Create new token
     final token = CancellationToken();
 
-    // Create job with token (jobs should accept cancellation token in constructor)
-    // For now, just dispatch and return the token
     _dispatcher.dispatch(job);
 
     return token;
@@ -96,7 +94,7 @@ mixin OrchestratorHelpers {
   /// }
   /// ```
   String? dispatchIfNotRunning(
-    BaseJob job, {
+    EventJob job, {
     required Set<String> activeJobIds,
     required Map<String, Type> activeJobTypes,
   }) {
@@ -121,9 +119,9 @@ extension DispatcherExtension on Dispatcher {
   /// });
   /// ```
   void setup(
-      void Function(void Function<J extends BaseJob>(BaseExecutor<J>) register)
+      void Function(void Function<J extends EventJob>(BaseExecutor<J>) register)
           setup) {
-    setup(<J extends BaseJob>(BaseExecutor<J> executor) {
+    setup(<J extends EventJob>(BaseExecutor<J> executor) {
       register<J>(executor);
     });
   }

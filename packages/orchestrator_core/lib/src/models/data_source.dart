@@ -26,4 +26,9 @@ enum DataSource {
   /// Data created optimistically while offline.
   /// The real request will be synced when connectivity restores.
   optimistic,
+
+  /// Data from a permanently failed sync operation.
+  /// Used when offline sync fails after all retries (poison pill).
+  /// UI should rollback optimistic state when receiving this.
+  failed,
 }

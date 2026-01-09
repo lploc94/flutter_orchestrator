@@ -48,6 +48,70 @@ abstract class FileSafetyDelegate {
   Future<void> cleanupFiles(Map<String, dynamic> jobData);
 }
 
+/// In-memory implementation of [NetworkQueueStorage] for testing.
+///
+/// This implementation stores jobs in memory and is NOT persistent.
+/// Use this for unit tests or when persistence is not required.
+///
+/// Example:
+/// ```dart
+/// // In tests
+/// final storage = InMemoryNetworkQueueStorage();
+/// final manager = NetworkQueueManager(storage: storage);
+/// OrchestratorConfig.setNetworkQueueManager(manager);
+/// ```
+class InMemoryNetworkQueueStorage implements NetworkQueueStorage {
+  final Map<String, Map<String, dynamic>> _store = {};
+
+  @override
+  Future<void> saveJob(String id, Map<String, dynamic> data) async {
+    _store[id] = Map<String, dynamic>.from(data);
+  }
+
+  @override
+  Future<void> removeJob(String id) async {
+    _store.remove(id);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getJob(String id) async {
+    final job = _store[id];
+    return job != null ? Map<String, dynamic>.from(job) : null;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getAllJobs() async {
+    final jobs = _store.values.toList();
+    jobs.sort((a, b) {
+      final aTime =
+          DateTime.tryParse(a['timestamp'] as String? ?? '') ?? DateTime.now();
+      final bTime =
+          DateTime.tryParse(b['timestamp'] as String? ?? '') ?? DateTime.now();
+      return aTime.compareTo(bTime);
+    });
+    return jobs.map((j) => Map<String, dynamic>.from(j)).toList();
+  }
+
+  @override
+  Future<void> updateJob(String id, Map<String, dynamic> updates) async {
+    final existing = _store[id];
+    if (existing != null) {
+      _store[id] = {...existing, ...updates};
+    }
+  }
+
+  @override
+  Future<void> clearAll() async {
+    _store.clear();
+  }
+
+  /// Get current job count (for testing).
+  int get length => _store.length;
+
+  /// Check if a job exists (for testing).
+  bool containsJob(String id) => _store.containsKey(id);
+}
+
 /// Simple async lock to prevent concurrent access to critical sections.
 /// FIX WARNING #13: Prevents race conditions in job processing.
 class _AsyncLock {
@@ -93,7 +157,12 @@ class NetworkQueueManager {
   /// 1. Secure files (if delegate present).
   /// 2. Wrap with metadata (id, type, status, retryCount).
   /// 3. Persist to storage.
-  Future<void> queueAction(NetworkAction action) async {
+  ///
+  /// [optimisticResult] - The optimistic result to store for failure rollback.
+  Future<void> queueAction(
+    NetworkAction action, {
+    dynamic optimisticResult,
+  }) async {
     Map<String, dynamic> json = action.toJson();
 
     // 1. Safe Copy Strategy (Protection against OS temp cleanup)
@@ -102,21 +171,29 @@ class NetworkQueueManager {
     }
 
     // Use provided key or generate one
-    final id = action.deduplicationKey ??
+    final wrapperId = action.deduplicationKey ??
         DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Extract original job.id if this is an EventJob
+    String? originalJobId;
+    if (action is EventJob) {
+      originalJobId = (action as EventJob).id;
+    }
 
     // Wrap with metadata
     final wrapper = {
-      'id': id,
+      'id': wrapperId,
+      'originalJobId': originalJobId,
       'type': action.runtimeType.toString(),
       'payload': json,
+      'optimisticResult': optimisticResult,
       'timestamp': DateTime.now().toIso8601String(),
       'status': NetworkJobStatus.pending.name,
       'retryCount': 0,
       'lastError': null,
     };
 
-    await storage.saveJob(id, wrapper);
+    await storage.saveJob(wrapperId, wrapper);
   }
 
   /// Get next job with status 'pending', sorted by timestamp (FIFO).
@@ -232,7 +309,7 @@ class NetworkQueueManager {
 /// NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
 /// ```
 class NetworkJobRegistry {
-  static final Map<String, BaseJob Function(Map<String, dynamic>)> _factories =
+  static final Map<String, EventJob Function(Map<String, dynamic>)> _factories =
       {};
 
   /// Register a factory for a job type using string name.
@@ -242,7 +319,7 @@ class NetworkJobRegistry {
   /// [factory] is the fromJson method that creates the job from JSON.
   static void register(
     String type,
-    BaseJob Function(Map<String, dynamic>) factory,
+    EventJob Function(Map<String, dynamic>) factory,
   ) {
     _factories[type] = factory;
   }
@@ -255,8 +332,8 @@ class NetworkJobRegistry {
   /// ```dart
   /// NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
   /// ```
-  static void registerType<T extends BaseJob>(
-    BaseJob Function(Map<String, dynamic>) factory,
+  static void registerType<T extends EventJob>(
+    EventJob Function(Map<String, dynamic>) factory,
   ) {
     _factories[T.toString()] = factory;
   }
@@ -264,7 +341,7 @@ class NetworkJobRegistry {
   /// Reconstruct a job from JSON + Type.
   ///
   /// Returns null if the type is not registered.
-  static BaseJob? restore(String type, Map<String, dynamic> json) {
+  static EventJob? restore(String type, Map<String, dynamic> json) {
     final factory = _factories[type];
     if (factory == null) return null;
     return factory(json);
@@ -274,7 +351,7 @@ class NetworkJobRegistry {
   static bool isRegistered(String type) => _factories.containsKey(type);
 
   /// Check if a type T is registered.
-  static bool isTypeRegistered<T extends BaseJob>() =>
+  static bool isTypeRegistered<T extends EventJob>() =>
       _factories.containsKey(T.toString());
 
   /// Get all registered type names (for debugging).

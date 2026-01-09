@@ -3,12 +3,13 @@
 /// A production-ready, event-driven orchestration framework for Dart/Flutter.
 ///
 /// Key components:
-/// - [BaseJob]: Base class for all work requests
+/// - [EventJob]: The only job class - every job emits a domain event
 /// - [BaseEvent]: Base class for all event signals
 /// - [BaseExecutor]: Abstract worker that processes jobs
 /// - [BaseOrchestrator]: Reactive state machine that coordinates everything
 /// - [Dispatcher]: Routes jobs to appropriate executors
 /// - [SignalBus]: Central event backbone (Pub/Sub)
+/// - [JobHandle]: Track job progress and await results
 library;
 
 // Models
@@ -55,9 +56,7 @@ export 'src/base/typed_executor.dart';
 export 'src/utils/cancellation_token.dart';
 export 'src/utils/retry_policy.dart';
 export 'src/utils/logger.dart';
-export 'src/utils/job_builder.dart';
 export 'src/utils/job_result.dart';
-export 'src/utils/event_extensions.dart';
 export 'src/utils/state_patterns.dart';
 export 'src/utils/orchestrator_helpers.dart';
 export 'src/utils/saga_flow.dart';

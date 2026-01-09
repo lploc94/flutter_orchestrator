@@ -1,4 +1,65 @@
-## 0.6.0 - 2026-01-08
+## 0.6.0 - 2026-01-09
+
+### ⚠️ BREAKING CHANGES
+
+#### Removed: `BaseJob` class
+- All jobs must now extend `EventJob<TResult, TEvent>`
+- Every job must define a domain event and implement `createEventTyped(result)`
+- Migration: Replace `extends BaseJob` with `extends EventJob<ReturnType, YourEvent>`
+
+#### Removed: Legacy Framework Events
+The following deprecated events have been removed:
+- `JobSuccessEvent` - Use custom domain events via `EventJob`
+- `JobFailureEvent` - Use `JobHandle.future` catch blocks
+- `JobCancelledEvent` - Use `CancellationToken` + `JobHandle.future`
+- `JobTimeoutEvent` - Use `JobHandle.future` timeout handling
+- `JobCacheHitEvent` - Use `EventJob` with `DataSource` field in event
+- `JobPlaceholderEvent` - Use `DataStrategy.placeholder`
+- `JobProgressEvent` - Use `JobHandle.progress` stream
+- `JobStartedEvent` - Use `OrchestratorObserver.onJobStart`
+- `JobRetryingEvent` - Use `OrchestratorObserver`
+
+#### Removed: Utilities
+- `event_extensions.dart` - No longer needed
+- `JobBuilder` class - Configure jobs directly via constructor
+
+#### Changed: Type Signatures
+- `dispatch()` now accepts `EventJob` instead of `BaseJob`
+- `BaseExecutor<T>` now requires `T extends EventJob`
+- `OrchestratorObserver` methods now use `EventJob` parameter type
+
+### Migration Guide
+
+```dart
+// BEFORE
+class SeedJob extends BaseJob {
+  SeedJob() : super(id: generateJobId('seed'));
+}
+
+// AFTER
+class SeedCompletedEvent extends BaseEvent {
+  SeedCompletedEvent(super.correlationId);
+}
+
+class SeedJob extends EventJob<void, SeedCompletedEvent> {
+  SeedJob() : super(id: generateJobId('seed'));
+
+  @override
+  SeedCompletedEvent createEventTyped(void _) => SeedCompletedEvent(id);
+}
+```
+
+### Why This Change?
+
+This enforces proper domain modeling:
+1. Every job explicitly declares its result type and event
+2. No "escape hatch" with generic success/failure events
+3. Type-safe event handling with pattern matching
+4. Clearer separation between job execution and state updates
+
+---
+
+## 0.5.3 - 2026-01-08
 
 ### Breaking Changes
 - **Unified Event Handler**: Replaced `onActiveSuccess`/`onActiveFailure`/`onPassive*` methods with single `onEvent(BaseEvent)` using Dart 3 pattern matching.

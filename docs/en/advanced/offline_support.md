@@ -53,30 +53,47 @@ abstract class NetworkAction<T> {
 }
 ```
 
-### 2.2. Full Example
+### 2.2. Full Example (v0.6.0+)
 
 ```dart
 import 'package:orchestrator_core/orchestrator_core.dart';
 
-@NetworkJob()
-class SendMessageJob extends BaseJob implements NetworkAction<Message> {
+// Domain Event with DataSource
+class MessageSentEvent extends BaseEvent {
+  final Message message;
+  final DataSource source;
+
+  MessageSentEvent(super.correlationId, this.message, this.source);
+}
+
+// Job with NetworkAction support
+class SendMessageJob extends EventJob<Message, MessageSentEvent>
+    implements NetworkAction<Message> {
   final String content;
   final String recipientId;
-  
+
   SendMessageJob({
     required this.content,
     required this.recipientId,
-  }) : super(id: generateJobId('msg'));  // Framework generates unique ID
-  
-  // ========== REQUIRED: Serialization ==========
-  
+  }) : super(id: generateJobId('msg'));
+
+  // ========== EventJob: Create Domain Event ==========
+
+  @override
+  MessageSentEvent createEventTyped(Message result) {
+    // Use dataSource getter to include source in event
+    return MessageSentEvent(id, result, dataSource);
+  }
+
+  // ========== NetworkAction: Serialization ==========
+
   @override
   Map<String, dynamic> toJson() => {
-    'id': id,  // Important: Serialize ID for tracking
+    'id': id,
     'content': content,
     'recipientId': recipientId,
   };
-  
+
   factory SendMessageJob.fromJson(Map<String, dynamic> json) {
     return SendMessageJob._withId(
       id: json['id'] as String,
@@ -84,43 +101,47 @@ class SendMessageJob extends BaseJob implements NetworkAction<Message> {
       recipientId: json['recipientId'] as String,
     );
   }
-  
-  // Private constructor to restore with old ID
+
   SendMessageJob._withId({
     required String id,
     required this.content,
     required this.recipientId,
   }) : super(id: id);
-  
-  // Wrapper for NetworkJobRegistry (returns BaseJob)
-  static BaseJob fromJsonToBase(Map<String, dynamic> json) {
-    return SendMessageJob.fromJson(json);
-  }
-  
-  // ========== REQUIRED: Optimistic Result ==========
-  
+
+  // ========== NetworkAction: Optimistic Result ==========
+
   @override
   Message createOptimisticResult() {
     return Message(
-      id: id,  // Use job.id as tempId (Framework generated it)
+      id: id,
       content: content,
       recipientId: recipientId,
       status: MessageStatus.sending,
       createdAt: DateTime.now(),
     );
   }
-  
-  // ========== OPTIONAL: Deduplication ==========
-  
+
+  // ========== Optional: Failure Rollback ==========
+
   @override
-  String? get deduplicationKey => id;  // Use job.id to prevent duplicates
+  MessageSentEvent? createFailureEvent(Object error, Message? lastOptimistic) {
+    // Return event to rollback optimistic state
+    return MessageSentEvent(
+      id,
+      Message(id: id, content: content, status: MessageStatus.failed),
+      DataSource.failed,
+    );
+  }
+
+  @override
+  String? get deduplicationKey => id;
 }
 ```
 
-> **💡 Note on ID:**
-> - `generateJobId()` Is a Framework helper, creating unique ID format: `prefix-timestamp-random`
-> - Example: `msg-1703579123456789-a1b2c3`
-> - Use this `id` for tracking optimistic UI, **no need** to create separate `tempId`
+> **💡 Key Points (v0.6.0+):**
+> - Use `dataSource` getter in `createEventTyped()` to include source info
+> - Override `createFailureEvent()` to handle permanent sync failures
+> - `DataSource` can be: `fresh`, `cached`, `optimistic`, or `failed`
 
 ---
 
@@ -185,26 +206,29 @@ sequenceDiagram
 ```dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. Register Network Jobs (from code generation)
-  registerNetworkJobs();
-  
+
+  // 1. Register Network Jobs
+  NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
+
   // 2. Register Executors
   Dispatcher().register<SendMessageJob>(SendMessageExecutor(api));
-  
+
   // 3. Config Connectivity Provider
   OrchestratorConfig.setConnectivityProvider(
-    ConnectivityPlusProvider(),  // Implement from connectivity_plus
+    ConnectivityPlusProvider(),
   );
-  
+
   // 4. Config Network Queue Manager
   OrchestratorConfig.setNetworkQueueManager(
     NetworkQueueManager(
       storage: FileNetworkQueueStorage(),
-      fileDelegate: FlutterFileSafety(),  // Optional: file protection
+      fileDelegate: FlutterFileSafety(),
     ),
   );
-  
+
+  // 5. Process queued jobs from previous session (NEW in v0.6.0)
+  await Dispatcher().processQueuedJobs();
+
   runApp(MyApp());
 }
 ```
@@ -335,30 +359,46 @@ flowchart TD
     style Poison fill:#ffebee,stroke:#c62828,color:#000
 ```
 
-### 6.2. Handling in Orchestrator
+### 6.2. Handling in Orchestrator (v0.6.0+)
+
+With `createFailureEvent()`, the framework automatically emits domain events on failure:
 
 ```dart
 @override
-void onPassiveEvent(BaseEvent event) {
-  if (event is NetworkSyncFailureEvent && event.isPoisoned) {
-    // Job failed permanently → Rollback optimistic UI
-    final failedId = event.correlationId;
-    
-    // Example: Mark message as failed
-    final messages = state.messages.map((m) {
-      if (m.tempId == failedId) {
-        return m.copyWith(status: MessageStatus.failed);
+void onEvent(BaseEvent event) {
+  switch (event) {
+    case MessageSentEvent e when isJobRunning(e.correlationId):
+      if (e.source == DataSource.failed) {
+        // Sync failed permanently → Rollback optimistic UI
+        final messages = state.messages.map((m) {
+          if (m.id == e.message.id) {
+            return m.copyWith(status: MessageStatus.failed);
+          }
+          return m;
+        }).toList();
+        emit(state.copyWith(messages: messages));
+
+        // Show retry dialog
+        showRetryDialog('Could not send message. Try again?');
+      } else {
+        // Success (optimistic or fresh)
+        final messages = [...state.messages];
+        final index = messages.indexWhere((m) => m.id == e.message.id);
+        if (index >= 0) {
+          messages[index] = e.message;
+        } else {
+          messages.add(e.message);
+        }
+        emit(state.copyWith(messages: messages));
       }
-      return m;
-    }).toList();
-    
-    emit(state.copyWith(messages: messages));
-    
-    // Show dialog to user
-    showRetryDialog('Could not send message. Do you want to try again?');
   }
 }
 ```
+
+> **💡 DataSource Values:**
+> - `DataSource.optimistic` - Returned immediately when offline
+> - `DataSource.fresh` - Returned after successful sync
+> - `DataSource.failed` - Returned when sync fails permanently (poison pill)
 
 ---
 
@@ -375,35 +415,30 @@ When restoring Job from queue (JSON), Framework needs to know:
 ```dart
 class NetworkJobRegistry {
   /// Register with string type name
-  static void register(String type, BaseJob Function(Map<String, dynamic>) factory);
-  
-  /// Register with generic type (type-safe)
-  static void registerType<T extends BaseJob>(BaseJob Function(Map<String, dynamic>) factory);
-  
+  static void register(String type, EventJob Function(Map<String, dynamic>) factory);
+
+  /// Register with generic type (type-safe, recommended)
+  static void registerType<T extends EventJob>(EventJob Function(Map<String, dynamic>) factory);
+
   /// Restore Job from JSON
-  static BaseJob? restore(String type, Map<String, dynamic> json);
-  
+  static EventJob? restore(String type, Map<String, dynamic> json);
+
   /// Check if registered
   static bool isRegistered(String type);
-  
+
   /// Clear all (testing)
   static void clear();
 }
 ```
 
-### 7.3. Manual vs Code Generation
+### 7.3. Registration Example
 
 ```dart
-// Manual
 void main() {
-  NetworkJobRegistry.register('SendMessageJob', SendMessageJob.fromJsonToBase);
-  NetworkJobRegistry.register('LikePostJob', LikePostJob.fromJsonToBase);
+  // Type-safe registration (recommended)
+  NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
+  NetworkJobRegistry.registerType<LikePostJob>(LikePostJob.fromJson);
 }
-
-// With Code Generation (Recommended)
-@NetworkRegistry([SendMessageJob, LikePostJob])
-void setupNetworkRegistry() {}
-// → Automatically generates registerNetworkJobs()
 ```
 
 ---
@@ -424,28 +459,36 @@ enum NetworkJobStatus {
 
 ### ✅ Do
 
-- **Use unique `tempId`:** For tracking and optimistic rollback
+- **Include `DataSource` in events:** For UI to distinguish optimistic vs synced data
+- **Implement `createFailureEvent()`:** For automatic rollback on sync failure
 - **Implement `deduplicationKey`:** Prevent duplicates on multiple taps
-- **Handle `NetworkSyncFailureEvent`:** Rollback UI on poison
+- **Call `processQueuedJobs()` on startup:** Sync pending jobs from previous sessions
 - **Use File Safety:** For jobs with file attachments
 
 ### ❌ Don't
 
 ```dart
-// ❌ WRONG: Forgot fromJsonToBase
-class MyJob extends BaseJob implements NetworkAction<Result> {
-  factory MyJob.fromJson(Map<String, dynamic> json) => ...;
-  // Missing: static BaseJob fromJsonToBase(...)
+// ❌ WRONG: Not including DataSource in event
+class MessageSentEvent extends BaseEvent {
+  final Message message;
+  // Missing: final DataSource source;
 }
 
-// ❌ WRONG: Insufficient Optimistic result
+// ❌ WRONG: Not using dataSource getter
+@override
+MessageSentEvent createEventTyped(Message result) {
+  return MessageSentEvent(id, result);  // Missing dataSource
+}
+
+// ❌ WRONG: Optimistic result missing status
 @override
 Message createOptimisticResult() {
-  return Message(content: content);  // Missing status, tempId
+  return Message(content: content);  // Missing status: sending
 }
 
-// ❌ WRONG: Not listening to NetworkSyncFailureEvent
-// → User sees "sent" message but actually failed
+// ❌ WRONG: Not handling DataSource.failed
+case MessageSentEvent e when isJobRunning(e.correlationId):
+  emit(state.copyWith(message: e.message));  // Should check e.source
 ```
 
 ---
@@ -460,7 +503,30 @@ Message createOptimisticResult() {
 | `ConnectivityProvider` | Check/stream network status |
 | `FileSafetyDelegate` | Protect temporary files |
 | `NetworkJobRegistry` | Registry for deserialization |
-| `NetworkSyncFailureEvent` | Event when sync fails |
+| `NetworkSyncFailureEvent` | Framework event when sync fails |
+| `DataSource` | Enum: `fresh`, `cached`, `optimistic`, `failed` |
+| `createFailureEvent()` | Optional method for domain failure events |
+| `processQueuedJobs()` | Trigger queue processing on app startup |
+
+---
+
+## 11. DataSource Enum
+
+```dart
+enum DataSource {
+  /// Data fetched directly from source (API, database)
+  fresh,
+
+  /// Data retrieved from cache
+  cached,
+
+  /// Data created optimistically while offline
+  optimistic,
+
+  /// Data from permanently failed sync (poison pill)
+  failed,
+}
+```
 
 ---
 

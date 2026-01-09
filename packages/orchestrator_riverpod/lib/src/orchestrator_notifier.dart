@@ -146,7 +146,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   ///   await handle.future;
   /// }
   /// ```
-  JobHandle<T> dispatch<T>(BaseJob job) {
+  JobHandle<T> dispatch<T>(EventJob job) {
     _ensureSubscribed();
 
     // Attach bus to job context for Executor to use

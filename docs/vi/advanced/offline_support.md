@@ -53,30 +53,47 @@ abstract class NetworkAction<T> {
 }
 ```
 
-### 2.2. Ví dụ đầy đủ
+### 2.2. Ví dụ đầy đủ (v0.6.0+)
 
 ```dart
 import 'package:orchestrator_core/orchestrator_core.dart';
 
-@NetworkJob()
-class SendMessageJob extends BaseJob implements NetworkAction<Message> {
+// Domain Event với DataSource
+class MessageSentEvent extends BaseEvent {
+  final Message message;
+  final DataSource source;
+
+  MessageSentEvent(super.correlationId, this.message, this.source);
+}
+
+// Job với NetworkAction support
+class SendMessageJob extends EventJob<Message, MessageSentEvent>
+    implements NetworkAction<Message> {
   final String content;
   final String recipientId;
-  
+
   SendMessageJob({
     required this.content,
     required this.recipientId,
-  }) : super(id: generateJobId('msg'));  // Framework tự sinh ID unique
-  
-  // ========== BẮT BUỘC: Serialization ==========
-  
+  }) : super(id: generateJobId('msg'));
+
+  // ========== EventJob: Tạo Domain Event ==========
+
+  @override
+  MessageSentEvent createEventTyped(Message result) {
+    // Dùng dataSource getter để include source trong event
+    return MessageSentEvent(id, result, dataSource);
+  }
+
+  // ========== NetworkAction: Serialization ==========
+
   @override
   Map<String, dynamic> toJson() => {
-    'id': id,  // Quan trọng: Serialize cả ID để tracking
+    'id': id,
     'content': content,
     'recipientId': recipientId,
   };
-  
+
   factory SendMessageJob.fromJson(Map<String, dynamic> json) {
     return SendMessageJob._withId(
       id: json['id'] as String,
@@ -84,44 +101,47 @@ class SendMessageJob extends BaseJob implements NetworkAction<Message> {
       recipientId: json['recipientId'] as String,
     );
   }
-  
-  // Private constructor để restore với ID cũ
+
   SendMessageJob._withId({
     required String id,
     required this.content,
     required this.recipientId,
   }) : super(id: id);
-  
-  // Wrapper cho NetworkJobRegistry (trả về BaseJob)
-  static BaseJob fromJsonToBase(Map<String, dynamic> json) {
-    return SendMessageJob.fromJson(json);
-  }
-  
-  // ========== BẮT BUỘC: Optimistic Result ==========
-  
+
+  // ========== NetworkAction: Optimistic Result ==========
+
   @override
   Message createOptimisticResult() {
     return Message(
-      id: id,  // Dùng job.id làm tempId (Framework đã sinh sẵn)
+      id: id,
       content: content,
       recipientId: recipientId,
       status: MessageStatus.sending,
       createdAt: DateTime.now(),
     );
   }
-  
-  // ========== TÙY CHỌN: Deduplication ==========
-  
+
+  // ========== Tùy chọn: Xử lý Failure ==========
+
   @override
-  String? get deduplicationKey => id;  // Dùng job.id để chống duplicate
+  MessageSentEvent? createFailureEvent(Object error, Message? lastOptimistic) {
+    // Trả về event để rollback trạng thái optimistic
+    return MessageSentEvent(
+      id,
+      Message(id: id, content: content, status: MessageStatus.failed),
+      DataSource.failed,
+    );
+  }
+
+  @override
+  String? get deduplicationKey => id;
 }
 ```
 
-> **💡 Lưu ý về ID:**
-> - `generateJobId()` là helper của Framework, sinh ID unique với format: `prefix-timestamp-random`
-> - Ví dụ: `msg-1703579123456789-a1b2c3`
-> - Bạn dùng `id` này để tracking optimistic UI, **không cần** tạo `tempId` riêng
-```
+> **💡 Điểm quan trọng (v0.6.0+):**
+> - Dùng `dataSource` getter trong `createEventTyped()` để include source info
+> - Override `createFailureEvent()` để xử lý sync failure vĩnh viễn
+> - `DataSource` có thể là: `fresh`, `cached`, `optimistic`, hoặc `failed`
 
 ---
 
@@ -186,26 +206,29 @@ sequenceDiagram
 ```dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. Đăng ký Network Jobs (từ code generation)
-  registerNetworkJobs();
-  
+
+  // 1. Đăng ký Network Jobs
+  NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
+
   // 2. Đăng ký Executors
   Dispatcher().register<SendMessageJob>(SendMessageExecutor(api));
-  
+
   // 3. Cấu hình Connectivity Provider
   OrchestratorConfig.setConnectivityProvider(
-    ConnectivityPlusProvider(),  // Implement từ connectivity_plus
+    ConnectivityPlusProvider(),
   );
   
   // 4. Cấu hình Network Queue Manager
   OrchestratorConfig.setNetworkQueueManager(
     NetworkQueueManager(
       storage: FileNetworkQueueStorage(),
-      fileDelegate: FlutterFileSafety(),  // Tùy chọn: bảo vệ file
+      fileDelegate: FlutterFileSafety(),
     ),
   );
-  
+
+  // 5. Xử lý queued jobs từ session trước (MỚI trong v0.6.0)
+  await Dispatcher().processQueuedJobs();
+
   runApp(MyApp());
 }
 ```
@@ -336,30 +359,46 @@ flowchart TD
     style Poison fill:#ffebee,stroke:#c62828,color:#000
 ```
 
-### 6.2. Xử lý trong Orchestrator
+### 6.2. Xử lý trong Orchestrator (v0.6.0+)
+
+Với `createFailureEvent()`, framework tự động emit domain event khi failure:
 
 ```dart
 @override
-void onPassiveEvent(BaseEvent event) {
-  if (event is NetworkSyncFailureEvent && event.isPoisoned) {
-    // Job đã fail vĩnh viễn → Rollback optimistic UI
-    final failedId = event.correlationId;
-    
-    // Ví dụ: Đánh dấu tin nhắn là "gửi thất bại"
-    final messages = state.messages.map((m) {
-      if (m.tempId == failedId) {
-        return m.copyWith(status: MessageStatus.failed);
+void onEvent(BaseEvent event) {
+  switch (event) {
+    case MessageSentEvent e when isJobRunning(e.correlationId):
+      if (e.source == DataSource.failed) {
+        // Sync thất bại vĩnh viễn → Rollback optimistic UI
+        final messages = state.messages.map((m) {
+          if (m.id == e.message.id) {
+            return m.copyWith(status: MessageStatus.failed);
+          }
+          return m;
+        }).toList();
+        emit(state.copyWith(messages: messages));
+
+        // Hiển thị dialog retry
+        showRetryDialog('Không thể gửi tin nhắn. Thử lại?');
+      } else {
+        // Thành công (optimistic hoặc fresh)
+        final messages = [...state.messages];
+        final index = messages.indexWhere((m) => m.id == e.message.id);
+        if (index >= 0) {
+          messages[index] = e.message;
+        } else {
+          messages.add(e.message);
+        }
+        emit(state.copyWith(messages: messages));
       }
-      return m;
-    }).toList();
-    
-    emit(state.copyWith(messages: messages));
-    
-    // Hiển thị dialog cho user
-    showRetryDialog('Không thể gửi tin nhắn. Bạn muốn thử lại?');
   }
 }
 ```
+
+> **💡 Các giá trị DataSource:**
+> - `DataSource.optimistic` - Trả về ngay lập tức khi offline
+> - `DataSource.fresh` - Trả về sau khi sync thành công
+> - `DataSource.failed` - Trả về khi sync thất bại vĩnh viễn (poison pill)
 
 ---
 
@@ -376,35 +415,30 @@ Khi khôi phục Job từ queue (JSON), Framework cần biết:
 ```dart
 class NetworkJobRegistry {
   /// Đăng ký với string type name
-  static void register(String type, BaseJob Function(Map<String, dynamic>) factory);
-  
-  /// Đăng ký với generic type (type-safe)
-  static void registerType<T extends BaseJob>(BaseJob Function(Map<String, dynamic>) factory);
-  
+  static void register(String type, EventJob Function(Map<String, dynamic>) factory);
+
+  /// Đăng ký với generic type (type-safe, khuyến nghị)
+  static void registerType<T extends EventJob>(EventJob Function(Map<String, dynamic>) factory);
+
   /// Khôi phục Job từ JSON
-  static BaseJob? restore(String type, Map<String, dynamic> json);
-  
+  static EventJob? restore(String type, Map<String, dynamic> json);
+
   /// Kiểm tra đã đăng ký chưa
   static bool isRegistered(String type);
-  
+
   /// Xóa tất cả (testing)
   static void clear();
 }
 ```
 
-### 7.3. Đăng ký thủ công vs Code Generation
+### 7.3. Ví dụ đăng ký
 
 ```dart
-// Thủ công
 void main() {
-  NetworkJobRegistry.register('SendMessageJob', SendMessageJob.fromJsonToBase);
-  NetworkJobRegistry.register('LikePostJob', LikePostJob.fromJsonToBase);
+  // Đăng ký type-safe (khuyến nghị)
+  NetworkJobRegistry.registerType<SendMessageJob>(SendMessageJob.fromJson);
+  NetworkJobRegistry.registerType<LikePostJob>(LikePostJob.fromJson);
 }
-
-// Với Code Generation (khuyến nghị)
-@NetworkRegistry([SendMessageJob, LikePostJob])
-void setupNetworkRegistry() {}
-// → Tự động generate registerNetworkJobs()
 ```
 
 ---
@@ -425,28 +459,36 @@ enum NetworkJobStatus {
 
 ### ✅ Nên làm
 
-- **Đặt `tempId` unique:** Để tracking và rollback optimistic UI
+- **Include `DataSource` trong events:** Để UI phân biệt optimistic vs synced data
+- **Implement `createFailureEvent()`:** Để auto rollback khi sync failure
 - **Implement `deduplicationKey`:** Tránh duplicate khi user tap nhiều lần
-- **Xử lý `NetworkSyncFailureEvent`:** Rollback UI khi poison
+- **Gọi `processQueuedJobs()` khi startup:** Sync pending jobs từ session trước
 - **Dùng File Safety:** Cho jobs có file attachment
 
 ### ❌ Không nên làm
 
 ```dart
-// ❌ SAI: Quên fromJsonToBase
-class MyJob extends BaseJob implements NetworkAction<Result> {
-  factory MyJob.fromJson(Map<String, dynamic> json) => ...;
-  // Thiếu: static BaseJob fromJsonToBase(...)
+// ❌ SAI: Không include DataSource trong event
+class MessageSentEvent extends BaseEvent {
+  final Message message;
+  // Thiếu: final DataSource source;
 }
 
-// ❌ SAI: Optimistic result không đủ thông tin
+// ❌ SAI: Không dùng dataSource getter
+@override
+MessageSentEvent createEventTyped(Message result) {
+  return MessageSentEvent(id, result);  // Thiếu dataSource
+}
+
+// ❌ SAI: Optimistic result thiếu status
 @override
 Message createOptimisticResult() {
-  return Message(content: content);  // Thiếu status, tempId
+  return Message(content: content);  // Thiếu status: sending
 }
 
-// ❌ SAI: Không listen NetworkSyncFailureEvent
-// → User thấy tin nhắn "đã gửi" nhưng thực tế đã fail
+// ❌ SAI: Không xử lý DataSource.failed
+case MessageSentEvent e when isJobRunning(e.correlationId):
+  emit(state.copyWith(message: e.message));  // Nên check e.source
 ```
 
 ---
@@ -461,7 +503,30 @@ Message createOptimisticResult() {
 | `ConnectivityProvider` | Kiểm tra/stream trạng thái mạng |
 | `FileSafetyDelegate` | Bảo vệ file tạm |
 | `NetworkJobRegistry` | Registry cho deserialization |
-| `NetworkSyncFailureEvent` | Event khi sync thất bại |
+| `NetworkSyncFailureEvent` | Framework event khi sync thất bại |
+| `DataSource` | Enum: `fresh`, `cached`, `optimistic`, `failed` |
+| `createFailureEvent()` | Optional method cho domain failure events |
+| `processQueuedJobs()` | Trigger queue processing khi app startup |
+
+---
+
+## 11. DataSource Enum
+
+```dart
+enum DataSource {
+  /// Data lấy trực tiếp từ source (API, database)
+  fresh,
+
+  /// Data lấy từ cache
+  cached,
+
+  /// Data tạo optimistic khi offline
+  optimistic,
+
+  /// Data từ sync thất bại vĩnh viễn (poison pill)
+  failed,
+}
+```
 
 ---
 

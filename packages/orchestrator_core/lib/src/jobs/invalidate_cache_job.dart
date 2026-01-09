@@ -1,4 +1,5 @@
 import '../models/job.dart';
+import '../models/event.dart';
 
 /// System Job to invalidate cache.
 ///
@@ -6,7 +7,22 @@ import '../models/job.dart';
 /// - Invalidate specific key: `InvalidateCacheJob(key: 'user_123')`
 /// - Invalidate by prefix: `InvalidateCacheJob(prefix: 'product_')`
 /// - Invalidate custom: `InvalidateCacheJob(predicate: (k) => k.contains('deleted'))`
-class InvalidateCacheJob extends BaseJob {
+
+/// Event emitted when cache invalidation completes.
+class CacheInvalidatedEvent extends BaseEvent {
+  final String? key;
+  final String? prefix;
+  final bool usedPredicate;
+
+  CacheInvalidatedEvent(
+    super.correlationId, {
+    this.key,
+    this.prefix,
+    this.usedPredicate = false,
+  });
+}
+
+class InvalidateCacheJob extends EventJob<void, CacheInvalidatedEvent> {
   final String? key;
   final String? prefix;
   final bool Function(String key)? predicate;
@@ -15,10 +31,16 @@ class InvalidateCacheJob extends BaseJob {
     this.key,
     this.prefix,
     this.predicate,
-    String? id, // Optional custom ID
-  })  : assert(
+  }) : assert(
           key != null || prefix != null || predicate != null,
           'Must provide at least one condition: key, prefix, or predicate',
-        ),
-        super(id: id ?? generateJobId('invalidate_cache'));
+        );
+
+  @override
+  CacheInvalidatedEvent createEventTyped(void _) => CacheInvalidatedEvent(
+        id,
+        key: key,
+        prefix: prefix,
+        usedPredicate: predicate != null,
+      );
 }

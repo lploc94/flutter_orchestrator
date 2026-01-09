@@ -51,3 +51,57 @@ class AlwaysOnlineProvider implements ConnectivityProvider {
     _controller.close();
   }
 }
+
+/// Mock implementation for testing offline scenarios.
+///
+/// Example:
+/// ```dart
+/// final connectivity = MockConnectivityProvider(initialConnected: false);
+/// OrchestratorConfig.setConnectivityProvider(connectivity);
+///
+/// // Simulate going offline
+/// connectivity.setConnected(false);
+///
+/// // Dispatch a NetworkAction job - it will be queued
+/// orchestrator.dispatch(SendMessageJob('Hello'));
+///
+/// // Simulate coming back online - queued jobs will sync
+/// connectivity.setConnected(true);
+/// ```
+class MockConnectivityProvider implements ConnectivityProvider {
+  final StreamController<bool> _controller = StreamController<bool>.broadcast();
+  bool _isConnected;
+  bool _isDisposed = false;
+
+  /// Creates a [MockConnectivityProvider] with optional initial state.
+  ///
+  /// [initialConnected] defaults to `true`.
+  MockConnectivityProvider({bool initialConnected = true})
+      : _isConnected = initialConnected;
+
+  @override
+  Future<bool> get isConnected async => _isConnected;
+
+  @override
+  Stream<bool> get onConnectivityChanged {
+    if (_isDisposed) {
+      return Stream.value(_isConnected);
+    }
+    return _controller.stream;
+  }
+
+  /// Set connectivity state and emit change event.
+  ///
+  /// This simulates the device going online/offline.
+  void setConnected(bool value) {
+    if (_isDisposed) return;
+    _isConnected = value;
+    _controller.add(value);
+  }
+
+  /// Clean up resources.
+  void dispose() {
+    _isDisposed = true;
+    _controller.close();
+  }
+}

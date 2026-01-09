@@ -7,8 +7,6 @@ import '../models/data_source.dart';
 import '../models/event.dart';
 import '../utils/cancellation_token.dart';
 import '../utils/logger.dart';
-
-// Placeholder to force tool usage, actual implementation details below
 import '../infra/cache/cache_provider.dart';
 
 /// Abstract Worker that performs actual business logic.
@@ -18,15 +16,36 @@ import '../infra/cache/cache_provider.dart';
 /// - Timeout handling
 /// - Retry with exponential backoff
 /// - Cancellation support
-/// - Progress reporting
-/// - Unified Data Flow (Placeholder -> Cache -> Real)
-/// - EventJob support with domain event emission
-abstract class BaseExecutor<T extends BaseJob> {
+/// - Progress reporting via JobHandle
+/// - Built-in caching (Cache-First and SWR patterns)
+/// - Domain event emission via EventJob
+///
+/// ## Usage
+///
+/// ```dart
+/// class LoadUsersExecutor extends BaseExecutor<LoadUsersJob> {
+///   @override
+///   Future<List<User>> process(LoadUsersJob job) async {
+///     // Your business logic here
+///     return await userRepository.getAll();
+///   }
+/// }
+/// ```
+///
+/// ## Progress Reporting
+///
+/// ```dart
+/// @override
+/// Future<void> process(UploadFilesJob job) async {
+///   for (int i = 0; i < job.files.length; i++) {
+///     await uploadFile(job.files[i]);
+///     reportProgress(job.id, current: i + 1, total: job.files.length);
+///   }
+/// }
+/// ```
+abstract class BaseExecutor<T extends EventJob> {
   /// Map tracking active jobs to their respective buses (Scoped or Global).
   final Map<String, SignalBus> _activeBus = {};
-
-  /// Map tracking active jobs to their job types.
-  final Map<String, String> _activeJobTypes = {};
 
   /// Map tracking active job handles for progress reporting.
   final Map<String, JobHandle> _activeHandles = {};
@@ -40,15 +59,12 @@ abstract class BaseExecutor<T extends BaseJob> {
   /// The main entry point for processing.
   /// Subclasses implement this with actual logic.
   ///
-  /// DO NOT emit success/failure manually in most cases -
-  /// the wrapper handles it. Just return the result or throw.
+  /// Return the result or throw an exception. The framework handles
+  /// event emission, error handling, and JobHandle completion.
   Future<dynamic> process(T job);
 
   /// Entry point called by Dispatcher.
   /// Wraps [process] with error boundary, timeout, retry, and cancellation.
-  ///
-  /// Optionally accepts a [handle] that will be completed when the job
-  /// produces its first result (from cache or worker).
   Future<void> execute(T job, {JobHandle? handle}) async {
     final log = OrchestratorConfig.logger;
     log.debug('Executor starting job: ${job.id}');
@@ -57,53 +73,30 @@ abstract class BaseExecutor<T extends BaseJob> {
     OrchestratorObserver.instance?.onJobStart(job);
 
     // Determine target bus for this job
-    // job.bus is set explicitly by Orchestrator
     final bus = job.bus ?? _globalBus;
-    final jobType = job.runtimeType.toString();
     _activeBus[job.id] = bus;
-    _activeJobTypes[job.id] = jobType;
     if (handle != null) {
       _activeHandles[job.id] = handle;
     }
 
     try {
-      // Route based on job type
-      if (job is EventJob) {
-        await _executeEventJob(job, handle);
-      } else {
-        await _executeLegacyJob(job, handle);
-      }
+      await _executeEventJob(job, handle);
     } on CancelledException catch (e, stack) {
-      // Handle cancellation separately - it's not a failure, it's an expected state
       log.info('Job ${job.id} was cancelled');
       OrchestratorObserver.instance?.onJobError(job, e, stack);
       handle?.completeError(e, stack);
-      // Note: JobCancelledEvent is already emitted by the cancellation listener
-      // in _executeWithFeatures when token.cancel() was called.
     } catch (e, stack) {
       log.error('Job ${job.id} failed', e, stack);
       OrchestratorObserver.instance?.onJobError(job, e, stack);
       handle?.completeError(e, stack);
-
-      // Emit JobFailureEvent for ALL jobs (including EventJob)
-      // This ensures orchestrators can handle failures via onEvent()
-      final wasRetried = job.retryPolicy != null;
-      final jt = _activeJobTypes[job.id];
-      final failureEvent = JobFailureEvent(job.id, e,
-          stackTrace: stack, wasRetried: wasRetried, jobType: jt);
-      bus.emit(failureEvent);
-      OrchestratorObserver.instance?.onEvent(failureEvent);
     } finally {
       // Cleanup
       job.cancellationToken?.clearListeners();
       _activeBus.remove(job.id);
-      _activeJobTypes.remove(job.id);
       _activeHandles.remove(job.id);
 
-      // Small delay to allow progress events to be delivered to late subscribers
-      // before closing the stream. This fixes the race condition where the last
-      // progress update (100%) might not reach the caller.
-      await Future.delayed(Duration(milliseconds: 10));
+      // Small delay to allow progress events to be delivered
+      await Future.delayed(const Duration(milliseconds: 10));
       handle?.dispose();
     }
   }
@@ -117,160 +110,77 @@ abstract class BaseExecutor<T extends BaseJob> {
   /// 4. Write to cache (if cacheKey defined)
   /// 5. Emit domain event
   /// 6. Complete handle (if not already completed by cache)
-  Future<void> _executeEventJob(EventJob job, JobHandle? handle) async {
+  Future<void> _executeEventJob(T job, JobHandle? handle) async {
     final log = OrchestratorConfig.logger;
-    final bus = (job as BaseJob).bus ?? _globalBus;
+    final bus = job.bus ?? _globalBus;
     final cacheKey = job.cacheKey;
 
     // Check cancellation before starting
-    (job as BaseJob).cancellationToken?.throwIfCancelled();
+    job.cancellationToken?.throwIfCancelled();
 
-    // 1. Check cache (with error handling - cache failure should not fail the job)
+    // 1. Check cache
     if (cacheKey != null) {
       dynamic cached;
       try {
         cached = await cacheProvider.read(cacheKey);
       } catch (e, stack) {
-        log.warning('EventJob ${job.id} cache read failed: $e');
+        log.warning('Job ${job.id} cache read failed: $e');
         OrchestratorObserver.instance?.onJobError(job, e, stack);
-        // Continue without cache - treat as cache miss
         cached = null;
       }
 
       if (cached != null) {
-        log.debug('EventJob ${job.id} cache hit: $cacheKey');
+        log.debug('Job ${job.id} cache hit: $cacheKey');
 
-        // Create domain event with CURRENT job's correlationId
-        final event = job.createEvent(cached);
+        // Create and emit domain event with cached source
+        final event = job.createEvent(cached, DataSource.cached);
         bus.emit(event);
         OrchestratorObserver.instance?.onEvent(event);
-        OrchestratorObserver.instance
-            ?.onJobSuccess(job, cached, DataSource.cached);
+        OrchestratorObserver.instance?.onJobSuccess(job, cached, DataSource.cached);
 
         // Complete handle with cached data
         handle?.complete(cached, DataSource.cached);
 
-        // If NOT revalidating (Cache-First), stop here
+        // Cache-First: stop here
         if (!job.revalidate) {
-          log.debug('EventJob ${job.id} cache-first strategy. Done.');
+          log.debug('Job ${job.id} cache-first strategy. Done.');
           return;
         }
-        // SWR: continue to worker, handle is already complete
-        log.debug('EventJob ${job.id} SWR: revalidating in background');
+        // SWR: continue to worker
+        log.debug('Job ${job.id} SWR: revalidating in background');
       }
     }
 
     // 2. Execute worker with retry/timeout support
-    final result = await _executeWithFeatures(job as T);
-
-    // Check cancellation after completion
-    if ((job as BaseJob).cancellationToken?.isCancelled == true) {
-      log.debug('EventJob ${job.id} cancelled after execution');
-      return;
-    }
-
-    // 3. Write to cache (with error handling - cache failure should not fail the job)
-    if (cacheKey != null) {
-      try {
-        log.debug('EventJob ${job.id} writing to cache: $cacheKey');
-        await cacheProvider.write(cacheKey, result, ttl: job.cacheTtl);
-      } catch (e, stack) {
-        log.warning('EventJob ${job.id} cache write failed: $e');
-        OrchestratorObserver.instance?.onJobError(job, e, stack);
-        // Continue - worker succeeded, just cache write failed
-      }
-    }
-
-    // 4. Create and emit domain event
-    final event = job.createEvent(result);
-    bus.emit(event);
-    OrchestratorObserver.instance?.onEvent(event);
-    OrchestratorObserver.instance?.onJobSuccess(job, result, DataSource.fresh);
-
-    log.debug('EventJob ${job.id} completed successfully');
-
-    // 5. Complete handle (if not already completed by cache)
-    handle?.complete(result, DataSource.fresh);
-  }
-
-  /// Execute a legacy BaseJob (backward compatibility).
-  ///
-  /// This maintains the old behavior with JobSuccessEvent, JobCacheHitEvent, etc.
-  Future<void> _executeLegacyJob(T job, JobHandle? handle) async {
-    final log = OrchestratorConfig.logger;
-    final bus = job.bus ?? _globalBus;
-    final jobType = job.runtimeType.toString();
-
-    // Emit started event (legacy)
-    final startedEvent = JobStartedEvent(job.id, jobType: jobType);
-    bus.emit(startedEvent);
-    OrchestratorObserver.instance?.onEvent(startedEvent);
-
-    // --- Unified Data Flow: 1. Placeholder ---
-    if (job.strategy?.placeholder != null) {
-      log.debug('Job ${job.id} emitting placeholder');
-      final placeholderEvent = JobPlaceholderEvent(
-          job.id, job.strategy!.placeholder,
-          jobType: jobType);
-      bus.emit(placeholderEvent);
-      OrchestratorObserver.instance?.onEvent(placeholderEvent);
-    }
-
-    // Check cancellation before starting
-    job.cancellationToken?.throwIfCancelled();
-
-    // --- Unified Data Flow: 2. Cache Read ---
-    final cachePolicy = job.strategy?.cachePolicy;
-    final shouldReadCache = cachePolicy != null && !cachePolicy.forceRefresh;
-
-    if (shouldReadCache) {
-      final cachedData = await cacheProvider.read(cachePolicy.key);
-      if (cachedData != null) {
-        log.debug('Job ${job.id} cache hit: ${cachePolicy.key}');
-        final cacheHitEvent =
-            JobCacheHitEvent(job.id, cachedData, jobType: jobType);
-        bus.emit(cacheHitEvent);
-        OrchestratorObserver.instance?.onEvent(cacheHitEvent);
-
-        // Complete handle with cached data immediately
-        handle?.complete(cachedData, DataSource.cached);
-
-        // If NOT revalidating (Cache-First), return immediately
-        if (!cachePolicy.revalidate) {
-          log.debug('Job ${job.id} cache-first strategy. Stopping execution.');
-          final successEvent =
-              JobSuccessEvent(job.id, cachedData, jobType: jobType);
-          bus.emit(successEvent);
-          OrchestratorObserver.instance?.onEvent(successEvent);
-          OrchestratorObserver.instance
-              ?.onJobSuccess(job, cachedData, DataSource.cached);
-          return;
-        }
-        // If revalidating, continue execution but handle is already complete
-      }
-    }
-
-    // Execute worker with retry/timeout support
     final result = await _executeWithFeatures(job);
 
     // Check cancellation after completion
     if (job.cancellationToken?.isCancelled == true) {
-      return; // Don't emit success if cancelled
+      log.debug('Job ${job.id} cancelled after execution');
+      return;
     }
 
-    // --- Unified Data Flow: 3. Cache Write ---
-    if (cachePolicy != null && result != null) {
-      log.debug('Job ${job.id} writing to cache: ${cachePolicy.key}');
-      await cacheProvider.write(cachePolicy.key, result, ttl: cachePolicy.ttl);
+    // 3. Write to cache
+    if (cacheKey != null) {
+      try {
+        log.debug('Job ${job.id} writing to cache: $cacheKey');
+        await cacheProvider.write(cacheKey, result, ttl: job.cacheTtl);
+      } catch (e, stack) {
+        log.warning('Job ${job.id} cache write failed: $e');
+        OrchestratorObserver.instance?.onJobError(job, e, stack);
+      }
     }
+
+    // 4. Create and emit domain event with fresh source
+    final event = job.createEvent(result, DataSource.fresh);
+    bus.emit(event);
+    OrchestratorObserver.instance?.onEvent(event);
+    OrchestratorObserver.instance?.onJobSuccess(job, result, DataSource.fresh);
 
     log.debug('Job ${job.id} completed successfully');
 
-    // Complete handle with fresh result (if not already completed by cache)
+    // 5. Complete handle
     handle?.complete(result, DataSource.fresh);
-
-    emitResult(job.id, result);
-    OrchestratorObserver.instance?.onJobSuccess(job, result, DataSource.fresh);
   }
 
   /// Execute job with retry and timeout features.
@@ -292,30 +202,16 @@ abstract class BaseExecutor<T extends BaseJob> {
           OrchestratorConfig.logger.warning(
             'Job ${job.id} timed out after ${job.timeout!.inSeconds}s',
           );
-          // For legacy jobs, emit timeout event
-          if (job is! EventJob) {
-            final b = _activeBus[job.id] ?? _globalBus;
-            final jt = _activeJobTypes[job.id];
-            b.emit(JobTimeoutEvent(job.id, job.timeout!, jobType: jt));
-          }
           throw TimeoutException('Job timed out', job.timeout);
         },
       );
     }
 
     // Setup cancellation listener
-    // Emit cancelled event immediately when cancel() is called, even if the worker
-    // hasn't checked for cancellation yet. This provides immediate feedback to listeners.
     void Function()? cancelListenerCleanup;
     if (job.cancellationToken != null) {
       cancelListenerCleanup = job.cancellationToken!.onCancel(() {
         OrchestratorConfig.logger.info('Job ${job.id} was cancelled');
-        // For legacy jobs, emit cancelled event immediately
-        if (job is! EventJob) {
-          final b = _activeBus[job.id] ?? _globalBus;
-          final jt = _activeJobTypes[job.id];
-          b.emit(JobCancelledEvent(job.id, jobType: jt));
-        }
       });
     }
 
@@ -348,9 +244,6 @@ abstract class BaseExecutor<T extends BaseJob> {
 
         if (!policy.canRetry(e, attempt)) {
           log.warning('Job ${job.id} failed after ${attempt + 1} attempts');
-          // Don't emit JobFailureEvent here - let execute() catch block handle it
-          // to avoid double emission. The wasRetried flag will be set based on
-          // whether retryPolicy was configured.
           rethrow;
         }
 
@@ -359,58 +252,29 @@ abstract class BaseExecutor<T extends BaseJob> {
           'Job ${job.id} retrying (${attempt + 1}/${policy.maxRetries}) after ${delay.inSeconds}s',
         );
 
-        // For legacy jobs, emit retrying event
-        if (job is! EventJob) {
-          final bus = _activeBus[job.id] ?? _globalBus;
-          bus.emit(
-            JobRetryingEvent(
-              job.id,
-              attempt: attempt + 1,
-              maxRetries: policy.maxRetries,
-              lastError: e,
-              delayBeforeRetry: delay,
-            ),
-          );
-        }
-
         await Future.delayed(delay);
         attempt++;
       }
     }
   }
 
-  /// Emit success result (legacy - for BaseJob).
-  void emitResult<R>(String correlationId, R data) {
-    final bus = _activeBus[correlationId] ?? _globalBus;
-    final jobType = _activeJobTypes[correlationId];
-    final event = JobSuccessEvent<R>(correlationId, data, jobType: jobType);
-    bus.emit(event);
-    OrchestratorObserver.instance?.onEvent(event);
-  }
-
-  /// Emit failure (legacy - for BaseJob).
-  void emitFailure(String correlationId, Object error, [StackTrace? stack]) {
-    final bus = _activeBus[correlationId] ?? _globalBus;
-    final jobType = _activeJobTypes[correlationId];
-    final event = JobFailureEvent(correlationId, error,
-        stackTrace: stack, jobType: jobType);
-    bus.emit(event);
-    OrchestratorObserver.instance?.onEvent(event);
-  }
-
-  /// Emit progress update (for long-running tasks).
+  /// Report progress for a long-running job.
   ///
-  /// This reports progress to both:
-  /// - The JobHandle (for callers awaiting the handle)
-  /// - The event bus (for legacy listeners)
-  void emitProgress(
+  /// Progress is reported via [JobHandle.progress] stream.
+  ///
+  /// ```dart
+  /// for (int i = 0; i < items.length; i++) {
+  ///   await processItem(items[i]);
+  ///   reportProgress(job.id, progress: (i + 1) / items.length);
+  /// }
+  /// ```
+  void reportProgress(
     String correlationId, {
     required double progress,
     String? message,
     int? currentStep,
     int? totalSteps,
   }) {
-    // Report to JobHandle
     final handle = _activeHandles[correlationId];
     handle?.reportProgress(
       progress,
@@ -418,38 +282,23 @@ abstract class BaseExecutor<T extends BaseJob> {
       currentStep: currentStep,
       totalSteps: totalSteps,
     );
-
-    // Emit event for legacy listeners
-    final bus = _activeBus[correlationId] ?? _globalBus;
-    bus.emit(
-      JobProgressEvent(
-        correlationId,
-        progress: progress,
-        message: message,
-        currentStep: currentStep,
-        totalSteps: totalSteps,
-      ),
-    );
   }
 
-  /// Emit progress using step-based calculation.
+  /// Report progress using step-based calculation.
   ///
-  /// Convenience method that calculates progress from steps.
-  ///
-  /// Example:
   /// ```dart
   /// for (int i = 0; i < items.length; i++) {
   ///   await processItem(items[i]);
-  ///   emitStep(job.id, current: i + 1, total: items.length);
+  ///   reportStep(job.id, current: i + 1, total: items.length);
   /// }
   /// ```
-  void emitStep(
+  void reportStep(
     String correlationId, {
     required int current,
     required int total,
     String? message,
   }) {
-    emitProgress(
+    reportProgress(
       correlationId,
       progress: total > 0 ? current / total : 0.0,
       message: message,
@@ -459,8 +308,6 @@ abstract class BaseExecutor<T extends BaseJob> {
   }
 
   /// Emit any custom event.
-  /// Note: Without correlationId, we default to Global Bus unless specified.
-  /// Ideally Pass correlationId if you want event scoped.
   void emit(BaseEvent event) {
     final bus = _activeBus[event.correlationId] ?? _globalBus;
     bus.emit(event);
@@ -470,7 +317,6 @@ abstract class BaseExecutor<T extends BaseJob> {
   // --- Helper Methods for Cache Management ---
 
   /// Invalidate a specific cache key.
-  /// Call this from [process] when you need to clear related data.
   Future<void> invalidateKey(String key) async {
     OrchestratorConfig.logger.debug('Executor invalidating key: $key');
     await cacheProvider.delete(key);
@@ -489,8 +335,6 @@ abstract class BaseExecutor<T extends BaseJob> {
   }
 
   /// Read from cache directly.
-  ///
-  /// Useful when you need to check cache in your process logic.
   Future<R?> readCache<R>(String key) async {
     final value = await cacheProvider.read(key);
     if (value is R) return value;
@@ -498,8 +342,6 @@ abstract class BaseExecutor<T extends BaseJob> {
   }
 
   /// Write to cache directly.
-  ///
-  /// Useful when you need to cache intermediate results.
   Future<void> writeCache(String key, dynamic value, {Duration? ttl}) async {
     await cacheProvider.write(key, value, ttl: ttl);
   }

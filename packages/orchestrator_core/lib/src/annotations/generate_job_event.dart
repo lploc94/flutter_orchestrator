@@ -2,7 +2,7 @@
 ///
 /// When applied to a class, the generator will create an abstract class
 /// `_$ClassName` that:
-/// - Extends `BaseJob`
+/// - Extends `EventJob<TResult, TEvent>` with proper type parameters
 /// - Auto-generates job ID with class name as prefix
 /// - Applies configured timeout and retry policy
 ///
