@@ -3,7 +3,10 @@
 
 /// Example demonstrating Riverpod integration with Orchestrator pattern.
 ///
-/// This example shows the v0.6.0 unified `onEvent` pattern.
+/// This example shows the v0.6.0 design with:
+/// - `dispatch<T>()` returns `JobHandle<T>`
+/// - `onEvent()` for domain events
+/// - Error handling via `handle.future`
 library;
 
 import 'package:flutter/material.dart';
@@ -20,8 +23,7 @@ class CalculationResultEvent extends BaseEvent {
 
 // ============ 2. Define Job (using EventJob) ============
 
-class CalculateJob
-    extends EventJob<int, CalculationResultEvent> {
+class CalculateJob extends EventJob<int, CalculationResultEvent> {
   final int value;
 
   CalculateJob(this.value) : super(id: generateJobId('calc'));
@@ -37,7 +39,7 @@ class CalculateJob
 class CalculateExecutor extends BaseExecutor<CalculateJob> {
   @override
   Future<int> process(CalculateJob job) async {
-    await Future.delayed(Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 500));
     return job.value * 2;
   }
 }
@@ -60,39 +62,37 @@ class CalcState {
 
 // ============ 5. Create Notifier (Orchestrator) ============
 
-/// CalcNotifier using the unified `onEvent` pattern.
-///
-/// Instead of multiple hooks like `onActiveSuccess`, `onActiveFailure`,
-/// we now use a single `onEvent` with Dart 3 pattern matching.
+/// CalcNotifier demonstrating both fire-and-forget and await patterns.
 class CalcNotifier extends OrchestratorNotifier<CalcState> {
   @override
   CalcState buildState() => const CalcState();
 
+  /// Fire-and-forget: dispatch and handle result in onEvent
   void calculate(int value) {
     state = state.copyWith(isLoading: true, error: null);
-    dispatch(CalculateJob(value));
+    dispatch<int>(CalculateJob(value));
+  }
+
+  /// Await pattern: dispatch and await result directly
+  Future<void> calculateWithAwait(int value) async {
+    state = state.copyWith(isLoading: true, error: null);
+    final handle = dispatch<int>(CalculateJob(value));
+
+    try {
+      final result = await handle.future;
+      state = state.copyWith(result: result.data, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
   }
 
   @override
   void onEvent(BaseEvent event) {
     switch (event) {
-      // Handle our domain event
+      // Handle domain event from EventJob
       case CalculationResultEvent e when isJobRunning(e.correlationId):
         state = state.copyWith(result: e.result, isLoading: false);
-
-      // Handle failure from our jobs
-      case JobFailureEvent e when isJobRunning(e.correlationId):
-        state = state.copyWith(
-          isLoading: false,
-          error: e.error.toString(),
-        );
-
-      // Handle other domain events (from other orchestrators)
-      // case SomeOtherEvent e:
-      //   state = state.copyWith(...);
-
       default:
-        // Ignore events we don't care about
         break;
     }
   }
@@ -130,7 +130,7 @@ class MyApp extends ConsumerWidget {
               : state.error != null
                   ? Text(
                       'Error: ${state.error}',
-                      style: TextStyle(color: Colors.red),
+                      style: const TextStyle(color: Colors.red),
                     )
                   : Text(
                       'Result: ${state.result}',

@@ -2,21 +2,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orchestrator_riverpod/orchestrator_riverpod.dart';
 
-// --- Mock Classes ---
+// --- Domain Events ---
 
-class TestJob extends BaseJob {
-  final int value;
-  TestJob(this.value)
-      : super(id: 'job-${DateTime.now().millisecondsSinceEpoch}');
+class CalculationResultEvent extends BaseEvent {
+  final int result;
+  CalculationResultEvent(super.correlationId, this.result);
 }
 
-class TestExecutor extends BaseExecutor<TestJob> {
+// --- Jobs ---
+
+/// EventJob that emits CalculationResultEvent on success
+class CalculateJob extends EventJob<int, CalculationResultEvent> {
+  final int value;
+  CalculateJob(this.value)
+      : super(id: 'calc-${DateTime.now().millisecondsSinceEpoch}');
+
   @override
-  Future<dynamic> process(TestJob job) async {
+  CalculationResultEvent createEventTyped(int result) {
+    return CalculationResultEvent(id, result);
+  }
+}
+
+// --- Executor ---
+
+class CalculateExecutor extends BaseExecutor<CalculateJob> {
+  @override
+  Future<dynamic> process(CalculateJob job) async {
     await Future.delayed(const Duration(milliseconds: 10));
     return job.value * 2;
   }
 }
+
+// --- State ---
 
 class CounterState {
   final int count;
@@ -34,25 +51,39 @@ class CounterState {
   }
 }
 
-/// Test notifier using the new unified onEvent pattern
+// --- Notifiers ---
+
+/// Test notifier using EventJob and JobHandle
 class TestNotifier extends OrchestratorNotifier<CounterState> {
   @override
   CounterState buildState() => const CounterState();
 
+  /// Fire-and-forget pattern
   void calculate(int value) {
     state = state.copyWith(isLoading: true);
-    dispatch(TestJob(value));
+    dispatch<int>(CalculateJob(value));
+  }
+
+  /// Await result pattern
+  Future<int?> calculateAndWait(int value) async {
+    state = state.copyWith(isLoading: true);
+    final handle = dispatch<int>(CalculateJob(value));
+    try {
+      final result = await handle.future;
+      state = state.copyWith(count: result.data, isLoading: false);
+      return result.data;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return null;
+    }
   }
 
   @override
   void onEvent(BaseEvent event) {
     switch (event) {
-      case JobSuccessEvent e when isJobRunning(e.correlationId):
-        state = state.copyWith(count: e.data as int, isLoading: false);
-      case JobFailureEvent e when isJobRunning(e.correlationId):
-        state = state.copyWith(isLoading: false, error: e.error.toString());
+      case CalculationResultEvent e when isJobRunning(e.correlationId):
+        state = state.copyWith(count: e.result, isLoading: false);
       default:
-        // Ignore other events
         break;
     }
   }
@@ -62,6 +93,37 @@ final testProvider = NotifierProvider<TestNotifier, CounterState>(
   TestNotifier.new,
 );
 
+/// Test AsyncNotifier
+class AsyncCounterState {
+  final int count;
+  AsyncCounterState({this.count = 0});
+}
+
+class TestAsyncNotifier extends OrchestratorAsyncNotifier<AsyncCounterState> {
+  @override
+  Future<AsyncCounterState> buildState() async {
+    // Simulate async initialization
+    await Future.delayed(const Duration(milliseconds: 10));
+    return AsyncCounterState(count: 0);
+  }
+
+  Future<void> calculate(int value) async {
+    state = const AsyncValue.loading();
+    final handle = dispatch<int>(CalculateJob(value));
+    try {
+      final result = await handle.future;
+      state = AsyncValue.data(AsyncCounterState(count: result.data));
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+}
+
+final testAsyncProvider =
+    AsyncNotifierProvider<TestAsyncNotifier, AsyncCounterState>(
+  TestAsyncNotifier.new,
+);
+
 // --- Test Suite ---
 
 void main() {
@@ -69,10 +131,10 @@ void main() {
 
   setUp(() {
     dispatcher.clear();
-    dispatcher.register(TestExecutor());
+    dispatcher.register(CalculateExecutor());
   });
 
-  group('OrchestratorNotifier (Riverpod)', () {
+  group('OrchestratorNotifier', () {
     test('initial state is correct', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -80,6 +142,17 @@ void main() {
       final state = container.read(testProvider);
       expect(state.count, equals(0));
       expect(state.isLoading, isFalse);
+    });
+
+    test('dispatch returns JobHandle', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final notifier = container.read(testProvider.notifier);
+      final handle = notifier.dispatch<int>(CalculateJob(5));
+
+      expect(handle, isA<JobHandle<int>>());
+      expect(handle.jobId, isNotEmpty);
     });
 
     test('dispatch job sets loading state', () async {
@@ -93,7 +166,7 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 100));
     });
 
-    test('success event updates state correctly', () async {
+    test('fire-and-forget: onEvent updates state via domain event', () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
@@ -103,6 +176,20 @@ void main() {
 
       final state = container.read(testProvider);
       expect(state.count, equals(10)); // 5 * 2
+      expect(state.isLoading, isFalse);
+    });
+
+    test('await pattern: handle.future returns result', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final result =
+          await container.read(testProvider.notifier).calculateAndWait(7);
+
+      expect(result, equals(14)); // 7 * 2
+
+      final state = container.read(testProvider);
+      expect(state.count, equals(14));
       expect(state.isLoading, isFalse);
     });
 
@@ -139,6 +226,39 @@ void main() {
 
       // Job should be cleaned up after completion
       expect(notifier.hasActiveJobs, isFalse);
+    });
+  });
+
+  group('OrchestratorAsyncNotifier', () {
+    test('initial state is AsyncLoading then AsyncData', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // Initial state should be loading
+      final initialState = container.read(testAsyncProvider);
+      expect(initialState, isA<AsyncLoading>());
+
+      // Wait for build to complete
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      final loadedState = container.read(testAsyncProvider);
+      expect(loadedState, isA<AsyncData<AsyncCounterState>>());
+      expect(loadedState.value?.count, equals(0));
+    });
+
+    test('calculate updates state with AsyncValue', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // Wait for initial build
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // Trigger calculation
+      await container.read(testAsyncProvider.notifier).calculate(5);
+
+      final state = container.read(testAsyncProvider);
+      expect(state, isA<AsyncData<AsyncCounterState>>());
+      expect(state.value?.count, equals(10)); // 5 * 2
     });
   });
 }

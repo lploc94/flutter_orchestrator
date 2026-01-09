@@ -10,28 +10,40 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 /// ## Usage with NotifierProvider
 ///
 /// ```dart
-/// class CounterNotifier extends OrchestratorNotifier<CounterState> {
+/// class UserNotifier extends OrchestratorNotifier<UserState> {
 ///   @override
-///   CounterState buildState() => const CounterState();
+///   UserState buildState() => const UserState();
 ///
-///   void calculate(int value) {
+///   // Fire-and-forget pattern
+///   void loadUsers() {
 ///     state = state.copyWith(isLoading: true);
-///     dispatch(CalculateJob(value));
+///     dispatch<List<User>>(LoadUsersJob());
+///   }
+///
+///   // Await result pattern
+///   Future<User?> createUser(String name) async {
+///     final handle = dispatch<User>(CreateUserJob(name: name));
+///     try {
+///       final result = await handle.future;
+///       return result.data;
+///     } catch (e) {
+///       return null;
+///     }
 ///   }
 ///
 ///   @override
 ///   void onEvent(BaseEvent event) {
 ///     switch (event) {
-///       case CalculationResultEvent e when isJobRunning(e.correlationId):
-///         state = state.copyWith(count: e.result, isLoading: false);
-///       case JobFailureEvent e when isJobRunning(e.correlationId):
-///         state = state.copyWith(error: e.error.toString(), isLoading: false);
+///       case UsersLoadedEvent e:
+///         state = state.copyWith(users: e.users, isLoading: false);
+///       case UserCreatedEvent e:
+///         state = state.copyWith(users: [...state.users, e.user]);
 ///     }
 ///   }
 /// }
 ///
-/// final counterProvider = NotifierProvider<CounterNotifier, CounterState>(
-///   CounterNotifier.new,
+/// final userProvider = NotifierProvider<UserNotifier, UserState>(
+///   UserNotifier.new,
 /// );
 /// ```
 ///
@@ -56,9 +68,6 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   /// Active job IDs being tracked by this notifier
   final Set<String> _activeJobIds = {};
 
-  /// Progress tracking for active jobs
-  final Map<String, double> _jobProgress = {};
-
   StreamSubscription? _busSubscription;
   bool _isDisposed = false;
   bool _isInitialized = false;
@@ -81,12 +90,8 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
     if (dispatcher != null) _dispatcher = dispatcher;
   }
 
-  /// Override this method to provide initial state.
-  ///
-  /// Note: The bus subscription is automatically set up when [build] is called.
   @override
   S build() {
-    // Auto-subscribe to bus on first build
     if (!_isInitialized) {
       _subscribeToBus();
       _isInitialized = true;
@@ -95,19 +100,7 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   }
 
   /// Override this method to provide the initial state.
-  ///
-  /// This is called by [build] after the bus subscription is set up.
   S buildState();
-
-  /// Initialize the notifier manually (optional).
-  ///
-  /// This is called automatically by [build], so you typically don't need
-  /// to call this directly.
-  @Deprecated(
-      'Bus subscription is now automatic in build(). This method is no longer needed.')
-  void initialize() {
-    _subscribeToBus();
-  }
 
   // ============ Job Tracking ============
 
@@ -115,38 +108,65 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   bool get hasActiveJobs => _activeJobIds.isNotEmpty;
 
   /// Check if a specific job is being tracked by this notifier.
-  ///
-  /// Use this in [onEvent] to distinguish between events from your own
-  /// jobs vs events from other orchestrators:
-  ///
-  /// ```dart
-  /// @override
-  /// void onEvent(BaseEvent event) {
-  ///   switch (event) {
-  ///     case JobSuccessEvent e when isJobRunning(e.correlationId):
-  ///       // This is OUR job's success
-  ///       state = state.copyWith(data: e.data, isLoading: false);
-  ///     case UserUpdatedEvent e:
-  ///       // Domain event (could be from anywhere)
-  ///       state = state.copyWith(user: e.user);
-  ///   }
-  /// }
-  /// ```
   bool isJobRunning(String correlationId) =>
       _activeJobIds.contains(correlationId);
 
-  /// Get progress for a specific job (0.0 to 1.0)
-  double? getJobProgress(String jobId) => _jobProgress[jobId];
-
   /// Dispatch a job and start tracking it.
   ///
-  /// Returns the job ID for reference.
-  String dispatch(BaseJob job) {
+  /// Returns a [JobHandle] that allows the caller to:
+  /// - Await the job's result via [JobHandle.future]
+  /// - Track progress via [JobHandle.progress]
+  /// - Check completion status via [JobHandle.isCompleted]
+  ///
+  /// ## Usage Patterns
+  ///
+  /// ### Fire and Forget
+  /// ```dart
+  /// void loadUsers() {
+  ///   dispatch<List<User>>(LoadUsersJob());
+  /// }
+  /// ```
+  ///
+  /// ### Await Result
+  /// ```dart
+  /// Future<User> createUser(String name) async {
+  ///   final handle = dispatch<User>(CreateUserJob(name: name));
+  ///   final result = await handle.future;
+  ///   return result.data;
+  /// }
+  /// ```
+  ///
+  /// ### With Progress Tracking
+  /// ```dart
+  /// Future<void> uploadFiles(List<File> files) async {
+  ///   final handle = dispatch<void>(UploadFilesJob(files));
+  ///   handle.progress.listen((p) {
+  ///     state = state.copyWith(uploadProgress: p.value);
+  ///   });
+  ///   await handle.future;
+  /// }
+  /// ```
+  JobHandle<T> dispatch<T>(BaseJob job) {
     _ensureSubscribed();
-    final id = dispatcher.dispatch(job);
-    _activeJobIds.add(id);
-    _jobProgress[id] = 0.0;
-    return id;
+
+    // Attach bus to job context for Executor to use
+    job.bus = bus;
+
+    // Create handle for this job
+    final handle = JobHandle<T>(job.id);
+
+    // Track job
+    _activeJobIds.add(job.id);
+
+    // Auto-cleanup when job completes
+    handle.future.whenComplete(() {
+      Future.delayed(const Duration(milliseconds: 50), () {
+        _activeJobIds.remove(job.id);
+      });
+    });
+
+    dispatcher.dispatch(job, handle: handle);
+    return handle;
   }
 
   void _ensureSubscribed() {
@@ -158,7 +178,6 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   /// Cancel tracking for a job (does not cancel the job itself).
   void cancelJob(String jobId) {
     _activeJobIds.remove(jobId);
-    _jobProgress.remove(jobId);
   }
 
   void _subscribeToBus() {
@@ -168,39 +187,10 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
 
   void _routeEvent(BaseEvent event) {
     if (_isDisposed) return;
-
-    final isActive = isJobRunning(event.correlationId);
-
-    // Track progress for active jobs
-    if (event is JobProgressEvent && isActive) {
-      _jobProgress[event.correlationId] = event.progress;
-      onProgress(event);
-    }
-
-    // Optional lifecycle hooks for active jobs
-    if (isActive) {
-      if (event is JobStartedEvent) onJobStarted(event);
-      if (event is JobRetryingEvent) onJobRetrying(event);
-    }
-
-    // Unified event handler - ALL events go here
     onEvent(event);
-
-    // Cleanup for terminal events
-    if (isActive && _isTerminalEvent(event)) {
-      _activeJobIds.remove(event.correlationId);
-      _jobProgress.remove(event.correlationId);
-    }
   }
 
-  bool _isTerminalEvent(BaseEvent event) {
-    return event is JobSuccessEvent ||
-        event is JobFailureEvent ||
-        event is JobCancelledEvent ||
-        event is JobTimeoutEvent;
-  }
-
-  // ============ Event Handlers ============
+  // ============ Event Handler ============
 
   /// Unified handler for ALL domain events.
   ///
@@ -211,60 +201,22 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   /// @override
   /// void onEvent(BaseEvent event) {
   ///   switch (event) {
-  ///     // Handle success from OUR jobs
-  ///     case JobSuccessEvent e when isJobRunning(e.correlationId):
-  ///       state = state.copyWith(data: e.data, isLoading: false);
-  ///
-  ///     // Handle failure from OUR jobs
-  ///     case JobFailureEvent e when isJobRunning(e.correlationId):
-  ///       state = state.copyWith(error: e.error.toString(), isLoading: false);
-  ///
-  ///     // Handle domain events (from any source)
+  ///     case UsersLoadedEvent e:
+  ///       state = state.copyWith(users: e.users, isLoading: false);
   ///     case UserCreatedEvent e:
   ///       state = state.copyWith(users: [...state.users, e.user]);
   ///   }
   /// }
   /// ```
-  ///
-  /// ## Design Rationale
-  ///
-  /// This unified approach (matching orchestrator_core v0.6.0):
-  /// - Treats all events equally (no implicit active/passive distinction)
-  /// - Uses Dart 3 pattern matching for clean type handling
-  /// - Use [isJobRunning] to check if an event is from your own job
   void onEvent(BaseEvent event) {}
-
-  // ============ Optional Lifecycle Hooks ============
-
-  /// Called when one of OUR jobs reports progress.
-  ///
-  /// This is a convenience hook - you can also handle [JobProgressEvent]
-  /// in [onEvent] if preferred.
-  void onProgress(JobProgressEvent event) {}
-
-  /// Called when one of OUR jobs starts.
-  ///
-  /// This is a convenience hook - you can also handle [JobStartedEvent]
-  /// in [onEvent] if preferred.
-  void onJobStarted(JobStartedEvent event) {}
-
-  /// Called when one of OUR jobs is retrying.
-  ///
-  /// This is a convenience hook - you can also handle [JobRetryingEvent]
-  /// in [onEvent] if preferred.
-  void onJobRetrying(JobRetryingEvent event) {}
 
   // ============ Lifecycle ============
 
-  /// Dispose resources - call when provider is disposed.
-  ///
-  /// Note: Riverpod handles provider lifecycle automatically,
-  /// but you can call this manually if needed for cleanup.
+  /// Dispose resources - called automatically by Riverpod.
   void dispose() {
     _isDisposed = true;
     _busSubscription?.cancel();
     _busSubscription = null;
     _activeJobIds.clear();
-    _jobProgress.clear();
   }
 }

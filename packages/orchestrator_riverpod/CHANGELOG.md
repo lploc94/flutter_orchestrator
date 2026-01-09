@@ -1,3 +1,59 @@
+## 0.6.0 - 2026-01-09
+
+### ⚠️ BREAKING CHANGES
+
+- **`dispatch()` now returns `JobHandle<T>`** instead of `String`.
+  - This syncs with `BaseOrchestrator` from orchestrator_core.
+  - Migration: Use `dispatch<T>(job)` with type parameter.
+  - For fire-and-forget: Just ignore the return value (no code change needed).
+  - For await: `final result = await dispatch<T>(job).future;`
+
+### Added
+
+- **`OrchestratorAsyncNotifier<S>`**: AsyncNotifier with orchestrator integration.
+  - For async-first patterns where initial state requires async fetch.
+  - State type is `AsyncValue<S>` (loading/error/data).
+
+- **`OrchestratorFamilyAsyncNotifier<S, Arg>`**: FamilyAsyncNotifier variant.
+  - For per-entity async state (e.g., fetch entity details by ID).
+  - Combines family pattern with async initialization.
+
+### Changed
+
+- Updated documentation to use `EventJob` pattern (recommended) instead of deprecated `JobSuccessEvent`.
+- All notifiers now attach `job.bus` for proper scoped bus support.
+- Auto-cleanup of job tracking via `handle.future` instead of terminal events.
+
+### Migration Examples
+
+```dart
+// Fire-and-forget (unchanged)
+void loadUsers() {
+  dispatch<List<User>>(LoadUsersJob());
+}
+
+// Await result (NEW!)
+Future<User?> createUser(String name) async {
+  final handle = dispatch<User>(CreateUserJob(name: name));
+  try {
+    final result = await handle.future;
+    return result.data;
+  } catch (e) {
+    return null;
+  }
+}
+
+// AsyncNotifier (NEW!)
+class UserNotifier extends OrchestratorAsyncNotifier<UserState> {
+  @override
+  Future<UserState> buildState() async {
+    final handle = dispatch<User>(LoadUserJob());
+    final result = await handle.future;
+    return UserState(user: result.data);
+  }
+}
+```
+
 ## 0.6.0-beta.1 - 2026-01-08
 
 ### ⚠️ BREAKING CHANGES
