@@ -1,9 +1,15 @@
+import '../models/event.dart';
 import '../models/job.dart';
 
 /// Mixin that enables undo/redo capabilities for EventJobs.
 ///
 /// Jobs implementing this mixin can be tracked by [UndoStackManager]
 /// and support automatic inverse operation generation.
+///
+/// ## Type Parameters
+///
+/// - [TResult]: The result type of the job (same as EventJob's TResult)
+/// - [TEvent]: The event type emitted by the job (same as EventJob's TEvent)
 ///
 /// ## Design Philosophy
 ///
@@ -21,7 +27,7 @@ import '../models/job.dart';
 ///
 /// ```dart
 /// class CreateChamberJob extends EventJob<Chamber, ChamberCreatedEvent>
-///     with ReversibleJob {
+///     with ReversibleJob<Chamber, ChamberCreatedEvent> {
 ///   final String name;
 ///   CreateChamberJob(this.name);
 ///
@@ -30,9 +36,8 @@ import '../models/job.dart';
 ///       ChamberCreatedEvent(id, result);
 ///
 ///   @override
-///   EventJob createInverse(dynamic result) {
-///     final chamber = result as Chamber;
-///     return DeleteChamberJob(chamber.id);
+///   EventJob createInverse(Chamber result) {  // Typed!
+///     return DeleteChamberJob(result.id);
 ///   }
 ///
 ///   @override
@@ -56,62 +61,59 @@ import '../models/job.dart';
 /// ```dart
 /// // Reversible + Network (offline-capable)
 /// class SyncableCreateJob extends EventJob<Item, ItemCreatedEvent>
-///     with ReversibleJob, NetworkAction {
+///     with ReversibleJob<Item, ItemCreatedEvent>, NetworkAction {
 ///   // ...
 /// }
 /// ```
-mixin ReversibleJob on EventJob {
+mixin ReversibleJob<TResult, TEvent extends BaseEvent>
+    on EventJob<TResult, TEvent> {
   /// Creates the inverse job that will undo this operation.
   ///
-  /// The [result] parameter contains the data returned by executing this job.
-  /// Use it to extract IDs, previous values, or other data needed for reversal.
+  /// The [result] parameter contains the typed data returned by executing
+  /// this job. Use it to extract IDs, previous values, or other data needed
+  /// for reversal.
   ///
   /// ## Implementation Guidelines
   ///
   /// 1. **Create → Delete**: Extract ID from result
   ///    ```dart
   ///    @override
-  ///    EventJob createInverse(dynamic result) {
-  ///      final entity = result as MyEntity;
-  ///      return DeleteMyEntityJob(entity.id);
+  ///    EventJob createInverse(MyEntity result) {
+  ///      return DeleteMyEntityJob(result.id);
   ///    }
   ///    ```
   ///
   /// 2. **Delete → Restore**: Cache deleted data in job for restoration
   ///    ```dart
   ///    class DeleteChamberJob extends EventJob<Chamber, ChamberDeletedEvent>
-  ///        with ReversibleJob {
+  ///        with ReversibleJob<Chamber, ChamberDeletedEvent> {
   ///      final String chamberId;
-  ///      Chamber? _deletedData; // Cache for undo
   ///
   ///      @override
-  ///      EventJob createInverse(dynamic result) {
+  ///      EventJob createInverse(Chamber result) {
   ///        // result contains the deleted chamber data
-  ///        final deleted = result as Chamber;
-  ///        return RestoreChamberJob(deleted);
+  ///        return RestoreChamberJob(result);
   ///      }
   ///    }
   ///    ```
   ///
   /// 3. **Update → Restore Previous**: Store old values
   ///    ```dart
-  ///    class UpdateNameJob extends EventJob<void, NameUpdatedEvent>
-  ///        with ReversibleJob {
+  ///    class UpdateNameJob extends EventJob<OldNewPair, NameUpdatedEvent>
+  ///        with ReversibleJob<OldNewPair, NameUpdatedEvent> {
   ///      final String id;
   ///      final String newName;
-  ///      final String previousName; // Required for undo
   ///
   ///      @override
-  ///      EventJob createInverse(dynamic _) {
+  ///      EventJob createInverse(OldNewPair result) {
   ///        return UpdateNameJob(
   ///          id: id,
-  ///          newName: previousName,
-  ///          previousName: newName,
+  ///          newName: result.oldName,  // Swap back
   ///        );
   ///      }
   ///    }
   ///    ```
-  EventJob createInverse(dynamic result);
+  EventJob createInverse(TResult result);
 
   /// Optional human-readable description for UI display.
   ///

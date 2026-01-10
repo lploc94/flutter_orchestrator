@@ -330,7 +330,8 @@ class UndoStackManager {
   /// ```
   Future<UndoEntry?> undo() async {
     if (!canUndo) {
-      _logger.debug('↩️ UndoStackManager: Nothing to undo (index: $_currentIndex)');
+      _logger.debug(
+          '↩️ UndoStackManager: Nothing to undo (index: $_currentIndex)');
       return null;
     }
 
@@ -344,7 +345,8 @@ class UndoStackManager {
       if (onBeforeUndo != null) {
         final shouldProceed = await onBeforeUndo!(entry);
         if (!shouldProceed) {
-          _logger.debug('↩️ UndoStackManager: Undo cancelled by onBeforeUndo callback');
+          _logger.debug(
+              '↩️ UndoStackManager: Undo cancelled by onBeforeUndo callback');
           return null;
         }
       }
@@ -395,7 +397,8 @@ class UndoStackManager {
       if (onBeforeRedo != null) {
         final shouldProceed = await onBeforeRedo!(entry);
         if (!shouldProceed) {
-          _logger.debug('🔄 UndoStackManager: Redo cancelled by onBeforeRedo callback');
+          _logger.debug(
+              '🔄 UndoStackManager: Redo cancelled by onBeforeRedo callback');
           return null;
         }
       }
