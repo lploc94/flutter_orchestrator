@@ -1,21 +1,36 @@
-# Domain Event Architecture v3 - Part 1: Research & Patterns
+# RFC 006: Domain Event Architecture v3
 
-## Research Summary
+**Status**: ✅ Implemented
+**Version**: 0.6.0
+**Context**: Simplify event system - remove framework events, use domain events only
 
-### 1. Command/Handler Pattern (CQRS)
+---
 
-Dart community dùng pattern này cho type-safe command handling:
+## 1. Problem Statement
+
+Framework v0.5.x has too many event types (framework + domain):
+- `JobSuccessEvent`, `JobFailureEvent`, `JobCacheHitEvent`, etc.
+- Complex Active/Passive hooks in Orchestrator
+- Hard to debug, hard to understand flow
+
+**Goal**: Use only domain events defined by Jobs themselves.
+
+---
+
+## 2. Research Summary
+
+### 2.1. Command/Handler Pattern (CQRS)
 
 ```dart
-// Command với result type
+// Command with result type
 abstract class Command<TResult> {}
 
-// Handler biết command type và result type
+// Handler knows command type and result type
 abstract class CommandHandler<TCommand extends Command<TResult>, TResult> {
   Future<TResult> handle(TCommand command);
 }
 
-// Dispatcher dùng Map<Type, Handler>
+// Dispatcher uses Map<Type, Handler>
 class Dispatcher {
   final Map<Type, dynamic> _handlers = {};
 
@@ -32,13 +47,9 @@ class Dispatcher {
 }
 ```
 
-**Key insight**: Type inference hoạt động khi REGISTER handler, không phải khi dispatch.
+**Key insight**: Type inference works at REGISTER time, not dispatch time.
 
----
-
-### 2. Result/Either Pattern
-
-Thay vì throw exception, return explicit Result:
+### 2.2. Result/Either Pattern
 
 ```dart
 sealed class Result<T, E> {
@@ -55,12 +66,6 @@ final class Err<T, E> extends Result<T, E> {
   const Err(this.error);
 }
 
-// Usage
-Result<User, String> createUser(String name) {
-  if (name.isEmpty) return Err('Name cannot be empty');
-  return Ok(User(name: name));
-}
-
 // Pattern matching (Dart 3)
 final result = createUser('John');
 switch (result) {
@@ -69,122 +74,37 @@ switch (result) {
 }
 ```
 
----
-
-### 3. Dart Type Inference Limitations
+### 2.3. Dart Type Inference Limitations
 
 **Dart CANNOT infer return type from parameter type**:
 
 ```dart
-// ❌ Không hoạt động như mong đợi
+// ❌ Does not work as expected
 T dispatch<T>(Command<T> command) {
-  // Dart không infer T từ command
+  // Dart cannot infer T from command
 }
 
-final result = dispatch(CreateUserCommand());  // result là dynamic!
+final result = dispatch(CreateUserCommand());  // result is dynamic!
 ```
 
 **Solutions**:
 1. **Explicit type**: `dispatch<User>(CreateUserCommand())`
-2. **Runtime cast**: Cast internally trong dispatcher
-3. **Type từ Handler**: Register handler với type, dispatch lookup handler
+2. **Runtime cast**: Cast internally in dispatcher
+3. **Type from Handler**: Register handler with type, dispatch looks up handler
 
 ---
 
-## Applying to Our Architecture
+## 3. Chosen Approach: Hybrid (Option A + C)
 
-### Option A: Job<TResult, TEvent> Pattern
-
-```dart
-abstract class Job<TResult, TEvent extends BaseEvent> extends BaseJob {
-  TEvent createEvent(TResult result);
-}
-
-class LoadUsersJob extends Job<List<User>, UsersLoadedEvent> {
-  @override
-  UsersLoadedEvent createEvent(List<User> result) {
-    return UsersLoadedEvent(correlationId: id, users: result);
-  }
-}
-```
-
-**Pro**: Type-safe, compiler biết TResult và TEvent
-**Con**: Verbose khi dispatch: `dispatch<List<User>, UsersLoadedEvent>(job)`
+Combines:
+- **Job<TResult, TEvent>**: Type-safe, Job knows result type
+- **Executor inference**: Executor infers types from Job when processing
 
 ---
 
-### Option B: Job với Type Erasure + Runtime Cast
+## 4. Core Design
 
-```dart
-abstract class EventEmittingJob extends BaseJob {
-  BaseEvent createEvent(dynamic result);
-  Type get resultType;
-}
-
-class LoadUsersJob extends EventEmittingJob {
-  @override
-  Type get resultType => List<User>;
-
-  @override
-  UsersLoadedEvent createEvent(dynamic result) {
-    return UsersLoadedEvent(
-      correlationId: id,
-      users: result as List<User>,
-    );
-  }
-}
-```
-
-**Pro**: Simple dispatch: `dispatch(job)`
-**Con**: Runtime cast, không type-safe
-
----
-
-### Option C: Typed Job Registry (CQRS-style) ⭐ RECOMMENDED
-
-```dart
-// Job chỉ define input, không có TResult
-abstract class BaseJob {
-  String get id;
-}
-
-// Executor biết Job type và Result type
-abstract class JobExecutor<TJob extends BaseJob, TResult, TEvent extends BaseEvent> {
-  Future<TResult> process(TJob job);
-  TEvent createEvent(TJob job, TResult result);
-  String? getCacheKey(TJob job) => null;
-}
-
-// Register executor với type
-dispatcher.register<LoadUsersJob, List<User>, UsersLoadedEvent>(
-  LoadUsersExecutor()
-);
-
-// Dispatch - type từ registered executor
-final handle = dispatcher.dispatch(LoadUsersJob());
-```
-
-**Pro**:
-- Type-safe tại registration time
-- Simple dispatch syntax
-- Follows CQRS pattern (Job = Command, Executor = Handler)
-
-**Con**:
-- Executor và Job tách biệt
-- Cần register mỗi cặp Job-Executor
-# Domain Event Architecture v3 - Part 2: Final Design
-
-## Chosen Approach: Hybrid (Option A + C)
-
-Kết hợp:
-- **Job<TResult, TEvent>**: Type-safe, Job biết result type
-- **Executor inference**: Executor infer types từ Job khi process
-
----
-
-## Core Design
-
-### 1. BaseEvent (Minimal)
+### 4.1. BaseEvent (Minimal)
 
 ```dart
 abstract class BaseEvent {
@@ -200,48 +120,45 @@ abstract class BaseEvent {
     DateTime? timestamp,
   })  : id = id ?? _generateId(),
         timestamp = timestamp ?? DateTime.now();
-
-  static String _generateId() =>
-    '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(0xFFFFFF).toRadixString(16)}';
 }
 ```
 
-### 2. DataSource
+### 4.2. DataSource
 
 ```dart
 enum DataSource { fresh, cached, optimistic }
 ```
 
-### 3. Job Hierarchy
+### 4.3. Job Hierarchy
 
 ```dart
-/// Base job - tất cả jobs kế thừa
+/// Base job - all jobs inherit from this
 abstract class BaseJob {
   final String id;
   BaseJob({String? id}) : id = id ?? generateJobId();
 }
 
-/// Job có khả năng emit event
-/// TResult: Kiểu dữ liệu worker trả về
-/// TEvent: Kiểu event được emit
+/// Job capable of emitting events
+/// TResult: Data type returned by worker
+/// TEvent: Event type to emit
 abstract class EventJob<TResult, TEvent extends BaseEvent> extends BaseJob {
   EventJob({super.id});
 
-  /// Tạo event từ result - correlationId = job.id
+  /// Create event from result - correlationId = job.id
   TEvent createEvent(TResult result);
 
-  /// Cache key (null = không cache)
+  /// Cache key (null = no caching)
   String? get cacheKey => null;
 
   /// Cache TTL
   Duration? get cacheTtl => null;
 
-  /// SWR: Có revalidate sau cache hit?
+  /// SWR: Revalidate after cache hit?
   bool get revalidate => false;
 }
 ```
 
-### 4. Example Jobs
+### 4.4. Example Jobs
 
 ```dart
 class LoadUsersJob extends EventJob<List<User>, UsersLoadedEvent> {
@@ -277,11 +194,11 @@ class CreateUserJob extends EventJob<User, UserCreatedEvent> {
       email: result.email,
     );
   }
-  // Không cache mutation
+  // No caching for mutations
 }
 ```
 
-### 5. JobHandle
+### 4.5. JobHandle
 
 ```dart
 class JobHandle<T> {
@@ -295,7 +212,6 @@ class JobHandle<T> {
   bool get isCompleted => _completer.isCompleted;
 
   JobHandle(this.jobId) {
-    // Prevent uncaught async error
     _completer.future.ignore();
   }
 
@@ -342,9 +258,9 @@ class JobProgress {
 
 ---
 
-## Executor Design
+## 5. Executor Design
 
-### BaseExecutor
+### 5.1. BaseExecutor
 
 ```dart
 abstract class BaseExecutor<TJob extends BaseJob> {
@@ -355,17 +271,15 @@ abstract class BaseExecutor<TJob extends BaseJob> {
       : _bus = bus ?? SignalBus.instance,
         _cache = cache ?? OrchestratorConfig.cacheProvider;
 
-  /// Override này để implement business logic
+  /// Override to implement business logic
   Future<dynamic> process(TJob job);
 
-  /// Entry point - được gọi bởi Dispatcher
+  /// Entry point - called by Dispatcher
   Future<void> execute(TJob job, {JobHandle? handle}) async {
     try {
-      // Handle EventJob với cache + event emission
       if (job is EventJob) {
         await _executeEventJob(job, handle);
       } else {
-        // Regular job - không cache, không event
         final result = await process(job);
         handle?.complete(result, DataSource.fresh);
       }
@@ -384,21 +298,18 @@ abstract class BaseExecutor<TJob extends BaseJob> {
     if (cacheKey != null) {
       final cached = await _cache.read(cacheKey);
       if (cached != null) {
-        // Recreate event với correlationId MỚI (job hiện tại)
         final event = job.createEvent(cached);
         _bus.emit(event);
         handle?.complete(cached, DataSource.cached);
 
-        // SWR: không revalidate thì stop
         if (!job.revalidate) return;
-        // Else: continue, handle đã complete
       }
     }
 
     // 2. Execute worker
     final result = await process(job as TJob);
 
-    // 3. Cache result (data, không phải event)
+    // 3. Cache result
     if (cacheKey != null) {
       await _cache.write(cacheKey, result, ttl: job.cacheTtl);
     }
@@ -407,13 +318,13 @@ abstract class BaseExecutor<TJob extends BaseJob> {
     final event = job.createEvent(result);
     _bus.emit(event);
 
-    // 5. Complete handle (nếu chưa complete bởi cache)
+    // 5. Complete handle
     handle?.complete(result, DataSource.fresh);
   }
 }
 ```
 
-### Example Executor
+### 5.2. Example Executor
 
 ```dart
 class UserExecutor extends BaseExecutor<BaseJob> {
@@ -435,9 +346,9 @@ class UserExecutor extends BaseExecutor<BaseJob> {
 
 ---
 
-## Orchestrator Design
+## 6. Orchestrator Design
 
-### BaseOrchestrator (Simplified)
+### 6.1. BaseOrchestrator (Simplified)
 
 ```dart
 abstract class BaseOrchestrator<S> {
@@ -465,7 +376,7 @@ abstract class BaseOrchestrator<S> {
     }
   }
 
-  /// Override để handle domain events
+  /// Override to handle domain events
   @protected
   void onEvent(BaseEvent event) {}
 
@@ -494,7 +405,7 @@ abstract class BaseOrchestrator<S> {
 }
 ```
 
-### Example Orchestrator
+### 6.2. Example Orchestrator
 
 ```dart
 class UserOrchestrator extends BaseOrchestrator<UserState> {
@@ -543,7 +454,7 @@ class UserOrchestrator extends BaseOrchestrator<UserState> {
 
 ---
 
-## UI Usage Pattern
+## 7. UI Usage Pattern
 
 ```dart
 class UserScreen extends StatefulWidget {
@@ -570,7 +481,6 @@ class _UserScreenState extends State<UserScreen> {
       final result = await handle.future;
 
       if (result.isCached) {
-        // Optionally show indicator that data is from cache
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Showing cached data...')),
         );
@@ -614,12 +524,13 @@ class _UserScreenState extends State<UserScreen> {
   }
 }
 ```
-# Domain Event Architecture v3 - Part 3: Implementation Plan
 
-## Summary of Changes
+---
 
-| Component | Current | New |
-|-----------|---------|-----|
+## 8. Breaking Changes Summary
+
+| Component | v0.5.x | v0.6.0 |
+|-----------|--------|--------|
 | **Events** | Framework + Domain | Domain only |
 | **Cache** | Raw data | Raw data (unchanged) |
 | **Event creation** | Executor emits JobSuccessEvent | Job.createEvent() emits domain event |
@@ -629,9 +540,8 @@ class _UserScreenState extends State<UserScreen> {
 
 ---
 
-## Files to DELETE
+## 9. Deleted Framework Events
 
-### Events (lib/src/models/event.dart)
 ```dart
 // DELETE these classes:
 - JobSuccessEvent
@@ -645,7 +555,10 @@ class _UserScreenState extends State<UserScreen> {
 - JobRetryingEvent
 ```
 
-### Orchestrator hooks (lib/src/base/base_orchestrator.dart)
+---
+
+## 10. Deleted Orchestrator Hooks
+
 ```dart
 // DELETE these methods:
 - onActiveSuccess()
@@ -653,7 +566,7 @@ class _UserScreenState extends State<UserScreen> {
 - onActiveCancelled()
 - onActiveTimeout()
 - onActiveEvent()
-- onPassiveEvent()  // rename to onEvent()
+- onPassiveEvent()  // renamed to onEvent()
 - onProgress()
 - onJobStarted()
 - onJobRetrying()
@@ -665,162 +578,10 @@ class _UserScreenState extends State<UserScreen> {
 
 ---
 
-## Files to MODIFY
-
-### 1. lib/src/models/event.dart
-- Keep only BaseEvent
-- Simplify BaseEvent fields
-
-### 2. lib/src/models/job.dart
-- Add EventJob<TResult, TEvent> class
-
-### 3. lib/src/models/job_handle.dart
-- Add progress stream
-- Return JobResult instead of raw data
-- Add JobProgress class
-- Add JobResult class
-
-### 4. lib/src/models/data_source.dart
-- Already exists, keep as is
-
-### 5. lib/src/base/base_executor.dart
-- Update execute() flow
-- Handle EventJob specially
-- Cache data, recreate event
-
-### 6. lib/src/base/base_orchestrator.dart
-- Remove Active/Passive
-- Single onEvent() method
-- Simplify dispatch()
-
-### 7. lib/src/infra/dispatcher.dart
-- Update dispatch signature if needed
-
----
-
-## Files to CREATE
-
-None - all changes fit in existing files
-
----
-
-## Implementation Phases
-
-### Phase 1: Add New Classes (Non-breaking)
-1. Add `EventJob<TResult, TEvent>` to job.dart
-2. Add `JobResult<T>` to job_handle.dart
-3. Add `JobProgress` to job_handle.dart
-4. Update `JobHandle` with progress stream
-
-### Phase 2: Update Executor
-1. Update execute() to handle EventJob
-2. Cache data, create event on cache hit
-3. Support SWR via job.revalidate
-
-### Phase 3: Update Orchestrator
-1. Add onEvent() method
-2. Remove Active/Passive distinction
-3. Simplify internal routing
-
-### Phase 4: Cleanup (Breaking)
-1. Delete framework events
-2. Delete old hooks
-3. Update all tests
-
----
-
-## Test Cases
-
-### EventJob Tests
-```dart
-test('EventJob.createEvent creates correct event', () {
-  final job = LoadUsersJob();
-  final users = [User(id: '1', name: 'John')];
-  final event = job.createEvent(users);
-
-  expect(event, isA<UsersLoadedEvent>());
-  expect(event.correlationId, equals(job.id));
-  expect(event.users, equals(users));
-});
-```
-
-### Cache + Event Tests
-```dart
-test('Cache hit emits event with new correlationId', () async {
-  // Setup: Pre-populate cache
-  await cache.write('users', [User(id: '1', name: 'John')]);
-
-  // Execute
-  final job = LoadUsersJob();
-  executor.execute(job, handle: handle);
-
-  // Verify: Event has job's correlationId, not old one
-  final emittedEvent = await bus.stream.first;
-  expect(emittedEvent.correlationId, equals(job.id));
-});
-
-test('SWR: Cache hit completes handle, then worker emits fresh', () async {
-  // Setup
-  await cache.write('users', [cachedUser]);
-  final job = LoadUsersJob(); // revalidate = true
-
-  // Execute
-  executor.execute(job, handle: handle);
-
-  // Verify: Handle completes with cached
-  final result1 = await handle.future;
-  expect(result1.source, equals(DataSource.cached));
-
-  // Verify: Fresh event emitted later
-  final events = await bus.stream.take(2).toList();
-  expect(events[0].users, equals([cachedUser]));  // cached
-  expect(events[1].users, equals([freshUser]));   // fresh
-});
-```
-
-### Orchestrator Tests
-```dart
-test('onEvent receives all domain events', () async {
-  final events = <BaseEvent>[];
-  orchestrator.onEvent = (e) => events.add(e);
-
-  // Dispatch from this orchestrator
-  orchestrator.dispatch(LoadUsersJob());
-
-  // Emit from another source
-  bus.emit(UserCreatedEvent(...));
-
-  await Future.delayed(Duration(milliseconds: 50));
-
-  expect(events.length, equals(2));
-  expect(events[0], isA<UsersLoadedEvent>());
-  expect(events[1], isA<UserCreatedEvent>());
-});
-```
-
-### JobHandle Progress Tests
-```dart
-test('handle.progress receives progress updates', () async {
-  final handle = JobHandle<void>('test');
-  final progressValues = <double>[];
-
-  handle.progress.listen((p) => progressValues.add(p.value));
-
-  handle.reportProgress(0.25);
-  handle.reportProgress(0.50);
-  handle.reportProgress(1.0);
-
-  await Future.delayed(Duration(milliseconds: 10));
-
-  expect(progressValues, equals([0.25, 0.50, 1.0]));
-});
-```
-
----
-
-## Migration Guide for Users
+## 11. Migration Guide
 
 ### Before (v0.5.x)
+
 ```dart
 class MyOrchestrator extends BaseOrchestrator<MyState> {
   @override
@@ -849,7 +610,8 @@ class LoadUsersJob extends BaseJob {
 }
 ```
 
-### After (v1.0.0)
+### After (v0.6.0)
+
 ```dart
 class MyOrchestrator extends BaseOrchestrator<MyState> {
   @override
@@ -883,7 +645,16 @@ class LoadUsersJob extends EventJob<List<User>, UsersLoadedEvent> {
 
 ---
 
-## Version Bump
+## 12. Implementation Checklist
 
-Current: 0.5.2
-New: **1.0.0** (Major breaking change)
+- [x] Simplify BaseEvent (remove framework fields)
+- [x] Add EventJob<TResult, TEvent> class
+- [x] Add JobResult<T> wrapper
+- [x] Add JobProgress class
+- [x] Update JobHandle with progress stream
+- [x] Update BaseExecutor to handle EventJob
+- [x] Simplify BaseOrchestrator (single onEvent)
+- [x] Remove framework event classes
+- [x] Remove Active/Passive distinction
+- [x] Update all tests
+- [x] Migration guide

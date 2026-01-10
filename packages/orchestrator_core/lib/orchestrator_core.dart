@@ -60,3 +60,8 @@ export 'src/utils/job_result.dart';
 export 'src/utils/state_patterns.dart';
 export 'src/utils/orchestrator_helpers.dart';
 export 'src/utils/saga_flow.dart';
+
+// Undo/Redo
+export 'src/mixins/reversible_job.dart';
+export 'src/models/undo_entry.dart';
+export 'src/undo/undo_stack_manager.dart';
