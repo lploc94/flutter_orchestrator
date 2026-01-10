@@ -37,7 +37,8 @@ import 'package:orchestrator_core/orchestrator_core.dart';
 ///   ForageNotifier.new,
 /// );
 /// ```
-abstract class OrchestratorFamilyNotifier<S, Arg> extends FamilyNotifier<S, Arg> {
+abstract class OrchestratorFamilyNotifier<S, Arg>
+    extends FamilyNotifier<S, Arg> {
   SignalBus _bus = SignalBus.instance;
   Dispatcher _dispatcher = Dispatcher();
 
@@ -74,6 +75,9 @@ abstract class OrchestratorFamilyNotifier<S, Arg> extends FamilyNotifier<S, Arg>
 
   bool isJobRunning(String correlationId) =>
       _activeJobIds.contains(correlationId);
+
+  /// Check if an event corresponds to a job tracked by this notifier.
+  bool isMyJob(BaseEvent event) => isJobRunning(event.correlationId);
 
   /// Dispatch a job and start tracking it.
   ///

@@ -111,6 +111,11 @@ abstract class OrchestratorNotifier<S> extends Notifier<S> {
   bool isJobRunning(String correlationId) =>
       _activeJobIds.contains(correlationId);
 
+  /// Check if an event corresponds to a job tracked by this notifier.
+  ///
+  /// This is a convenience method for `isJobRunning(event.correlationId)`.
+  bool isMyJob(BaseEvent event) => isJobRunning(event.correlationId);
+
   /// Dispatch a job and start tracking it.
   ///
   /// Returns a [JobHandle] that allows the caller to:
